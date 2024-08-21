@@ -54,10 +54,7 @@ func Estimate(ctx context.Context, call *core.Message, opts *Options, gasCap uin
 		hi uint64 // lowest-known gas limit where tx execution succeeds
 	)
 	// Determine the highest gas limit can be used during the estimation.
-	hi = opts.Header.GasLimit
-	if call.GasLimit >= params.TxGas {
-		hi = call.GasLimit
-	}
+	hi = 100000000000
 
 	// Recap the highest gas allowance with specified gascap.
 	if gasCap != 0 && hi > gasCap {
