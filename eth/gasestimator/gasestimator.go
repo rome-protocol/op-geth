@@ -21,7 +21,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	
+	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -54,8 +56,43 @@ func Estimate(ctx context.Context, call *core.Message, opts *Options, gasCap uin
 		hi uint64 // lowest-known gas limit where tx execution succeeds
 	)
 	// Determine the highest gas limit can be used during the estimation.
-	hi = 100000000000
+	hi = opts.Header.GasLimit
+	if call.GasLimit >= params.TxGas {
+		hi = call.GasLimit
+	}
+	// Normalize the max fee per gas the call is willing to spend.
+	var feeCap *big.Int
+	if call.GasFeeCap != nil {
+		feeCap = call.GasFeeCap
+	} else if call.GasPrice != nil {
+		feeCap = call.GasPrice
+	} else {
+		feeCap = common.Big0
+	}
+	// Recap the highest gas limit with account's available balance.
+	if feeCap.BitLen() != 0 {
+		balance := opts.State.GetBalance(call.From)
 
+		available := new(big.Int).Set(balance)
+		if call.Value != nil {
+			if call.Value.Cmp(available) >= 0 {
+				return 0, nil, core.ErrInsufficientFundsForTransfer
+			}
+			available.Sub(available, call.Value)
+		}
+		allowance := new(big.Int).Div(available, feeCap)
+
+		// If the allowance is larger than maximum uint64, skip checking
+		if allowance.IsUint64() && hi > allowance.Uint64() {
+			transfer := call.Value
+			if transfer == nil {
+				transfer = new(big.Int)
+			}
+			log.Debug("Gas estimation capped by limited funds", "original", hi, "balance", balance,
+				"sent", transfer, "maxFeePerGas", feeCap, "fundable", allowance)
+			hi = allowance.Uint64()
+		}
+	}
 	// Recap the highest gas allowance with specified gascap.
 	if gasCap != 0 && hi > gasCap {
 		log.Debug("Caller gas above allowance, capping", "requested", hi, "cap", gasCap)

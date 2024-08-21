@@ -634,7 +634,27 @@ func (b *SimulatedBackend) EstimateGas(ctx context.Context, call ethereum.CallMs
 	} else {
 		feeCap = common.Big0
 	}
-
+	// Recap the highest gas allowance with account's balance.
+	if feeCap.BitLen() != 0 {
+		balance := b.pendingState.GetBalance(call.From) // from can't be nil
+		available := new(big.Int).Set(balance)
+		if call.Value != nil {
+			if call.Value.Cmp(available) >= 0 {
+				return 0, core.ErrInsufficientFundsForTransfer
+			}
+			available.Sub(available, call.Value)
+		}
+		allowance := new(big.Int).Div(available, feeCap)
+		if allowance.IsUint64() && hi > allowance.Uint64() {
+			transfer := call.Value
+			if transfer == nil {
+				transfer = new(big.Int)
+			}
+			log.Warn("Gas estimation capped by limited funds", "original", hi, "balance", balance,
+				"sent", transfer, "feecap", feeCap, "fundable", allowance)
+			hi = allowance.Uint64()
+		}
+	}
 	cap = hi
 
 	// Create a helper to check if a gas allowance results in an executable transaction
@@ -668,6 +688,23 @@ func (b *SimulatedBackend) EstimateGas(ctx context.Context, call ethereum.CallMs
 			lo = mid
 		} else {
 			hi = mid
+		}
+	}
+	// Reject the transaction as invalid if it still fails at the highest allowance
+	if hi == cap {
+		failed, result, err := executable(hi)
+		if err != nil {
+			return 0, err
+		}
+		if failed {
+			if result != nil && !errors.Is(result.Err, vm.ErrOutOfGas) {
+				if len(result.Revert()) > 0 {
+					return 0, newRevertError(result)
+				}
+				return 0, result.Err
+			}
+			// Otherwise, the specified gas cap is too low
+			return 0, fmt.Errorf("gas required exceeds allowance (%d)", cap)
 		}
 	}
 	return hi, nil
