@@ -19,9 +19,12 @@ package ethapi
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/big"
+	"net/http"
 	"strings"
 	"time"
 
@@ -70,6 +73,7 @@ func NewEthereumAPI(b Backend) *EthereumAPI {
 
 // GasPrice returns a suggestion for a gas price for legacy transactions.
 func (s *EthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
+	log.Info("enter EthereumAPI GasPrice")
 	tipcap, err := s.b.SuggestGasTipCap(ctx)
 	if err != nil {
 		return nil, err
@@ -77,11 +81,49 @@ func (s *EthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
 	if head := s.b.CurrentHeader(); head.BaseFee != nil {
 		tipcap.Add(tipcap, head.BaseFee)
 	}
-	return (*hexutil.Big)(tipcap), err
+	gasPrice, err := fetchRomeGasPrice(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// gasPrice := big.NewInt(999999 * params.GWei)
+	return (*hexutil.Big)(gasPrice), nil
+	// return (*hexutil.Big)(tipcap), err
+}
+
+type RomeGasResponse struct {
+	Number int64 `json:"number"`
+}
+
+func fetchRomeGasPrice(ctx context.Context) (*big.Int, error) {
+	// Fetch the gas price from the Rome gas price oracle
+	url := "http://localhost:10000/hello"
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var response RomeGasResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, err
+	}
+
+	// Return the number from the response
+	return big.NewInt(response.Number), nil
 }
 
 // MaxPriorityFeePerGas returns a suggestion for a gas tip cap for dynamic fee transactions.
 func (s *EthereumAPI) MaxPriorityFeePerGas(ctx context.Context) (*hexutil.Big, error) {
+	log.Info("enter EthereumAPI MaxPriorityFeePerGas")
 	tipcap, err := s.b.SuggestGasTipCap(ctx)
 	if err != nil {
 		return nil, err

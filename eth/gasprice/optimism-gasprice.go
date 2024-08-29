@@ -36,6 +36,7 @@ import (
 // returning a suggestion that is a significant amount (10%) higher than the median effective
 // priority fee from the previous block.
 func (oracle *Oracle) SuggestOptimismPriorityFee(ctx context.Context, h *types.Header, headHash common.Hash) *big.Int {
+	log.Info("enter SuggestOptimismPriorityFee")
 	suggestion := new(big.Int).Set(oracle.minSuggestedPriorityFee)
 
 	// find the maximum gas used by any of the transactions in the block to use as the capacity

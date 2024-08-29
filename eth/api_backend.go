@@ -391,6 +391,7 @@ func (b *EthAPIBackend) SyncProgress() ethereum.SyncProgress {
 }
 
 func (b *EthAPIBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
+	log.Info("enter eth api backend SuggestGasTipCap")
 	return b.gpo.SuggestTipCap(ctx)
 }
 
