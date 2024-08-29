@@ -88,10 +88,6 @@ func (s *EthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
 	// return (*hexutil.Big)(tipcap), err
 }
 
-type RomeGasResponse struct {
-	Number int64 `json:"number"`
-}
-
 // MaxPriorityFeePerGas returns a suggestion for a gas tip cap for dynamic fee transactions.
 func (s *EthereumAPI) MaxPriorityFeePerGas(ctx context.Context) (*hexutil.Big, error) {
 	log.Info("enter EthereumAPI MaxPriorityFeePerGas")
@@ -1376,6 +1372,10 @@ func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64,
 
 	// Return the number from the response
 	return hexutil.Uint64(response.Number), nil
+}
+
+type RomeGasResponse struct {
+	Number int64 `json:"number"`
 }
 
 // RPCMarshalHeader converts the given header to the RPC output .
