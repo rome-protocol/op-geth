@@ -1375,7 +1375,6 @@ func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64,
 		return 0, err
 	}
 
-	// Return the number from the response
 	return hexutil.Uint64(response.Number), nil
 }
 
