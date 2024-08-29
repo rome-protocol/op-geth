@@ -74,51 +74,22 @@ func NewEthereumAPI(b Backend) *EthereumAPI {
 // GasPrice returns a suggestion for a gas price for legacy transactions.
 func (s *EthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
 	log.Info("enter EthereumAPI GasPrice")
-	tipcap, err := s.b.SuggestGasTipCap(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if head := s.b.CurrentHeader(); head.BaseFee != nil {
-		tipcap.Add(tipcap, head.BaseFee)
-	}
-	gasPrice, err := fetchRomeGasPrice(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// gasPrice := big.NewInt(999999 * params.GWei)
+
+	gasPrice := big.NewInt(1 * params.GWei)
 	return (*hexutil.Big)(gasPrice), nil
+
+	// tipcap, err := s.b.SuggestGasTipCap(ctx)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// if head := s.b.CurrentHeader(); head.BaseFee != nil {
+	// 	tipcap.Add(tipcap, head.BaseFee)
+	// }
 	// return (*hexutil.Big)(tipcap), err
 }
 
 type RomeGasResponse struct {
 	Number int64 `json:"number"`
-}
-
-func fetchRomeGasPrice(ctx context.Context) (*big.Int, error) {
-	// Fetch the gas price from the Rome gas price oracle
-	url := "http://localhost:10000/hello"
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	var response RomeGasResponse
-	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, err
-	}
-
-	// Return the number from the response
-	return big.NewInt(response.Number), nil
 }
 
 // MaxPriorityFeePerGas returns a suggestion for a gas tip cap for dynamic fee transactions.
@@ -1311,6 +1282,7 @@ func (s *BlockChainAPI) Call(ctx context.Context, args TransactionArgs, blockNrO
 // there are unexpected failures. The gas limit is capped by both `args.Gas` (if non-nil &
 // non-zero) and `gasCap` (if non-zero).
 func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides *StateOverride, gasCap uint64) (hexutil.Uint64, error) {
+	log.Info("enter EthereumAPI DoEstimateGas")
 	// Retrieve the base state and mutate it with any overrides
 	state, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
 	if state == nil || err != nil {
@@ -1349,30 +1321,61 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 // configuration (if non-zero).
 // Note: Required blob gas is not computed in this method.
 func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash, overrides *StateOverride) (hexutil.Uint64, error) {
-	bNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
-	if blockNrOrHash != nil {
-		bNrOrHash = *blockNrOrHash
-	}
+	log.Info("enter EthereumAPI EstimateGas")
 
-	header, err := headerByNumberOrHash(ctx, s.b, bNrOrHash)
+	return estimateRomeGas(ctx, args)
+
+	// bNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
+	// if blockNrOrHash != nil {
+	// 	bNrOrHash = *blockNrOrHash
+	// }
+
+	// header, err := headerByNumberOrHash(ctx, s.b, bNrOrHash)
+	// if err != nil {
+	// 	return 0, err
+	// }
+
+	// if s.b.ChainConfig().IsOptimismPreBedrock(header.Number) {
+	// 	if s.b.HistoricalRPCService() != nil {
+	// 		var res hexutil.Uint64
+	// 		err := s.b.HistoricalRPCService().CallContext(ctx, &res, "eth_estimateGas", args, blockNrOrHash)
+	// 		if err != nil {
+	// 			return 0, fmt.Errorf("historical backend error: %w", err)
+	// 		}
+	// 		return res, nil
+	// 	} else {
+	// 		return 0, rpc.ErrNoHistoricalFallback
+	// 	}
+	// }
+
+	// return DoEstimateGas(ctx, s.b, args, bNrOrHash, overrides, s.b.RPCGasCap())
+}
+
+func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64, error) {
+	// Fetch the gas price from the Rome gas price oracle
+	url := "http://localhost:10000/hello"
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return 0, err
 	}
 
-	if s.b.ChainConfig().IsOptimismPreBedrock(header.Number) {
-		if s.b.HistoricalRPCService() != nil {
-			var res hexutil.Uint64
-			err := s.b.HistoricalRPCService().CallContext(ctx, &res, "eth_estimateGas", args, blockNrOrHash)
-			if err != nil {
-				return 0, fmt.Errorf("historical backend error: %w", err)
-			}
-			return res, nil
-		} else {
-			return 0, rpc.ErrNoHistoricalFallback
-		}
+	var response RomeGasResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return 0, err
 	}
 
-	return DoEstimateGas(ctx, s.b, args, bNrOrHash, overrides, s.b.RPCGasCap())
+	// Return the number from the response
+	return hexutil.Uint64(response.Number), nil
 }
 
 // RPCMarshalHeader converts the given header to the RPC output .
