@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -1347,10 +1348,14 @@ func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, b
 	// return DoEstimateGas(ctx, s.b, args, bNrOrHash, overrides, s.b.RPCGasCap())
 }
 
+// Fetch gas estimate from Rome gasometer
 func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64, error) {
-	// Fetch the gas price from the Rome gas price oracle
-	url := "http://localhost:10000/hello"
-	req, err := http.NewRequest("GET", url, nil)
+	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
+	if gasometerUrl == "" {
+		return 0, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
+	}
+
+	req, err := http.NewRequest("GET", gasometerUrl, nil)
 	if err != nil {
 		return 0, err
 	}
