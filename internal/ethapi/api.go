@@ -1347,6 +1347,7 @@ func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, b
 
 // Fetch gas estimate from Rome gasometer
 func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64, error) {
+	log.Info("enter estimateRomeGas with args", "args", args)
 	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
 	if gasometerUrl == "" {
 		return 0, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
@@ -1357,17 +1358,13 @@ func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64,
 	}
 	defer client.Close()
 
-	var estimatedGas uint64
+	var estimatedGas hexutil.Uint64
 	err = client.CallContext(ctx, &estimatedGas, "eth_estimateGas", args)
 	if err != nil {
 		return 0, err
 	}
 
-	return hexutil.Uint64(estimatedGas), nil
-}
-
-type RomeGasResponse struct {
-	Number int64 `json:"number"`
+	return estimatedGas, nil
 }
 
 // RPCMarshalHeader converts the given header to the RPC output .
