@@ -19,12 +19,9 @@ package ethapi
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/big"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -1354,28 +1351,19 @@ func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64,
 	if gasometerUrl == "" {
 		return 0, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
 	}
+	client, err := rpc.Dial(gasometerUrl)
+	if err != nil {
+		log.Error("Failed to connect to the Ethereum client: %v", err)
+	}
+	defer client.Close()
 
-	req, err := http.NewRequest("GET", gasometerUrl, nil)
-	if err != nil {
-		return 0, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	var estimatedGas uint64
+	err = client.CallContext(ctx, &estimatedGas, "eth_estimateGas", args)
 	if err != nil {
 		return 0, err
 	}
 
-	var response RomeGasResponse
-	if err := json.Unmarshal(body, &response); err != nil {
-		return 0, err
-	}
-
-	return hexutil.Uint64(response.Number), nil
+	return hexutil.Uint64(estimatedGas), nil
 }
 
 type RomeGasResponse struct {
