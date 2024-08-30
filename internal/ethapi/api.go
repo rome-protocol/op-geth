@@ -72,9 +72,7 @@ func NewEthereumAPI(b Backend) *EthereumAPI {
 func (s *EthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
 	log.Info("enter EthereumAPI GasPrice")
 
-	// TODO: Use Rome gasometer
-	gasPrice := big.NewInt(1 * params.GWei)
-	return (*hexutil.Big)(gasPrice), nil
+	return fetchRomeGasPrice(ctx)
 
 	// tipcap, err := s.b.SuggestGasTipCap(ctx)
 	// if err != nil {
@@ -84,6 +82,31 @@ func (s *EthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
 	// 	tipcap.Add(tipcap, head.BaseFee)
 	// }
 	// return (*hexutil.Big)(tipcap), err
+}
+
+func fetchRomeGasPrice(ctx context.Context) (*hexutil.Big, error) {
+	log.Info("Rome: enter fetchRomeGasPrice")
+
+	// gasPrice := big.NewInt(1 * params.GWei)
+	// return (*hexutil.Big)(gasPrice), nil
+
+	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
+	if gasometerUrl == "" {
+		return nil, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
+	}
+	client, err := rpc.Dial(gasometerUrl)
+	if err != nil {
+		log.Error("Failed to connect to the Ethereum client: %v", err)
+	}
+	defer client.Close()
+
+	var estimatedGas hexutil.Big
+	err = client.CallContext(ctx, &estimatedGas, "eth_gasPrice")
+	if err != nil {
+		return nil, err
+	}
+
+	return &estimatedGas, nil
 }
 
 // MaxPriorityFeePerGas returns a suggestion for a gas tip cap for dynamic fee transactions.
@@ -1365,7 +1388,7 @@ func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, b
 
 // Fetch gas estimate from Rome gasometer
 func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64, error) {
-	log.Info("enter estimateRomeGas with args", "args", args)
+	log.Info("Rome: enter estimateRomeGas with args", "args", args)
 	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
 	if gasometerUrl == "" {
 		return 0, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
