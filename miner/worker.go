@@ -931,6 +931,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 // generateParams wraps various of settings for generating sealing task.
 type generateParams struct {
 	timestamp   uint64            // The timstamp for sealing task
+	gasPrice    uint64            // Rome gas price override
 	forceTime   bool              // Flag whether the given timestamp is immutable or not
 	parentHash  common.Hash       // Parent block hash, empty means the latest chain head
 	coinbase    common.Address    // The fee recipient address for including transaction

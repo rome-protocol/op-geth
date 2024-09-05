@@ -39,6 +39,7 @@ import (
 type BuildPayloadArgs struct {
 	Parent       common.Hash       // The parent block to build payload on top
 	Timestamp    uint64            // The provided timestamp of generated payload
+	GasPrice     uint64            // The provided gas price of generated payload
 	FeeRecipient common.Address    // The provided recipient address for collecting transaction fee
 	Random       common.Hash       // The provided randomness value
 	Withdrawals  types.Withdrawals // The provided withdrawals
@@ -73,6 +74,7 @@ func (args *BuildPayloadArgs) Id() engine.PayloadID {
 	if args.GasLimit != nil {
 		binary.Write(hasher, binary.BigEndian, *args.GasLimit)
 	}
+	binary.Write(hasher, binary.BigEndian, args.GasPrice)
 
 	var out engine.PayloadID
 	copy(out[:], hasher.Sum(nil)[:8])
@@ -269,6 +271,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 			noTxs:       true,
 			txs:         args.Transactions,
 			gasLimit:    args.GasLimit,
+			gasPrice:    args.GasPrice,
 		}
 		empty := w.getSealingBlock(emptyParams)
 		if empty.err != nil {
@@ -293,6 +296,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 		noTxs:       false,
 		txs:         args.Transactions,
 		gasLimit:    args.GasLimit,
+		gasPrice:    args.GasPrice,
 	}
 
 	// Since we skip building the empty block when using the tx pool, we need to explicitly

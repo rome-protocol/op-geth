@@ -46,6 +46,24 @@ type PayloadAttributes struct {
 	GasLimit *uint64 `json:"gasLimit,omitempty" gencodec:"optional"`
 }
 
+// Todo.
+type RomePayloadAttributes struct {
+	Timestamp             uint64              `json:"timestamp"             gencodec:"required"`
+	GasPrice              uint64              `json:"gas_price"             gencodec:"required"`
+	Random                common.Hash         `json:"prevRandao"            gencodec:"required"`
+	SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient" gencodec:"required"`
+	Withdrawals           []*types.Withdrawal `json:"withdrawals"`
+	BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
+
+	// Transactions is a field for rollups: the transactions list is forced into the block
+	Transactions [][]byte `json:"transactions,omitempty"  gencodec:"optional"`
+	// NoTxPool is a field for rollups: if true, the no transactions are taken out of the tx-pool,
+	// only transactions from the above Transactions list will be included.
+	NoTxPool bool `json:"noTxPool,omitempty" gencodec:"optional"`
+	// GasLimit is a field for rollups: if set, this sets the exact gas limit the block produced with.
+	GasLimit *uint64 `json:"gasLimit,omitempty" gencodec:"optional"`
+}
+
 // JSON type overrides for PayloadAttributes.
 type payloadAttributesMarshaling struct {
 	Timestamp hexutil.Uint64
