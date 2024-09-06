@@ -49,7 +49,8 @@ type PayloadAttributes struct {
 // Todo.
 type RomePayloadAttributes struct {
 	Timestamp             uint64              `json:"timestamp"             gencodec:"required"`
-	GasPrice              uint64              `json:"gas_price"             gencodec:"required"`
+	GasPrice              []uint64            `json:"gas_prices"            gencodec:"required"`
+	GasUsed               []uint64            `json:"gas_used"              gencodec:"required"`
 	Random                common.Hash         `json:"prevRandao"            gencodec:"required"`
 	SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient" gencodec:"required"`
 	Withdrawals           []*types.Withdrawal `json:"withdrawals"`
