@@ -836,7 +836,7 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 		gp   = env.gasPool.Gas()
 	)
 	log.Trace("tx", tx)
-	log.Trace("env", env)
+	log.Trace("env gas used", env.gasUsed)
 	log.Trace("index", index)
 	gasUsed := env.gasUsed[index]
 	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &gasUsed, *w.chain.GetVMConfig())
