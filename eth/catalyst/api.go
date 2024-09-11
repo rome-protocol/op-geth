@@ -171,7 +171,7 @@ func newConsensusAPIWithoutHeartbeat(eth *eth.Ethereum) *ConsensusAPI {
 //
 // If there are payloadAttributes: we try to assemble a block with the payloadAttributes
 // and return its payloadID.
-func (api *ConsensusAPI) ForkchoiceUpdatedV1(update engine.ForkchoiceStateV1, payloadAttributes *engine.PayloadAttributes) (engine.ForkChoiceResponse, error) {
+func (api *ConsensusAPI) ForkchoiceUpdatedV1(update engine.ForkchoiceStateV1, payloadAttributes *engine.RomePayloadAttributes) (engine.ForkChoiceResponse, error) {
 	if payloadAttributes != nil {
 		if payloadAttributes.Withdrawals != nil {
 			return engine.STATUS_INVALID, engine.InvalidParams.With(errors.New("withdrawals not supported in V1"))
@@ -184,7 +184,7 @@ func (api *ConsensusAPI) ForkchoiceUpdatedV1(update engine.ForkchoiceStateV1, pa
 }
 
 // ForkchoiceUpdatedV2 is equivalent to V1 with the addition of withdrawals in the payload attributes.
-func (api *ConsensusAPI) ForkchoiceUpdatedV2(update engine.ForkchoiceStateV1, payloadAttributes *engine.PayloadAttributes) (engine.ForkChoiceResponse, error) {
+func (api *ConsensusAPI) ForkchoiceUpdatedV2(update engine.ForkchoiceStateV1, payloadAttributes *engine.RomePayloadAttributes) (engine.ForkChoiceResponse, error) {
 	if payloadAttributes != nil {
 		if err := api.verifyPayloadAttributes(payloadAttributes); err != nil {
 			return engine.STATUS_INVALID, engine.InvalidParams.With(err)
@@ -194,7 +194,7 @@ func (api *ConsensusAPI) ForkchoiceUpdatedV2(update engine.ForkchoiceStateV1, pa
 }
 
 // ForkchoiceUpdatedV3 is equivalent to V2 with the addition of parent beacon block root in the payload attributes.
-func (api *ConsensusAPI) ForkchoiceUpdatedV3(update engine.ForkchoiceStateV1, payloadAttributes *engine.PayloadAttributes) (engine.ForkChoiceResponse, error) {
+func (api *ConsensusAPI) ForkchoiceUpdatedV3(update engine.ForkchoiceStateV1, payloadAttributes *engine.RomePayloadAttributes) (engine.ForkChoiceResponse, error) {
 	if payloadAttributes != nil {
 		if err := api.verifyPayloadAttributes(payloadAttributes); err != nil {
 			return engine.STATUS_INVALID, engine.InvalidParams.With(err)
@@ -203,7 +203,7 @@ func (api *ConsensusAPI) ForkchoiceUpdatedV3(update engine.ForkchoiceStateV1, pa
 	return api.forkchoiceUpdated(update, payloadAttributes)
 }
 
-func (api *ConsensusAPI) verifyPayloadAttributes(attr *engine.PayloadAttributes) error {
+func (api *ConsensusAPI) verifyPayloadAttributes(attr *engine.RomePayloadAttributes) error {
 	c := api.eth.BlockChain().Config()
 
 	// Verify withdrawals attribute for Shanghai.
@@ -227,7 +227,7 @@ func checkAttribute(active func(*big.Int, uint64) bool, exists bool, block *big.
 	return nil
 }
 
-func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payloadAttributes *engine.PayloadAttributes) (engine.ForkChoiceResponse, error) {
+func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payloadAttributes *engine.RomePayloadAttributes) (engine.ForkChoiceResponse, error) {
 	api.forkchoiceLock.Lock()
 	defer api.forkchoiceLock.Unlock()
 
