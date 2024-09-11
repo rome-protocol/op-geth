@@ -19,7 +19,6 @@ package core
 import (
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -67,62 +66,65 @@ func (result *ExecutionResult) Revert() []byte {
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
 func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation bool, isHomestead, isEIP2028 bool, isEIP3860 bool) (uint64, error) {
+	// log.Info("Rome: return IntrinsicGas as 21000")
+	return 21000, nil
+
 	// Set the starting gas for the raw transaction
-	var gas uint64
-	if isContractCreation && isHomestead {
-		gas = params.TxGasContractCreation
-	} else {
-		gas = params.TxGas
-	}
-	dataLen := uint64(len(data))
-	// Bump the required gas by the amount of transactional data
-	if dataLen > 0 {
-		// Zero and non-zero bytes are priced differently
-		var nz uint64
-		for _, byt := range data {
-			if byt != 0 {
-				nz++
-			}
-		}
-		// Make sure we don't exceed uint64 for all data combinations
-		nonZeroGas := params.TxDataNonZeroGasFrontier
-		if isEIP2028 {
-			nonZeroGas = params.TxDataNonZeroGasEIP2028
-		}
-		if (math.MaxUint64-gas)/nonZeroGas < nz {
-			return 0, ErrGasUintOverflow
-		}
-		gas += nz * nonZeroGas
+	// var gas uint64
+	// if isContractCreation && isHomestead {
+	// 	gas = params.TxGasContractCreation
+	// } else {
+	// 	gas = params.TxGas
+	// }
+	// dataLen := uint64(len(data))
+	// // Bump the required gas by the amount of transactional data
+	// if dataLen > 0 {
+	// 	// Zero and non-zero bytes are priced differently
+	// 	var nz uint64
+	// 	for _, byt := range data {
+	// 		if byt != 0 {
+	// 			nz++
+	// 		}
+	// 	}
+	// 	// Make sure we don't exceed uint64 for all data combinations
+	// 	nonZeroGas := params.TxDataNonZeroGasFrontier
+	// 	if isEIP2028 {
+	// 		nonZeroGas = params.TxDataNonZeroGasEIP2028
+	// 	}
+	// 	if (math.MaxUint64-gas)/nonZeroGas < nz {
+	// 		return 0, ErrGasUintOverflow
+	// 	}
+	// 	gas += nz * nonZeroGas
 
-		z := dataLen - nz
-		if (math.MaxUint64-gas)/params.TxDataZeroGas < z {
-			return 0, ErrGasUintOverflow
-		}
-		gas += z * params.TxDataZeroGas
+	// 	z := dataLen - nz
+	// 	if (math.MaxUint64-gas)/params.TxDataZeroGas < z {
+	// 		return 0, ErrGasUintOverflow
+	// 	}
+	// 	gas += z * params.TxDataZeroGas
 
-		if isContractCreation && isEIP3860 {
-			lenWords := toWordSize(dataLen)
-			if (math.MaxUint64-gas)/params.InitCodeWordGas < lenWords {
-				return 0, ErrGasUintOverflow
-			}
-			gas += lenWords * params.InitCodeWordGas
-		}
-	}
-	if accessList != nil {
-		gas += uint64(len(accessList)) * params.TxAccessListAddressGas
-		gas += uint64(accessList.StorageKeys()) * params.TxAccessListStorageKeyGas
-	}
-	return gas, nil
+	// 	if isContractCreation && isEIP3860 {
+	// 		lenWords := toWordSize(dataLen)
+	// 		if (math.MaxUint64-gas)/params.InitCodeWordGas < lenWords {
+	// 			return 0, ErrGasUintOverflow
+	// 		}
+	// 		gas += lenWords * params.InitCodeWordGas
+	// 	}
+	// }
+	// if accessList != nil {
+	// 	gas += uint64(len(accessList)) * params.TxAccessListAddressGas
+	// 	gas += uint64(accessList.StorageKeys()) * params.TxAccessListStorageKeyGas
+	// }
+	// return gas, nil
 }
 
 // toWordSize returns the ceiled word size required for init code payment calculation.
-func toWordSize(size uint64) uint64 {
-	if size > math.MaxUint64-31 {
-		return math.MaxUint64/32 + 1
-	}
+// func toWordSize(size uint64) uint64 {
+// 	if size > math.MaxUint64-31 {
+// 		return math.MaxUint64/32 + 1
+// 	}
 
-	return (size + 31) / 32
-}
+// 	return (size + 31) / 32
+// }
 
 // A Message contains the data derived from a single transaction that is relevant to state
 // processing.
