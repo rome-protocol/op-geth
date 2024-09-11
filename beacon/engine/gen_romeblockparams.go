@@ -17,8 +17,8 @@ var _ = (*payloadAttributesMarshaling)(nil)
 func (r RomePayloadAttributes) MarshalJSON() ([]byte, error) {
 	type RomePayloadAttributes struct {
 		Timestamp             hexutil.Uint64      `json:"timestamp"             gencodec:"required"`
-		GasPrice              []uint64            `json:"gas_prices"            gencodec:"required"`
-		GasUsed               []uint64            `json:"gas_used"              gencodec:"required"`
+		GasPrice              []uint64            `json:"gasPrices"            gencodec:"required"`
+		GasUsed               []uint64            `json:"gasUsed"              gencodec:"required"`
 		Random                common.Hash         `json:"prevRandao"            gencodec:"required"`
 		SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient" gencodec:"required"`
 		Withdrawals           []*types.Withdrawal `json:"withdrawals"`
@@ -69,11 +69,11 @@ func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 	}
 	r.Timestamp = uint64(*dec.Timestamp)
 	if dec.GasPrice == nil {
-		return errors.New("missing required field 'gas_prices' for RomePayloadAttributes")
+		return errors.New("missing required field 'gasPrices' for RomePayloadAttributes")
 	}
 	r.GasPrice = dec.GasPrice
 	if dec.GasUsed == nil {
-		return errors.New("missing required field 'gas_used' for RomePayloadAttributes")
+		return errors.New("missing required field 'gasUsed' for RomePayloadAttributes")
 	}
 	r.GasUsed = dec.GasUsed
 	if dec.Random == nil {
