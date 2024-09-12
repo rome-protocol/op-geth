@@ -830,6 +830,7 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction) (*typ
 	)
 	log.Info("tx", "tx", tx)
 	log.Info("env", "txs", env.txs)
+	log.Info("env", "gas", env.gasUsed)
 	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig())
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
