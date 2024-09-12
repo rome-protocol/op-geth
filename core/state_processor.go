@@ -128,7 +128,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	} else {
 		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
 	}
-	// *usedGas += result.UsedGas
+	*usedGas += result.UsedGas
 
 	// Create a new receipt for the transaction, storing the intermediate root and gas used
 	// by the tx.
