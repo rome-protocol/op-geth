@@ -47,6 +47,7 @@ type BuildPayloadArgs struct {
 	NoTxPool     bool                 // Optimism addition: option to disable tx pool contents from being included
 	Transactions []*types.Transaction // Optimism addition: txs forced into the block via engine API
 	GasLimit     *uint64              // Optimism addition: override gas limit of the block to build
+	GasUsed      []uint64
 }
 
 // Id computes an 8-byte identifier by hashing the components of the payload arguments.
@@ -269,6 +270,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 			noTxs:       true,
 			txs:         args.Transactions,
 			gasLimit:    args.GasLimit,
+			gasUsed:     args.GasUsed,
 		}
 		empty := w.getSealingBlock(emptyParams)
 		if empty.err != nil {

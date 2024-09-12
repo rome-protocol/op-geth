@@ -945,6 +945,7 @@ type generateParams struct {
 	gasLimit  *uint64            // Optional gas limit override
 	interrupt *atomic.Int32      // Optional interruption signal to pass down to worker.generateWork
 	isUpdate  bool               // Optional flag indicating that this is building a discardable update
+	gasUsed   []uint64           // List of gas used from Rome EVM
 }
 
 // validateParams validates the given parameters.

@@ -232,6 +232,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	defer api.forkchoiceLock.Unlock()
 
 	log.Trace("Engine API request received", "method", "ForkchoiceUpdated", "head", update.HeadBlockHash, "finalized", update.FinalizedBlockHash, "safe", update.SafeBlockHash)
+	log.Info("msg", "gas", payloadAttributes.GasUsed)
 	if update.HeadBlockHash == (common.Hash{}) {
 		log.Warn("Forkchoice requested update to zero hash")
 		return engine.STATUS_INVALID, nil // TODO(karalabe): Why does someone send us this?
@@ -385,6 +386,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			NoTxPool:     payloadAttributes.NoTxPool,
 			Transactions: transactions,
 			GasLimit:     payloadAttributes.GasLimit,
+			GasUsed:      payloadAttributes.GasUsed,
 		}
 		id := args.Id()
 		// If we already are busy generating this work, then we do not need
