@@ -96,6 +96,7 @@ type environment struct {
 	txs      []*types.Transaction
 	receipts []*types.Receipt
 	sidecars []*types.BlobTxSidecar
+	gasUsed  []uint64
 	blobs    int
 }
 
@@ -737,7 +738,7 @@ func (w *worker) resultLoop() {
 }
 
 // makeEnv creates a new environment for the sealing block.
-func (w *worker) makeEnv(parent *types.Header, header *types.Header, coinbase common.Address) (*environment, error) {
+func (w *worker) makeEnv(parent *types.Header, header *types.Header, genParams *generateParams) (*environment, error) {
 	// Retrieve the parent state to execute on top and start a prefetcher for
 	// the miner to speed block sealing up a bit.
 	state, err := w.chain.StateAt(parent.Root)
@@ -759,8 +760,9 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, coinbase co
 	env := &environment{
 		signer:   types.MakeSigner(w.chainConfig, header.Number, header.Time),
 		state:    state,
-		coinbase: coinbase,
+		coinbase: genParams.coinbase,
 		header:   header,
+		gasUsed:  genParams.gasUsed,
 	}
 	// Keep track of transactions which return errors so they can be removed
 	env.tcount = 0
@@ -826,8 +828,12 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction) (*typ
 		snap = env.state.Snapshot()
 		gp   = env.gasPool.Gas()
 	)
+
 	log.Info("tx", "tx", tx)
 	log.Info("env", "txs", env.txs)
+	log.Info("env", "gas", env.gasUsed)
+	log.Info("env", "headergas", env.header.GasUsed)
+
 	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig())
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
@@ -837,9 +843,15 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction) (*typ
 }
 
 func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAndNonce, interrupt *atomic.Int32) error {
-	gasLimit := env.header.GasLimit
+	var gasUsed uint64
+	if len(env.gasUsed) > 0 {
+		gasUsed = env.gasUsed[0]
+	} else {
+		gasUsed = env.header.GasLimit
+	}
 	if env.gasPool == nil {
-		env.gasPool = new(core.GasPool).AddGas(gasLimit)
+		log.Info("msg", "here", true)
+		env.gasPool = new(core.GasPool).AddGas(gasUsed)
 	}
 	var coalescedLogs []*types.Log
 
@@ -945,6 +957,7 @@ type generateParams struct {
 	gasLimit  *uint64            // Optional gas limit override
 	interrupt *atomic.Int32      // Optional interruption signal to pass down to worker.generateWork
 	isUpdate  bool               // Optional flag indicating that this is building a discardable update
+	gasUsed   []uint64           // List of gas used from Rome EVM
 }
 
 // validateParams validates the given parameters.
@@ -1055,7 +1068,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	// Could potentially happen if starting to mine in an odd state.
 	// Note genParams.coinbase can be different with header.Coinbase
 	// since clique algorithm can modify the coinbase field in header.
-	env, err := w.makeEnv(parent, header, genParams.coinbase)
+	env, err := w.makeEnv(parent, header, genParams)
 	if err != nil {
 		log.Error("Failed to create sealing context", "err", err)
 		return nil, err
