@@ -96,6 +96,7 @@ type environment struct {
 	txs      []*types.Transaction
 	receipts []*types.Receipt
 	sidecars []*types.BlobTxSidecar
+	gasUsed  []uint64
 	blobs    int
 }
 
@@ -737,7 +738,7 @@ func (w *worker) resultLoop() {
 }
 
 // makeEnv creates a new environment for the sealing block.
-func (w *worker) makeEnv(parent *types.Header, header *types.Header, coinbase common.Address) (*environment, error) {
+func (w *worker) makeEnv(parent *types.Header, header *types.Header, genParams *generateParams) (*environment, error) {
 	// Retrieve the parent state to execute on top and start a prefetcher for
 	// the miner to speed block sealing up a bit.
 	state, err := w.chain.StateAt(parent.Root)
@@ -759,8 +760,9 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, coinbase co
 	env := &environment{
 		signer:   types.MakeSigner(w.chainConfig, header.Number, header.Time),
 		state:    state,
-		coinbase: coinbase,
+		coinbase: genParams.coinbase,
 		header:   header,
+		gasUsed:  genParams.gasUsed,
 	}
 	// Keep track of transactions which return errors so they can be removed
 	env.tcount = 0
@@ -1056,7 +1058,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	// Could potentially happen if starting to mine in an odd state.
 	// Note genParams.coinbase can be different with header.Coinbase
 	// since clique algorithm can modify the coinbase field in header.
-	env, err := w.makeEnv(parent, header, genParams.coinbase)
+	env, err := w.makeEnv(parent, header, genParams)
 	if err != nil {
 		log.Error("Failed to create sealing context", "err", err)
 		return nil, err

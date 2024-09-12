@@ -295,6 +295,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 		noTxs:       false,
 		txs:         args.Transactions,
 		gasLimit:    args.GasLimit,
+		gasUsed:     args.GasUsed,
 	}
 
 	// Since we skip building the empty block when using the tx pool, we need to explicitly
