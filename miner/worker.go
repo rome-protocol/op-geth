@@ -834,15 +834,7 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction) (*typ
 	log.Info("env", "gas", env.gasUsed)
 	log.Info("env", "headergas", env.header.GasUsed)
 
-	var gasUsed uint64
-
-	if len(env.gasUsed) > 0 {
-		gasUsed = env.gasUsed[0]
-	} else {
-		gasUsed = env.header.GasUsed
-	}
-
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &gasUsed, *w.chain.GetVMConfig())
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig())
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
 		env.gasPool.SetGas(gp)
@@ -851,9 +843,15 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction) (*typ
 }
 
 func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAndNonce, interrupt *atomic.Int32) error {
-	gasLimit := env.header.GasLimit
+	var gasUsed uint64
+	if len(env.gasUsed) > 0 {
+		gasUsed = env.gasUsed[0]
+	} else {
+		gasUsed = env.header.GasLimit
+	}
 	if env.gasPool == nil {
-		env.gasPool = new(core.GasPool).AddGas(gasLimit)
+		log.Info("msg", "here", true)
+		env.gasPool = new(core.GasPool).AddGas(gasUsed)
 	}
 	var coalescedLogs []*types.Log
 
