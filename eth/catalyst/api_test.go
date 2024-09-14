@@ -192,7 +192,7 @@ func TestEth2PrepareAndGetPayload(t *testing.T) {
 	// Put the 10th block's tx in the pool and produce a new block
 	txs := blocks[9].Transactions()
 	ethservice.TxPool().Add(txs, true, false)
-	blockParams := engine.PayloadAttributes{
+	blockParams := engine.RomePayloadAttributes{
 		Timestamp: blocks[8].Time() + 5,
 	}
 	fcState := engine.ForkchoiceStateV1{
@@ -272,7 +272,7 @@ func TestInvalidPayloadTimestamp(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("Timestamp test: %v", i), func(t *testing.T) {
-			params := engine.PayloadAttributes{
+			params := engine.RomePayloadAttributes{
 				Timestamp:             test.time,
 				Random:                crypto.Keccak256Hash([]byte{byte(123)}),
 				SuggestedFeeRecipient: parent.Coinbase,
@@ -616,7 +616,7 @@ func TestNewPayloadOnInvalidChain(t *testing.T) {
 		})
 		ethservice.TxPool().Add([]*types.Transaction{tx}, false, true)
 		var (
-			params = engine.PayloadAttributes{
+			params = engine.RomePayloadAttributes{
 				Timestamp:             parent.Time + 1,
 				Random:                crypto.Keccak256Hash([]byte{byte(i)}),
 				SuggestedFeeRecipient: parent.Coinbase,
@@ -1061,7 +1061,7 @@ func TestWithdrawals(t *testing.T) {
 
 	// 10: Build Shanghai block with no withdrawals.
 	parent := ethservice.BlockChain().CurrentHeader()
-	blockParams := engine.PayloadAttributes{
+	blockParams := engine.RomePayloadAttributes{
 		Timestamp:   parent.Time + 5,
 		Withdrawals: make([]*types.Withdrawal, 0),
 	}
@@ -1105,7 +1105,7 @@ func TestWithdrawals(t *testing.T) {
 	// 11: build shanghai block with withdrawal
 	aa := common.Address{0xaa}
 	bb := common.Address{0xbb}
-	blockParams = engine.PayloadAttributes{
+	blockParams = engine.RomePayloadAttributes{
 		Timestamp: execData.ExecutionPayload.Timestamp + 5,
 		Withdrawals: []*types.Withdrawal{
 			{
@@ -1182,27 +1182,27 @@ func TestNilWithdrawals(t *testing.T) {
 	aa := common.Address{0xaa}
 
 	type test struct {
-		blockParams engine.PayloadAttributes
+		blockParams engine.RomePayloadAttributes
 		wantErr     bool
 	}
 	tests := []test{
 		// Before Shanghai
 		{
-			blockParams: engine.PayloadAttributes{
+			blockParams: engine.RomePayloadAttributes{
 				Timestamp:   parent.Time + 2,
 				Withdrawals: nil,
 			},
 			wantErr: false,
 		},
 		{
-			blockParams: engine.PayloadAttributes{
+			blockParams: engine.RomePayloadAttributes{
 				Timestamp:   parent.Time + 2,
 				Withdrawals: make([]*types.Withdrawal, 0),
 			},
 			wantErr: true,
 		},
 		{
-			blockParams: engine.PayloadAttributes{
+			blockParams: engine.RomePayloadAttributes{
 				Timestamp: parent.Time + 2,
 				Withdrawals: []*types.Withdrawal{
 					{
@@ -1216,21 +1216,21 @@ func TestNilWithdrawals(t *testing.T) {
 		},
 		// After Shanghai
 		{
-			blockParams: engine.PayloadAttributes{
+			blockParams: engine.RomePayloadAttributes{
 				Timestamp:   parent.Time + 5,
 				Withdrawals: nil,
 			},
 			wantErr: true,
 		},
 		{
-			blockParams: engine.PayloadAttributes{
+			blockParams: engine.RomePayloadAttributes{
 				Timestamp:   parent.Time + 5,
 				Withdrawals: make([]*types.Withdrawal, 0),
 			},
 			wantErr: false,
 		},
 		{
-			blockParams: engine.PayloadAttributes{
+			blockParams: engine.RomePayloadAttributes{
 				Timestamp: parent.Time + 5,
 				Withdrawals: []*types.Withdrawal{
 					{
@@ -1594,7 +1594,7 @@ func TestParentBeaconBlockRoot(t *testing.T) {
 
 	// 11: Build Shanghai block with no withdrawals.
 	parent := ethservice.BlockChain().CurrentHeader()
-	blockParams := engine.PayloadAttributes{
+	blockParams := engine.RomePayloadAttributes{
 		Timestamp:   parent.Time + 5,
 		Withdrawals: make([]*types.Withdrawal, 0),
 		BeaconRoot:  &common.Hash{42},
