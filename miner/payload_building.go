@@ -49,7 +49,6 @@ type BuildPayloadArgs struct {
 	GasPrice     []uint64             // The provided gas prices of transactions
 	GasUsed      []uint64             // The provided gas used while executing these transactions
 	GasLimit     *uint64              // Optimism addition: override gas limit of the block to build
-	GasUsed      []uint64
 }
 
 // Id computes an 8-byte identifier by hashing the components of the payload arguments.
