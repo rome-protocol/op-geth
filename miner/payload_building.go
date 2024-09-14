@@ -46,6 +46,8 @@ type BuildPayloadArgs struct {
 
 	NoTxPool     bool                 // Optimism addition: option to disable tx pool contents from being included
 	Transactions []*types.Transaction // Optimism addition: txs forced into the block via engine API
+	GasPrice     []uint64             // The provided gas prices of transactions
+	GasUsed      []uint64             // The provided gas used while executing these transactions
 	GasLimit     *uint64              // Optimism addition: override gas limit of the block to build
 	GasUsed      []uint64
 }
@@ -74,6 +76,7 @@ func (args *BuildPayloadArgs) Id() engine.PayloadID {
 	if args.GasLimit != nil {
 		binary.Write(hasher, binary.BigEndian, *args.GasLimit)
 	}
+	binary.Write(hasher, binary.BigEndian, args.GasPrice)
 
 	var out engine.PayloadID
 	copy(out[:], hasher.Sum(nil)[:8])

@@ -95,6 +95,8 @@ type environment struct {
 	header   *types.Header
 	txs      []*types.Transaction
 	receipts []*types.Receipt
+	gasPrice []uint64
+	gasUsed  []uint64
 	sidecars []*types.BlobTxSidecar
 	gasUsed  []uint64
 	blobs    int
@@ -107,6 +109,8 @@ func (env *environment) copy() *environment {
 		state:    env.state.Copy(),
 		tcount:   env.tcount,
 		coinbase: env.coinbase,
+		gasPrice: env.gasPrice,
+		gasUsed:  env.gasUsed,
 		header:   types.CopyHeader(env.header),
 		receipts: copyReceipts(env.receipts),
 	}
@@ -741,6 +745,9 @@ func (w *worker) resultLoop() {
 func (w *worker) makeEnv(parent *types.Header, header *types.Header, genParams *generateParams) (*environment, error) {
 	// Retrieve the parent state to execute on top and start a prefetcher for
 	// the miner to speed block sealing up a bit.
+	coinbase := genParams.coinbase
+	gasPrice := genParams.gasPrice
+	gasUsed := genParams.gasUsed
 	state, err := w.chain.StateAt(parent.Root)
 	if err != nil && w.chainConfig.Optimism != nil { // Allow the miner to reorg its own chain arbitrarily deep
 		if historicalBackend, ok := w.eth.(BackendWithHistoricalState); ok {
@@ -785,11 +792,11 @@ func (w *worker) updateSnapshot(env *environment) {
 	w.snapshotState = env.state.Copy()
 }
 
-func (w *worker) commitTransaction(env *environment, tx *types.Transaction) ([]*types.Log, error) {
+func (w *worker) commitTransaction(env *environment, tx *types.Transaction, index int) ([]*types.Log, error) {
 	if tx.Type() == types.BlobTxType {
 		return w.commitBlobTransaction(env, tx)
 	}
-	receipt, err := w.applyTransaction(env, tx)
+	receipt, err := w.applyTransaction(env, tx, index)
 	if err != nil {
 		return nil, err
 	}
@@ -810,7 +817,7 @@ func (w *worker) commitBlobTransaction(env *environment, tx *types.Transaction) 
 	if (env.blobs+len(sc.Blobs))*params.BlobTxBlobGasPerBlob > params.MaxBlobGasPerBlock {
 		return nil, errors.New("max data blobs reached")
 	}
-	receipt, err := w.applyTransaction(env, tx)
+	receipt, err := w.applyTransaction(env, tx, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -823,7 +830,7 @@ func (w *worker) commitBlobTransaction(env *environment, tx *types.Transaction) 
 }
 
 // applyTransaction runs the transaction. If execution fails, state and gas pool are reverted.
-func (w *worker) applyTransaction(env *environment, tx *types.Transaction) (*types.Receipt, error) {
+func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index int) (*types.Receipt, error) {
 	var (
 		snap = env.state.Snapshot()
 		gp   = env.gasPool.Gas()
@@ -904,7 +911,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 		// Start executing the transaction
 		env.state.SetTxContext(tx.Hash(), env.tcount)
 
-		logs, err := w.commitTransaction(env, tx)
+		logs, err := w.commitTransaction(env, tx, 0)
 		switch {
 		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
@@ -945,6 +952,8 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 // generateParams wraps various of settings for generating sealing task.
 type generateParams struct {
 	timestamp   uint64            // The timstamp for sealing task
+	gasPrice    []uint64          // Rome gas price override
+	gasUsed     []uint64          // Rome gas used override
 	forceTime   bool              // Flag whether the given timestamp is immutable or not
 	parentHash  common.Hash       // Parent block hash, empty means the latest chain head
 	coinbase    common.Address    // The fee recipient address for including transaction
@@ -1125,10 +1134,10 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 
 	misc.EnsureCreate2Deployer(w.chainConfig, work.header.Time, work.state)
 
-	for _, tx := range genParams.txs {
+	for idx, tx := range genParams.txs {
 		from, _ := types.Sender(work.signer, tx)
 		work.state.SetTxContext(tx.Hash(), work.tcount)
-		_, err := w.commitTransaction(work, tx)
+		_, err := w.commitTransaction(work, tx, idx)
 		if err != nil {
 			return &newPayloadResult{err: fmt.Errorf("failed to force-include tx: %s type: %d sender: %s nonce: %d, err: %w", tx.Hash(), tx.Type(), from, tx.Nonce(), err)}
 		}
