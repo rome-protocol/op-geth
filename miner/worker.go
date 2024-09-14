@@ -98,6 +98,7 @@ type environment struct {
 	gasPrice []uint64
 	gasUsed  []uint64
 	sidecars []*types.BlobTxSidecar
+	gasUsed  []uint64
 	blobs    int
 }
 
@@ -766,10 +767,9 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, genParams *
 	env := &environment{
 		signer:   types.MakeSigner(w.chainConfig, header.Number, header.Time),
 		state:    state,
-		coinbase: coinbase,
+		coinbase: genParams.coinbase,
 		header:   header,
-		gasPrice: gasPrice,
-		gasUsed:  gasUsed,
+		gasUsed:  genParams.gasUsed,
 	}
 	// Keep track of transactions which return errors so they can be removed
 	env.tcount = 0
@@ -835,8 +835,13 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 		snap = env.state.Snapshot()
 		gp   = env.gasPool.Gas()
 	)
-	gasUsed := env.gasUsed[index]
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &gasUsed, *w.chain.GetVMConfig())
+
+	log.Info("tx", "tx", tx)
+	log.Info("env", "txs", env.txs)
+	log.Info("env", "gas", env.gasUsed)
+	log.Info("env", "headergas", env.header.GasUsed)
+
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig())
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
 		env.gasPool.SetGas(gp)
@@ -845,9 +850,15 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 }
 
 func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAndNonce, interrupt *atomic.Int32) error {
-	gasLimit := env.header.GasLimit
+	var gasUsed uint64
+	if len(env.gasUsed) > 0 {
+		gasUsed = env.gasUsed[0]
+	} else {
+		gasUsed = env.header.GasLimit
+	}
 	if env.gasPool == nil {
-		env.gasPool = new(core.GasPool).AddGas(gasLimit)
+		log.Info("msg", "here", true)
+		env.gasPool = new(core.GasPool).AddGas(gasUsed)
 	}
 	var coalescedLogs []*types.Log
 
@@ -955,6 +966,7 @@ type generateParams struct {
 	gasLimit  *uint64            // Optional gas limit override
 	interrupt *atomic.Int32      // Optional interruption signal to pass down to worker.generateWork
 	isUpdate  bool               // Optional flag indicating that this is building a discardable update
+	gasUsed   []uint64           // List of gas used from Rome EVM
 }
 
 // validateParams validates the given parameters.
