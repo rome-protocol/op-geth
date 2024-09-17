@@ -745,6 +745,7 @@ func (w *worker) resultLoop() {
 func (w *worker) makeEnv(parent *types.Header, header *types.Header, genParams *generateParams) (*environment, error) {
 	// Retrieve the parent state to execute on top and start a prefetcher for
 	// the miner to speed block sealing up a bit.
+	log.Warn("inside make env")
 	state, err := w.chain.StateAt(parent.Root)
 	if err != nil && w.chainConfig.Optimism != nil { // Allow the miner to reorg its own chain arbitrarily deep
 		if historicalBackend, ok := w.eth.(BackendWithHistoricalState); ok {
@@ -1046,7 +1047,9 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 			header.GasLimit = core.CalcGasLimit(parentGasLimit, w.config.GasCeil)
 		}
 	}
+	log.Warn("gasLimit")
 	if genParams.gasLimit != nil { // override gas limit if specified
+		log.Warn("inside gasLimit")
 		header.GasLimit = *genParams.gasLimit
 	} else if w.chain.Config().Optimism != nil && w.config.GasCeil != 0 {
 		// configure the gas limit of pending blocks with the miner gas limit config when using optimism
@@ -1067,6 +1070,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	}
 	// Run the consensus preparation with the default or customized consensus engine.
 	if err := w.engine.Prepare(w.chain, header); err != nil {
+		log.Warn("Prepare error")
 		log.Error("Failed to prepare header for sealing", "err", err)
 		return nil, err
 	}
@@ -1119,6 +1123,7 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 
 // generateWork generates a sealing block based on the given parameters.
 func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
+	log.Warn("generateWork")
 	work, err := w.prepareWork(genParams)
 	if err != nil {
 		return &newPayloadResult{err: err}
