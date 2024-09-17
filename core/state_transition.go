@@ -64,55 +64,6 @@ func (result *ExecutionResult) Revert() []byte {
 	return common.CopyBytes(result.ReturnData)
 }
 
-// IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
-func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation bool, isHomestead, isEIP2028 bool, isEIP3860 bool) (uint64, error) {
-	// Set the starting gas for the raw transaction
-	// var gas uint64
-	// if isContractCreation && isHomestead {
-	// 	gas = params.TxGasContractCreation
-	// } else {
-	// 	gas = params.TxGas
-	// }
-	// dataLen := uint64(len(data))
-	// // Bump the required gas by the amount of transactional data
-	// if dataLen > 0 {
-	// 	// Zero and non-zero bytes are priced differently
-	// 	var nz uint64
-	// 	for _, byt := range data {
-	// 		if byt != 0 {
-	// 			nz++
-	// 		}
-	// 	}
-	// 	// Make sure we don't exceed uint64 for all data combinations
-	// 	nonZeroGas := params.TxDataNonZeroGasFrontier
-	// 	if isEIP2028 {
-	// 		nonZeroGas = params.TxDataNonZeroGasEIP2028
-	// 	}
-	// 	if (math.MaxUint64-gas)/nonZeroGas < nz {
-	// 		return 0, ErrGasUintOverflow
-	// 	}
-	// 	gas += nz * nonZeroGas
-
-	// 	z := dataLen - nz
-	// 	if (math.MaxUint64-gas)/params.TxDataZeroGas < z {
-	// 		return 0, ErrGasUintOverflow
-	// 	}
-	// 	gas += z * params.TxDataZeroGas
-
-	// 	if isContractCreation && isEIP3860 {
-	// 		lenWords := toWordSize(dataLen)
-	// 		if (math.MaxUint64-gas)/params.InitCodeWordGas < lenWords {
-	// 			return 0, ErrGasUintOverflow
-	// 		}
-	// 		gas += lenWords * params.InitCodeWordGas
-	// 	}
-	// }
-	// if accessList != nil {
-	// 	gas += uint64(len(accessList)) * params.TxAccessListAddressGas
-	// 	gas += uint64(accessList.StorageKeys()) * params.TxAccessListStorageKeyGas
-	// }
-	return 21000, nil
-}
 
 // toWordSize returns the ceiled word size required for init code payment calculation.
 // func toWordSize(size uint64) uint64 {
@@ -425,9 +376,7 @@ func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
 	// 1. the nonce of the message caller is correct
 	// 2. caller has enough balance to cover transaction fee(gaslimit * gasprice)
 	// 3. the amount of gas required is available in the block
-	// 4. the purchased gas is enough to cover intrinsic usage
-	// 5. there is no overflow when calculating intrinsic gas
-	// 6. caller has enough balance to cover asset transfer for **topmost** call
+	// 4. caller has enough balance to cover asset transfer for **topmost** call
 
 	// Check clauses 1-3, buy gas if everything is correct
 	if err := st.preCheck(); err != nil {
@@ -447,16 +396,6 @@ func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
 		rules            = st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber, st.evm.Context.Random != nil, st.evm.Context.Time)
 		contractCreation = msg.To == nil
 	)
-
-	// Check clauses 4-5, subtract intrinsic gas if everything is correct
-	gas, err := IntrinsicGas(msg.Data, msg.AccessList, contractCreation, rules.IsHomestead, rules.IsIstanbul, rules.IsShanghai)
-	if err != nil {
-		return nil, err
-	}
-	if st.gasRemaining < gas {
-		return nil, fmt.Errorf("%w: have %d, want %d", ErrIntrinsicGas, st.gasRemaining, gas)
-	}
-	st.gasRemaining -= gas
 
 	// Check clause 6
 	if msg.Value.Sign() > 0 && !st.evm.Context.CanTransfer(st.state, msg.From, msg.Value) {

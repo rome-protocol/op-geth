@@ -591,6 +591,7 @@ func (w *worker) mainLoop() {
 				}
 				txset := newTransactionsByPriceAndNonce(w.current.signer, txs, w.current.header.BaseFee)
 				tcount := w.current.tcount
+				/// ROME-GASOMETER SendRawTransaction
 				w.commitTransactions(w.current, txset, nil)
 
 				// Only update the snapshot if any new transactions were added
