@@ -278,6 +278,12 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 		h := types.DeriveSha(types.Withdrawals(params.Withdrawals), trie.NewStackTrie(nil))
 		withdrawalsRoot = &h
 	}
+
+	gasUsed := params.GasLimit
+	if len(params.GasUsed) > 0 {
+		gasUsed = params.GasUsed[0]
+	}
+
 	header := &types.Header{
 		ParentHash:       params.ParentHash,
 		UncleHash:        types.EmptyUncleHash,
@@ -289,7 +295,7 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 		Difficulty:       common.Big0,
 		Number:           new(big.Int).SetUint64(params.Number),
 		GasLimit:         params.GasLimit,
-		GasUsed:          params.GasUsed[0],
+		GasUsed:          gasUsed,
 		Time:             params.Timestamp,
 		BaseFee:          params.BaseFeePerGas,
 		Extra:            params.ExtraData,
