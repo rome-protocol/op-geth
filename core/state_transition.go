@@ -380,7 +380,9 @@ func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
 	// 1. the nonce of the message caller is correct
 	// 2. caller has enough balance to cover transaction fee(gaslimit * gasprice)
 	// 3. the amount of gas required is available in the block
-	// 4. caller has enough balance to cover asset transfer for **topmost** call
+	// 4. the purchased gas is enough to cover intrinsic usage
+	// 5. there is no overflow when calculating intrinsic gas
+	// 6. caller has enough balance to cover asset transfer for **topmost** call
 
 	// Check clauses 1-3, buy gas if everything is correct
 	if err := st.preCheck(); err != nil {
@@ -400,6 +402,16 @@ func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
 		rules            = st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber, st.evm.Context.Random != nil, st.evm.Context.Time)
 		contractCreation = msg.To == nil
 	)
+
+	// Check clauses 4-5, subtract intrinsic gas if everything is correct
+	gas, err := IntrinsicGas(msg.Data, msg.AccessList, contractCreation, rules.IsHomestead, rules.IsIstanbul, rules.IsShanghai)
+	if err != nil {
+		return nil, err
+	}
+	if st.gasRemaining < gas {
+		return nil, fmt.Errorf("%w: have %d, want %d", ErrIntrinsicGas, st.gasRemaining, gas)
+	}
+	st.gasRemaining -= gas
 
 	// Check clause 6
 	if msg.Value.Sign() > 0 && !st.evm.Context.CanTransfer(st.state, msg.From, msg.Value) {
