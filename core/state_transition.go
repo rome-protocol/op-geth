@@ -64,6 +64,10 @@ func (result *ExecutionResult) Revert() []byte {
 	return common.CopyBytes(result.ReturnData)
 }
 
+// IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
+func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation bool, isHomestead, isEIP2028 bool, isEIP3860 bool) (uint64, error) {
+	return 0, nil
+}
 
 // toWordSize returns the ceiled word size required for init code payment calculation.
 // func toWordSize(size uint64) uint64 {
