@@ -150,10 +150,10 @@ type RomeExecutableDataMarshaling struct {
 //go:generate go run github.com/fjl/gencodec -type ExecutionPayloadEnvelope -field-override executionPayloadEnvelopeMarshaling -out gen_epe.go
 
 type ExecutionPayloadEnvelope struct {
-	ExecutionPayload *ExecutableData `json:"executionPayload"  gencodec:"required"`
-	BlockValue       *big.Int        `json:"blockValue"  gencodec:"required"`
-	BlobsBundle      *BlobsBundleV1  `json:"blobsBundle"`
-	Override         bool            `json:"shouldOverrideBuilder"`
+	ExecutionPayload *RomeExecutableData `json:"executionPayload"  gencodec:"required"`
+	BlockValue       *big.Int            `json:"blockValue"  gencodec:"required"`
+	BlobsBundle      *BlobsBundleV1      `json:"blobsBundle"`
+	Override         bool                `json:"shouldOverrideBuilder"`
 
 	// OP-Stack: Ecotone specific fields
 	ParentBeaconBlockRoot *common.Hash `json:"parentBeaconBlockRoot,omitempty"`
@@ -243,7 +243,7 @@ func decodeTransactions(enc [][]byte) ([]*types.Transaction, error) {
 // and that the blockhash of the constructed block matches the parameters. Nil
 // Withdrawals value will propagate through the returned block. Empty
 // Withdrawals value must be passed via non-nil, length 0 value in params.
-func ExecutableDataToBlock(params ExecutableData, versionedHashes []common.Hash, beaconRoot *common.Hash) (*types.Block, error) {
+func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.Hash, beaconRoot *common.Hash) (*types.Block, error) {
 	txs, err := decodeTransactions(params.Transactions)
 	if err != nil {
 		return nil, err
@@ -289,7 +289,7 @@ func ExecutableDataToBlock(params ExecutableData, versionedHashes []common.Hash,
 		Difficulty:       common.Big0,
 		Number:           new(big.Int).SetUint64(params.Number),
 		GasLimit:         params.GasLimit,
-		GasUsed:          params.GasUsed,
+		GasUsed:          params.GasUsed[0],
 		Time:             params.Timestamp,
 		BaseFee:          params.BaseFeePerGas,
 		Extra:            params.ExtraData,
@@ -309,14 +309,14 @@ func ExecutableDataToBlock(params ExecutableData, versionedHashes []common.Hash,
 // BlockToExecutableData constructs the ExecutableData structure by filling the
 // fields from the given block. It assumes the given block is post-merge block.
 func BlockToExecutableData(block *types.Block, fees *big.Int, sidecars []*types.BlobTxSidecar) *ExecutionPayloadEnvelope {
-	data := &ExecutableData{
+	data := &RomeExecutableData{
 		BlockHash:     block.Hash(),
 		ParentHash:    block.ParentHash(),
 		FeeRecipient:  block.Coinbase(),
 		StateRoot:     block.Root(),
 		Number:        block.NumberU64(),
 		GasLimit:      block.GasLimit(),
-		GasUsed:       block.GasUsed(),
+		GasUsed:       []uint64{block.GasUsed()},
 		BaseFeePerGas: block.BaseFee(),
 		Timestamp:     block.Time(),
 		ReceiptsRoot:  block.ReceiptHash(),
