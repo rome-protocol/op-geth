@@ -543,7 +543,7 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 	// check whether we already have the block locally.
 	api.newPayloadLock.Lock()
 	defer api.newPayloadLock.Unlock()
-
+	log.Info("msg", "payload", params.RomeGasUsed)
 	log.Trace("Engine API request received", "method", "NewPayload", "number", params.Number, "hash", params.BlockHash)
 	block, err := engine.ExecutableDataToBlock(params, versionedHashes, beaconRoot)
 	if err != nil {
