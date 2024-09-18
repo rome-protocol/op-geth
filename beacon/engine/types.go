@@ -306,9 +306,9 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 		ParentBeaconRoot: beaconRoot,
 	}
 	block := types.NewBlockWithHeader(header).WithBody(txs, nil /* uncles */).WithWithdrawals(params.Withdrawals)
-	// if block.Hash() != params.BlockHash {
-	// 	return nil, fmt.Errorf("blockhash mismatch, want %x, got %x", params.BlockHash, block.Hash())
-	// }
+	if block.Hash() != params.BlockHash {
+		return nil, fmt.Errorf("blockhash mismatch, want %x, got %x", params.BlockHash, block.Hash())
+	}
 	return block, nil
 }
 
