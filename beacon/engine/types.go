@@ -122,7 +122,8 @@ type RomeExecutableData struct {
 	Random        common.Hash         `json:"prevRandao"    gencodec:"required"`
 	Number        uint64              `json:"blockNumber"   gencodec:"required"`
 	GasLimit      uint64              `json:"gasLimit"      gencodec:"required"`
-	GasUsed       []uint64            `json:"gasUsed"       gencodec:"required"`
+	GasUsed       uint64              `json:"gasUsed"       gencodec:"required"`
+	RomeGasUsed   []uint64            `json:"romeGasUsed"   gencodec:"required"`
 	Timestamp     uint64              `json:"timestamp"     gencodec:"required"`
 	ExtraData     []byte              `json:"extraData"     gencodec:"required"`
 	BaseFeePerGas *big.Int            `json:"baseFeePerGas" gencodec:"required"`
@@ -279,11 +280,6 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 		withdrawalsRoot = &h
 	}
 
-	gasUsed := params.GasLimit
-	if len(params.GasUsed) > 0 {
-		gasUsed = params.GasUsed[0]
-	}
-
 	header := &types.Header{
 		ParentHash:       params.ParentHash,
 		UncleHash:        types.EmptyUncleHash,
@@ -295,7 +291,7 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 		Difficulty:       common.Big0,
 		Number:           new(big.Int).SetUint64(params.Number),
 		GasLimit:         params.GasLimit,
-		GasUsed:          gasUsed,
+		GasUsed:          params.GasUsed,
 		Time:             params.Timestamp,
 		BaseFee:          params.BaseFeePerGas,
 		Extra:            params.ExtraData,
@@ -322,7 +318,7 @@ func BlockToExecutableData(block *types.Block, fees *big.Int, sidecars []*types.
 		StateRoot:     block.Root(),
 		Number:        block.NumberU64(),
 		GasLimit:      block.GasLimit(),
-		GasUsed:       []uint64{block.GasUsed()},
+		GasUsed:       block.GasUsed(),
 		BaseFeePerGas: block.BaseFee(),
 		Timestamp:     block.Time(),
 		ReceiptsRoot:  block.ReceiptHash(),

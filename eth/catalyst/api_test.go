@@ -716,7 +716,7 @@ func TestEmptyBlocks(t *testing.T) {
 
 	// (2) Now send P1' which is invalid
 	payload = getNewPayload(t, api, commonAncestor, nil)
-	payload.GasUsed[0] += 1
+	payload.GasUsed += 1
 	payload = setBlockhash(payload)
 	// Now latestValidHash should be the common ancestor
 	status, err = api.NewPayloadV1(*payload)
@@ -781,7 +781,7 @@ func setBlockhash(data *engine.RomeExecutableData) *engine.RomeExecutableData {
 		Difficulty:  common.Big0,
 		Number:      number,
 		GasLimit:    data.GasLimit,
-		GasUsed:     data.GasUsed[0],
+		GasUsed:     data.GasUsed,
 		Time:        data.Timestamp,
 		BaseFee:     data.BaseFeePerGas,
 		Extra:       data.ExtraData,
@@ -833,7 +833,7 @@ func TestTrickRemoteBlockCache(t *testing.T) {
 	// create an invalid payload2 (P2)
 	payload2 := getNewPayload(t, apiA, commonAncestor, nil)
 	//payload2.ParentHash = payload1.BlockHash
-	payload2.GasUsed[0] += 1
+	payload2.GasUsed += 1
 	payload2 = setBlockhash(payload2)
 	invalidChain = append(invalidChain, payload2)
 
@@ -939,7 +939,7 @@ func TestNewPayloadOnInvalidTerminalBlock(t *testing.T) {
 		Difficulty:  common.Big0,
 		Number:      new(big.Int).SetUint64(data.Number),
 		GasLimit:    data.GasLimit,
-		GasUsed:     data.GasUsed[0],
+		GasUsed:     data.GasUsed,
 		Time:        data.Timestamp,
 		BaseFee:     data.BaseFeePerGas,
 		Extra:       data.ExtraData,
