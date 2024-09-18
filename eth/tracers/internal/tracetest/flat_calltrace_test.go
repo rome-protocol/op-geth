@@ -116,7 +116,7 @@ func flatCallTracerTestRunner(tracerName string, filename string, dirPath string
 	}
 	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()))
 
-	if _, err = st.TransitionDb(); err != nil {
+	if _, err = st.TransitionDb(0); err != nil {
 		return fmt.Errorf("failed to execute transaction: %v", err)
 	}
 

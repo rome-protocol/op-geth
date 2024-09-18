@@ -790,11 +790,11 @@ func (w *worker) updateSnapshot(env *environment) {
 	w.snapshotState = env.state.Copy()
 }
 
-func (w *worker) commitTransaction(env *environment, tx *types.Transaction, index int) ([]*types.Log, error) {
+func (w *worker) commitTransaction(env *environment, tx *types.Transaction, index int, romeGasUsed uint64) ([]*types.Log, error) {
 	if tx.Type() == types.BlobTxType {
 		return w.commitBlobTransaction(env, tx)
 	}
-	receipt, err := w.applyTransaction(env, tx, index)
+	receipt, err := w.applyTransaction(env, tx, index, romeGasUsed)
 	if err != nil {
 		return nil, err
 	}
@@ -815,7 +815,7 @@ func (w *worker) commitBlobTransaction(env *environment, tx *types.Transaction) 
 	if (env.blobs+len(sc.Blobs))*params.BlobTxBlobGasPerBlob > params.MaxBlobGasPerBlock {
 		return nil, errors.New("max data blobs reached")
 	}
-	receipt, err := w.applyTransaction(env, tx, 0)
+	receipt, err := w.applyTransaction(env, tx, 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -828,7 +828,7 @@ func (w *worker) commitBlobTransaction(env *environment, tx *types.Transaction) 
 }
 
 // applyTransaction runs the transaction. If execution fails, state and gas pool are reverted.
-func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index int) (*types.Receipt, error) {
+func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index int, romeGasUsed uint64) (*types.Receipt, error) {
 	var (
 		snap = env.state.Snapshot()
 		gp   = env.gasPool.Gas()
@@ -839,7 +839,7 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 	log.Info("env", "gas", env.gasUsed)
 	log.Info("env", "headergas", env.header.GasUsed)
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig())
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed)
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
 		env.gasPool.SetGas(gp)
@@ -909,7 +909,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 		// Start executing the transaction
 		env.state.SetTxContext(tx.Hash(), env.tcount)
 
-		logs, err := w.commitTransaction(env, tx, 0)
+		logs, err := w.commitTransaction(env, tx, 0, 0)
 		switch {
 		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
@@ -1138,7 +1138,7 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 	for idx, tx := range genParams.txs {
 		from, _ := types.Sender(work.signer, tx)
 		work.state.SetTxContext(tx.Hash(), work.tcount)
-		_, err := w.commitTransaction(work, tx, idx)
+		_, err := w.commitTransaction(work, tx, idx, genParams.gasUsed[idx])
 		if err != nil {
 			return &newPayloadResult{err: fmt.Errorf("failed to force-include tx: %s type: %d sender: %s nonce: %d, err: %w", tx.Hash(), tx.Type(), from, tx.Nonce(), err)}
 		}
