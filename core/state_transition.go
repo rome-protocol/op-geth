@@ -25,6 +25,7 @@ import (
 	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -386,6 +387,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 
 	// Check clauses 1-3, buy gas if everything is correct
 	if err := st.preCheck(romeGasUsed); err != nil {
+		log.Info("msg", "err", err)
 		return nil, err
 	}
 
