@@ -609,7 +609,7 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 	}
 	log.Trace("Inserting block without sethead", "hash", block.Hash(), "number", block.Number)
 	/// ROME-GASOMETER NewPayload
-	if err := api.eth.BlockChain().InsertBlockWithoutSetHead(block); err != nil {
+	if err := api.eth.BlockChain().InsertBlockWithoutSetHead(block, params.RomeGasUsed); err != nil {
 		log.Warn("NewPayloadV1: inserting block failed", "error", err)
 
 		api.invalidLock.Lock()

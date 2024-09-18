@@ -209,7 +209,7 @@ func testHeaderVerificationForMerging(t *testing.T, isClique bool) {
 			t.Fatalf("post-block %d: unexpected result returned: %v", i, result)
 		case <-time.After(25 * time.Millisecond):
 		}
-		chain.InsertBlockWithoutSetHead(postBlocks[i])
+		chain.InsertBlockWithoutSetHead(postBlocks[i], make([]uint64, 0))
 	}
 
 	// Verify the blocks with pre-merge blocks and post-merge blocks
