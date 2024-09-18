@@ -65,8 +65,13 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		blockHash   = block.Hash()
 		blockNumber = block.Number()
 		allLogs     []*types.Log
-		gp          = new(GasPool).AddGas(block.GasLimit())
+		gp          = new(GasPool).AddGas(0)
 	)
+
+	for _, gas := range romeGasUsed {
+		gp.AddGas(gas)
+	}
+
 	// Mutate the block and state according to any hard-fork specs
 	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
 		misc.ApplyDAOHardFork(statedb)
