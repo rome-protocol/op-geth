@@ -121,7 +121,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 
 	// Apply the transaction to the current state (included in the env).
 	result, err := ApplyMessage(evm, msg, gp, romeGasUsed)
-	log.Info("msg", "result after apply", result)
+	log.Info("msg", "result after apply", result, "romeUsedGas", romeGasUsed)
 
 	if err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 
 	// Create a new receipt for the transaction, storing the intermediate root and gas used
 	// by the tx.
-	receipt := &types.Receipt{Type: tx.Type(), PostState: root, CumulativeGasUsed: romeGasUsed}
+	receipt := &types.Receipt{Type: tx.Type(), PostState: root, CumulativeGasUsed: max(romeGasUsed, result.UsedGas)}
 	if result.Failed() {
 		receipt.Status = types.ReceiptStatusFailed
 	} else {
