@@ -190,10 +190,10 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, r
 		} else if sLen > operation.maxStack {
 			return nil, &ErrStackOverflow{stackLen: sLen, limit: operation.maxStack}
 		}
-		if !contract.UseGas(cost) {
-			log.Info("error msg", "gas", cost)
-			return nil, ErrOutOfGas
-		}
+		// if !contract.UseGas(cost) {
+		// 	log.Info("error msg", "gas", cost)
+		// 	return nil, ErrOutOfGas
+		// }
 		if operation.dynamicGas != nil {
 			// All ops with a dynamic memory usage also has a dynamic gas cost.
 			var memorySize uint64
@@ -217,10 +217,10 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, r
 			var dynamicCost uint64
 			dynamicCost, err = operation.dynamicGas(in.evm, contract, stack, mem, memorySize)
 			cost += dynamicCost // for tracing
-			if err != nil || !contract.UseGas(romeGasUsed) {
-				log.Info("error msg", "dynamicgas", cost)
-				return nil, ErrOutOfGas
-			}
+			// if err != nil || !contract.UseGas(romeGasUsed) {
+			// 	log.Info("error msg", "dynamicgas", cost)
+			// 	return nil, ErrOutOfGas
+			// }
 			// Do tracing before memory expansion
 			if debug {
 				in.evm.Config.Tracer.CaptureState(pc, op, gasCopy, cost, callContext, in.returnData, in.evm.depth, err)
