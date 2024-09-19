@@ -485,6 +485,8 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	}
 
 	ret, err := evm.interpreter.Run(contract, nil, false, romeGasUsed)
+	log.Info("interpreter", "ret", ret)
+	log.Info("interpreter", "err", err)
 
 	// Check whether the max code size has been exceeded, assign err if the case.
 	if err == nil && evm.chainRules.IsEIP158 && len(ret) > params.MaxCodeSize {
@@ -503,10 +505,10 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	if err == nil {
 		// createDataGas := uint64(len(ret)) * params.CreateDataGas
 		if contract.UseGas(romeGasUsed) {
-			log.Info("inside used set code")
+			log.Info("inside used set code", "gas", romeGasUsed)
 			evm.StateDB.SetCode(address, ret)
 		} else {
-			log.Info("out of gas")
+			log.Info("out of gas", "err", ErrCodeStoreOutOfGas)
 			err = ErrCodeStoreOutOfGas
 		}
 	}
