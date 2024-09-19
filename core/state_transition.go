@@ -235,7 +235,7 @@ func (st *StateTransition) buyGas() error {
 	}
 	st.gasRemaining += st.msg.GasLimit
 
-	st.initialGas = 10000000000
+	st.initialGas = st.msg.GasLimit
 	st.state.SubBalance(st.msg.From, mgval)
 	return nil
 }
@@ -244,7 +244,7 @@ func (st *StateTransition) preCheck(romeGasUsed uint64) error {
 	if st.msg.IsDepositTx {
 		// No fee fields to check, no nonce to check, and no need to check if EOA (L1 already verified it for us)
 		// Gas is free, but no refunds!
-		st.initialGas = 10000000000
+		st.initialGas = st.msg.GasLimit
 		st.gasRemaining += st.msg.GasLimit // Add gas here in order to be able to execute calls.
 		// Don't touch the gas pool for system transactions
 		if st.msg.IsSystemTx {
