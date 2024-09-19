@@ -268,7 +268,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		//} else {
 		//	evm.StateDB.DiscardSnapshot(snapshot)
 	}
-	return ret, gas, err
+	return ret, romeGasUsed, err
 }
 
 // CallCode executes the contract associated with the addr with the given input
