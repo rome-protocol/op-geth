@@ -795,6 +795,7 @@ func (w *worker) commitTransaction(env *environment, tx *types.Transaction, inde
 		return w.commitBlobTransaction(env, tx)
 	}
 	receipt, err := w.applyTransaction(env, tx, index, romeGasUsed)
+	log.Info("msg", "receipt", receipt)
 	if err != nil {
 		return nil, err
 	}
@@ -1138,6 +1139,7 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 	for idx, tx := range genParams.txs {
 		from, _ := types.Sender(work.signer, tx)
 		work.state.SetTxContext(tx.Hash(), work.tcount)
+		log.Info("msg", "GasUsed", genParams.gasUsed[idx])
 		_, err := w.commitTransaction(work, tx, idx, genParams.gasUsed[idx])
 		if err != nil {
 			return &newPayloadResult{err: fmt.Errorf("failed to force-include tx: %s type: %d sender: %s nonce: %d, err: %w", tx.Hash(), tx.Type(), from, tx.Nonce(), err)}

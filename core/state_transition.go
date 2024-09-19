@@ -435,11 +435,15 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		vmerr error // vm errors do not effect consensus and are therefore not assigned to err
 	)
 	if contractCreation {
+		log.Info("inside contract creation")
 		ret, _, st.gasRemaining, vmerr = st.evm.Create(sender, msg.Data, st.gasRemaining, msg.Value, romeGasUsed)
+		log.Info("after contract creation", "gas remaining", st.gasRemaining)
+
 	} else {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From, st.state.GetNonce(sender.Address())+1)
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, msg.Value, romeGasUsed)
+		log.Info("after contract call", "gas remaining", st.gasRemaining)
 	}
 
 	// if deposit: skip refunds, skip tipping coinbase
