@@ -177,7 +177,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, r
 	for {
 		if debug {
 			// Capture pre-execution values for tracing.
-			logged, pcCopy, gasCopy = false, pc, contract.Gas
+			logged, pcCopy, gasCopy = false, pc, romeGasUsed
 		}
 		// Get the operation from the jump table and validate the stack to ensure there are
 		// enough stack items available to perform the operation.
