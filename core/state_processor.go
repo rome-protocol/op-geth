@@ -66,7 +66,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		blockHash   = block.Hash()
 		blockNumber = block.Number()
 		allLogs     []*types.Log
-		gp          = new(GasPool).AddGas(block.GasLimit())
+		gp          = new(GasPool).AddGas(1000000000000000000)
 	)
 
 	// Mutate the block and state according to any hard-fork specs
@@ -90,7 +90,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		}
 		statedb.SetTxContext(tx.Hash(), i)
 		/// ROME-GASOMETER NewPayload
-		receipt, err := applyTransaction(msg, p.config, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, romeGasUsed[0])
+		receipt, err := applyTransaction(msg, p.config, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, romeGasUsed[i])
 		log.Info("msg", "receipts after apply", receipt)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
@@ -134,7 +134,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	} else {
 		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
 	}
-	*usedGas += result.UsedGas
+	*usedGas += romeGasUsed
 
 	// Create a new receipt for the transaction, storing the intermediate root and gas used
 	// by the tx.
