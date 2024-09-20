@@ -192,6 +192,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, r
 		}
 		if !contract.UseGas(cost) {
 			log.Info("error msg", "gas", cost)
+			log.Info("error msg", "contract gas", contract.Gas)
 			return nil, ErrOutOfGas
 		}
 		if operation.dynamicGas != nil {
