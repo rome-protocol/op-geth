@@ -189,7 +189,7 @@ func (evm *EVM) Interpreter() *EVMInterpreter {
 // execution error or failed value transfer.
 func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int, romeGasUsed uint64) (ret []byte, leftOverGas uint64, err error) {
 	// Fail if we're trying to execute above the call depth limit
-	log.Info("gas", gas, "report", romeGasUsed)
+	log.Info("Call", gas, "report", romeGasUsed)
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
@@ -371,6 +371,7 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 // instead of performing the modifications.
 func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte, gas uint64, romeGasUsed uint64) (ret []byte, leftOverGas uint64, err error) {
 	// Fail if we're trying to execute above the call depth limit
+	log.Info("StaticCall", gas, "report", romeGasUsed)
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
@@ -437,7 +438,7 @@ func (c *codeAndHash) Hash() common.Hash {
 func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *big.Int, address common.Address, typ OpCode, romeGasUsed uint64) ([]byte, common.Address, uint64, error) {
 	// Depth check execution. Fail if we're trying to execute above the
 	// limit.
-	log.Info("gas", "report", gas, romeGasUsed)
+	log.Info("create", "report", gas, romeGasUsed)
 	if evm.depth > int(params.CallCreateDepth) {
 		log.Info("invalid depth")
 		return nil, common.Address{}, gas, ErrDepth
@@ -485,8 +486,6 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	}
 
 	ret, err := evm.interpreter.Run(contract, nil, false, romeGasUsed)
-	log.Info("interpreter", "ret", ret)
-	log.Info("interpreter", "err", err)
 
 	// Check whether the max code size has been exceeded, assign err if the case.
 	if err == nil && evm.chainRules.IsEIP158 && len(ret) > params.MaxCodeSize {
