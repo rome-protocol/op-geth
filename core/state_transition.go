@@ -476,7 +476,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	if st.msg.IsDepositTx && rules.IsOptimismRegolith {
 		// Skip coinbase payments for deposit tx in Regolith
 		return &ExecutionResult{
-			UsedGas:     st.gasUsed(),
+			UsedGas:     romeGasUsed,
 			RefundedGas: gasRefund,
 			Err:         vmerr,
 			ReturnData:  ret,
@@ -507,7 +507,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	}
 
 	return &ExecutionResult{
-		UsedGas:     st.gasUsed(),
+		UsedGas:     romeGasUsed,
 		RefundedGas: gasRefund,
 		Err:         vmerr,
 		ReturnData:  ret,

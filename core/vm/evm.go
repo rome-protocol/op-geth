@@ -502,8 +502,8 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	// be stored due to not enough gas set an error and let it be handled
 	// by the error checking condition below.
 	if err == nil {
-		// createDataGas := uint64(len(ret)) * params.CreateDataGas
-		if contract.UseGas(romeGasUsed) {
+		createDataGas := uint64(len(ret)) * params.CreateDataGas
+		if contract.UseGas(createDataGas) {
 			log.Info("inside used set code", "gas", romeGasUsed)
 			evm.StateDB.SetCode(address, ret)
 		} else {
@@ -518,20 +518,19 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	if err != nil && (evm.chainRules.IsHomestead || err != ErrCodeStoreOutOfGas) {
 		evm.StateDB.RevertToSnapshot(snapshot)
 		if err != ErrExecutionReverted {
-			contract.UseGas(romeGasUsed)
+			contract.UseGas(contract.Gas)
 		}
 	}
-
-	log.Info("gas", "report", gas, romeGasUsed)
 
 	if evm.Config.Tracer != nil {
 		if evm.depth == 0 {
-			evm.Config.Tracer.CaptureEnd(ret, gas-romeGasUsed, err)
+			evm.Config.Tracer.CaptureEnd(ret, gas-contract.Gas, err)
 		} else {
-			evm.Config.Tracer.CaptureExit(ret, gas-romeGasUsed, err)
+			evm.Config.Tracer.CaptureExit(ret, gas-contract.Gas, err)
 		}
 	}
-	return ret, address, romeGasUsed, err
+
+	return ret, address, contract.Gas, err
 }
 
 // Create creates a new contract using code as deployment code.

@@ -177,13 +177,13 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, r
 	for {
 		if debug {
 			// Capture pre-execution values for tracing.
-			logged, pcCopy, gasCopy = false, pc, romeGasUsed
+			logged, pcCopy, gasCopy = false, pc, cost
 		}
 		// Get the operation from the jump table and validate the stack to ensure there are
 		// enough stack items available to perform the operation.
 		op = contract.GetOp(pc)
 		operation := in.table[op]
-		cost = romeGasUsed //operation.constantGas // For tracing
+		cost = operation.constantGas // For tracing
 		// Validate stack
 		if sLen := stack.len(); sLen < operation.minStack {
 			return nil, &ErrStackUnderflow{stackLen: sLen, required: operation.minStack}
@@ -215,10 +215,10 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, r
 			}
 			// Consume the gas and return an error if not enough gas is available.
 			// cost is explicitly set so that the capture state defer method can get the proper cost
-			// var dynamicCost uint64
-			// dynamicCost, err = operation.dynamicGas(in.evm, contract, stack, mem, memorySize)
-			cost += romeGasUsed // for tracing
-			if err != nil || !contract.UseGas(romeGasUsed) {
+			var dynamicCost uint64
+			dynamicCost, err = operation.dynamicGas(in.evm, contract, stack, mem, memorySize)
+			cost += dynamicCost // for tracing
+			if err != nil || !contract.UseGas(dynamicCost) {
 				log.Info("error msg", "dynamicgas", cost)
 				return nil, ErrOutOfGas
 			}
