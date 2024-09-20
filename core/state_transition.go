@@ -439,12 +439,12 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		ret, _, st.gasRemaining, vmerr = st.evm.Create(sender, msg.Data, st.gasRemaining, msg.Value, romeGasUsed)
 		log.Info("after contract creation", "gas remaining", st.gasRemaining)
 		log.Info("after contract creation", "vm err", vmerr)
-
 	} else {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From, st.state.GetNonce(sender.Address())+1)
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, msg.Value, romeGasUsed)
 		log.Info("after contract call", "gas remaining", st.gasRemaining)
+		log.Info("after contract call", "vm err", vmerr)
 	}
 
 	// if deposit: skip refunds, skip tipping coinbase
