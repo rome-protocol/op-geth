@@ -1813,8 +1813,12 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, romeGasUsed 
 		pstart := time.Now()
 		/// ROME-GASOMETER NewPayload
 		receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig, romeGasUsed)
-		log.Trace("msg", "receipts", receipts)
+		log.Info("msg", "Processreceipts", receipts)
+		log.Info("msg", "usedGas", usedGas)
+		log.Info("msg", "err", err)
+
 		if err != nil {
+			log.Info("msg", "reportBlock", err)
 			bc.reportBlock(block, receipts, err)
 			followupInterrupt.Store(true)
 			return it.index, err
@@ -1823,6 +1827,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, romeGasUsed 
 
 		vstart := time.Now()
 		if err := bc.validator.ValidateState(block, statedb, receipts, usedGas); err != nil {
+			log.Info("msg", "ValidateState", err)
 			bc.reportBlock(block, receipts, err)
 			followupInterrupt.Store(true)
 			return it.index, err
@@ -1859,6 +1864,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, romeGasUsed 
 		}
 		followupInterrupt.Store(true)
 		if err != nil {
+			log.Info("msg", "followupInterrupt", err)
 			return it.index, err
 		}
 		// Update the metrics touched during block commit
@@ -1885,12 +1891,13 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, romeGasUsed 
 			// After merge we expect few side chains. Simply count
 			// all blocks the CL gives us for GC processing time
 			bc.gcproc += proctime
+			log.Info("msg", "merge", setHead)
 
 			return it.index, nil // Direct block insertion of a single block
 		}
 		switch status {
 		case CanonStatTy:
-			log.Debug("Inserted new block", "number", block.Number(), "hash", block.Hash(),
+			log.Info("Inserted new block", "number", block.Number(), "hash", block.Hash(),
 				"uncles", len(block.Uncles()), "txs", len(block.Transactions()), "gas", block.GasUsed(),
 				"elapsed", common.PrettyDuration(time.Since(start)),
 				"root", block.Root())
@@ -1901,7 +1908,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, romeGasUsed 
 			bc.gcproc += proctime
 
 		case SideStatTy:
-			log.Debug("Inserted forked block", "number", block.Number(), "hash", block.Hash(),
+			log.Info("Inserted forked block", "number", block.Number(), "hash", block.Hash(),
 				"diff", block.Difficulty(), "elapsed", common.PrettyDuration(time.Since(start)),
 				"txs", len(block.Transactions()), "gas", block.GasUsed(), "uncles", len(block.Uncles()),
 				"root", block.Root())
@@ -1909,7 +1916,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, romeGasUsed 
 		default:
 			// This in theory is impossible, but lets be nice to our future selves and leave
 			// a log, instead of trying to track down blocks imports that don't emit logs.
-			log.Warn("Inserted block with unknown status", "number", block.Number(), "hash", block.Hash(),
+			log.Info("Inserted block with unknown status", "number", block.Number(), "hash", block.Hash(),
 				"diff", block.Difficulty(), "elapsed", common.PrettyDuration(time.Since(start)),
 				"txs", len(block.Transactions()), "gas", block.GasUsed(), "uncles", len(block.Uncles()),
 				"root", block.Root())
@@ -1919,12 +1926,14 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, romeGasUsed 
 	// Any blocks remaining here? The only ones we care about are the future ones
 	if block != nil && errors.Is(err, consensus.ErrFutureBlock) {
 		if err := bc.addFutureBlock(block); err != nil {
+			log.Info("msg", "addFutureBlock1", err)
 			return it.index, err
 		}
 		block, err = it.next()
 
 		for ; block != nil && errors.Is(err, consensus.ErrUnknownAncestor); block, err = it.next() {
 			if err := bc.addFutureBlock(block); err != nil {
+				log.Info("msg", "addFutureBlock2", err)
 				return it.index, err
 			}
 			stats.queued++
