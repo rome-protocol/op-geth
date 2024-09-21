@@ -691,7 +691,7 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byt
 		bigVal = value.ToBig()
 	}
 
-	ret, _, err := interpreter.evm.Call(scope.Contract, toAddr, args, gas, bigVal, 0)
+	ret, _, err := interpreter.evm.Call(scope.Contract, toAddr, args, gas, bigVal, 21000)
 	log.Info("opCall", "err", err)
 
 	if err != nil {

@@ -437,7 +437,7 @@ func (c *codeAndHash) Hash() common.Hash {
 func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *big.Int, address common.Address, typ OpCode, romeGasUsed uint64) ([]byte, common.Address, uint64, error) {
 	// Depth check execution. Fail if we're trying to execute above the
 	// limit.
-	log.Info("create", "report", gas, romeGasUsed)
+	log.Info("create", gas, "report", romeGasUsed)
 	if evm.depth > int(params.CallCreateDepth) {
 		log.Info("invalid depth")
 		return nil, common.Address{}, gas, ErrDepth
