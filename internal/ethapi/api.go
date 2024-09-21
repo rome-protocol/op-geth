@@ -1787,7 +1787,7 @@ func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrH
 		tracer := logger.NewAccessListTracer(accessList, args.from(), to, precompiles)
 		config := vm.Config{Tracer: tracer, NoBaseFee: true}
 		vmenv := b.GetEVM(ctx, msg, statedb, header, &config, nil)
-		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit), 0)
+		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(math.MaxUint64), 0)
 		if err != nil {
 			return nil, 0, nil, fmt.Errorf("failed to apply transaction: %v err: %v", args.toTransaction().Hash(), err)
 		}

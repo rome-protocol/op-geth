@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -854,7 +855,7 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAndNonce, interrupt *atomic.Int32) error {
 	if env.gasPool == nil {
 		log.Info("msg", "here", true)
-		env.gasPool = new(core.GasPool).AddGas(env.header.GasLimit)
+		env.gasPool = new(core.GasPool).AddGas(math.MaxUint64)
 	}
 	var coalescedLogs []*types.Log
 
@@ -907,7 +908,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 		// Start executing the transaction
 		env.state.SetTxContext(tx.Hash(), env.tcount)
 
-		logs, err := w.commitTransaction(env, tx, 0, 0)
+		logs, err := w.commitTransaction(env, tx, 0, env.gasUsed[0])
 		switch {
 		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
@@ -1127,7 +1128,7 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 		return &newPayloadResult{err: err}
 	}
 	defer work.discard()
-	work.gasPool = new(core.GasPool).AddGas(1000000000000000000)
+	work.gasPool = new(core.GasPool).AddGas(math.MaxUint64)
 
 	misc.EnsureCreate2Deployer(w.chainConfig, work.header.Time, work.state)
 
