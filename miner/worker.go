@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -855,7 +854,7 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAndNonce, interrupt *atomic.Int32) error {
 	if env.gasPool == nil {
 		log.Info("GasPool")
-		env.gasPool = new(core.GasPool).AddGas(math.MaxUint64)
+		env.gasPool = new(core.GasPool).AddGas(1000000000)
 	}
 	var coalescedLogs []*types.Log
 
@@ -1135,7 +1134,7 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 		return &newPayloadResult{err: err}
 	}
 	defer work.discard()
-	work.gasPool = new(core.GasPool).AddGas(math.MaxUint64)
+	work.gasPool = new(core.GasPool).AddGas(1000000000)
 
 	misc.EnsureCreate2Deployer(w.chainConfig, work.header.Time, work.state)
 

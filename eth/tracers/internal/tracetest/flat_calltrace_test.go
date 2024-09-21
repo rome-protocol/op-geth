@@ -3,7 +3,6 @@ package tracetest
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -115,7 +114,7 @@ func flatCallTracerTestRunner(tracerName string, filename string, dirPath string
 	if err != nil {
 		return fmt.Errorf("failed to prepare transaction for tracing: %v", err)
 	}
-	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(math.MaxUint64))
+	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(1000000000))
 
 	if _, err = st.TransitionDb(0); err != nil {
 		return fmt.Errorf("failed to execute transaction: %v", err)
