@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -576,6 +577,7 @@ func opGas(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte
 }
 
 func opCreate(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	log.Info("opCreate")
 	if interpreter.readOnly {
 		return nil, ErrWriteProtection
 	}
@@ -598,7 +600,9 @@ func opCreate(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 		bigVal = value.ToBig()
 	}
 
-	res, addr, returnGas, suberr := interpreter.evm.Create(scope.Contract, input, gas, bigVal, gas)
+	res, addr, returnGas, suberr := interpreter.evm.Create(scope.Contract, input, gas, bigVal, 21000)
+	log.Info("opCreate", "err", suberr)
+
 	// Push item on the stack based on the returned error. If the ruleset is
 	// homestead we must check for CodeStoreOutOfGasError (homestead only
 	// rule) and treat as an error, if the ruleset is frontier we must
@@ -622,6 +626,7 @@ func opCreate(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 }
 
 func opCreate2(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	log.Info("opCreate2")
 	if interpreter.readOnly {
 		return nil, ErrWriteProtection
 	}
@@ -662,6 +667,7 @@ func opCreate2(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 }
 
 func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	log.Info("opCall")
 	stack := scope.Stack
 	// Pop gas. The actual gas in interpreter.evm.callGasTemp.
 	// We can use this as a temporary value
@@ -685,7 +691,8 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byt
 		bigVal = value.ToBig()
 	}
 
-	ret, returnGas, err := interpreter.evm.Call(scope.Contract, toAddr, args, gas, bigVal, 0)
+	ret, _, err := interpreter.evm.Call(scope.Contract, toAddr, args, gas, bigVal, 0)
+	log.Info("opCall", "err", err)
 
 	if err != nil {
 		temp.Clear()
@@ -696,13 +703,14 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byt
 	if err == nil || err == ErrExecutionReverted {
 		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	}
-	scope.Contract.Gas += returnGas
+	// scope.Contract.Gas += returnGas
 
 	interpreter.returnData = ret
 	return ret, nil
 }
 
 func opCallCode(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	log.Info("opCallCode")
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
 	stack := scope.Stack
 	// We use it as a temporary value
@@ -722,6 +730,7 @@ func opCallCode(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([
 	}
 
 	ret, returnGas, err := interpreter.evm.CallCode(scope.Contract, toAddr, args, gas, bigVal, 400000)
+	log.Info("opCallCode", "err", err)
 	if err != nil {
 		temp.Clear()
 	} else {
@@ -738,6 +747,7 @@ func opCallCode(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([
 }
 
 func opDelegateCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	log.Info("DelegateCall")
 	stack := scope.Stack
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
 	// We use it as a temporary value
@@ -750,6 +760,7 @@ func opDelegateCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext
 	args := scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
 
 	ret, returnGas, err := interpreter.evm.DelegateCall(scope.Contract, toAddr, args, gas, 400000)
+	log.Info("DelegateCall", "err", err)
 	if err != nil {
 		temp.Clear()
 	} else {
@@ -766,6 +777,7 @@ func opDelegateCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext
 }
 
 func opStaticCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	log.Info("opStaticCall")
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
 	stack := scope.Stack
 	// We use it as a temporary value
@@ -778,6 +790,7 @@ func opStaticCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) 
 	args := scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
 
 	ret, returnGas, err := interpreter.evm.StaticCall(scope.Contract, toAddr, args, gas, 400000)
+	log.Info("opStaticCall", "err", err)
 	if err != nil {
 		temp.Clear()
 	} else {
@@ -801,6 +814,8 @@ func opReturn(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 }
 
 func opRevert(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	log.Info("opRevert")
+
 	offset, size := scope.Stack.pop(), scope.Stack.pop()
 	ret := scope.Memory.GetPtr(int64(offset.Uint64()), int64(size.Uint64()))
 
