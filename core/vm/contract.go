@@ -75,7 +75,7 @@ func NewContract(caller ContractRef, object ContractRef, value *big.Int, gas uin
 
 	// Gas should be a pointer so it can safely be reduced through the run
 	// This pointer will be off the state transition
-	c.Gas = 10000000000000000
+	c.Gas = gas
 	// ensures a value is set
 	c.value = value
 
