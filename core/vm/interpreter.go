@@ -247,7 +247,6 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, r
 	log.Info("ended")
 
 	if err == errStopToken {
-		log.Info("error in call")
 		err = nil // clear stop token error
 	}
 
