@@ -237,7 +237,6 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 
 	if isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
-		gas = romeGasUsed
 	} else {
 		// Initialise a new contract and set the code that is to be used by the EVM.
 		// The contract is a scoped environment for this execution context only.
@@ -251,7 +250,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			contract := NewContract(caller, AccountRef(addrCopy), value, romeGasUsed)
 			contract.SetCallCode(&addrCopy, evm.StateDB.GetCodeHash(addrCopy), code)
 			ret, err = evm.interpreter.Run(contract, input, false, romeGasUsed)
-			gas = romeGasUsed // contract.Gas //
+			gas = contract.Gas
 		}
 	}
 	log.Info("gas", gas, "report", romeGasUsed)
@@ -268,7 +267,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		//} else {
 		//	evm.StateDB.DiscardSnapshot(snapshot)
 	}
-	return ret, romeGasUsed, err
+	return ret, gas, err
 }
 
 // CallCode executes the contract associated with the addr with the given input
