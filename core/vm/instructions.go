@@ -598,7 +598,7 @@ func opCreate(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 		bigVal = value.ToBig()
 	}
 
-	res, addr, returnGas, suberr := interpreter.evm.Create(scope.Contract, input, gas, bigVal, 0)
+	res, addr, returnGas, suberr := interpreter.evm.Create(scope.Contract, input, gas, bigVal, gas)
 	// Push item on the stack based on the returned error. If the ruleset is
 	// homestead we must check for CodeStoreOutOfGasError (homestead only
 	// rule) and treat as an error, if the ruleset is frontier we must
