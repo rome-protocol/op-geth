@@ -528,7 +528,7 @@ func (st *StateTransition) refundGas(refundQuotient uint64) uint64 {
 
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.
-	st.gp.AddGas(st.gasRemaining)
+	//st.gp.AddGas(st.gasRemaining)
 
 	return refund
 }
