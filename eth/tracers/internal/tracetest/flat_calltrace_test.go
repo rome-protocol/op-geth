@@ -114,7 +114,7 @@ func flatCallTracerTestRunner(tracerName string, filename string, dirPath string
 	if err != nil {
 		return fmt.Errorf("failed to prepare transaction for tracing: %v", err)
 	}
-	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(1000000000))
+	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(9523372036854775807))
 
 	if _, err = st.TransitionDb(0); err != nil {
 		return fmt.Errorf("failed to execute transaction: %v", err)
