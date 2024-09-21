@@ -854,7 +854,7 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 
 func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAndNonce, interrupt *atomic.Int32) error {
 	if env.gasPool == nil {
-		log.Info("msg", "here", true)
+		log.Info("GasPool")
 		env.gasPool = new(core.GasPool).AddGas(math.MaxUint64)
 	}
 	var coalescedLogs []*types.Log
@@ -908,7 +908,14 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 		// Start executing the transaction
 		env.state.SetTxContext(tx.Hash(), env.tcount)
 
-		logs, err := w.commitTransaction(env, tx, 0, env.gasUsed[0])
+		var gasUsed uint64
+		if len(env.gasUsed) == 0 {
+			gasUsed = 21000
+		} else {
+			gasUsed = env.gasUsed[0]
+		}
+
+		logs, err := w.commitTransaction(env, tx, 0, gasUsed)
 		switch {
 		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
