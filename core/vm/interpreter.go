@@ -191,7 +191,6 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, r
 			return nil, &ErrStackOverflow{stackLen: sLen, limit: operation.maxStack}
 		}
 		if !contract.UseGas(cost) {
-			log.Info("error msg", "gas", cost)
 			log.Info("error msg", "contract gas", contract.Gas)
 			return nil, ErrOutOfGas
 		}
@@ -237,6 +236,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, r
 		// execute the operation
 		res, err = operation.execute(&pc, in, callContext)
 		if err != nil {
+			log.Info("error msg", "interpreter", err)
 			break
 		}
 		pc++
