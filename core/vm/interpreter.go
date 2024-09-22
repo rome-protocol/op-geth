@@ -235,9 +235,11 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, r
 		}
 		// execute the operation
 		res, err = operation.execute(&pc, in, callContext)
+		log.Info("res msg", "in", res)
+		log.Info("res msg", "err", err)
+
 		if err != nil {
-			log.Info("error msg", "interpreter", callContext)
-			log.Info("error msg", "in", in)
+			log.Info("error msg", "interpreter", err)
 			break
 		}
 		pc++
