@@ -852,9 +852,15 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 }
 
 func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAndNonce, interrupt *atomic.Int32) error {
+	var gasUsed uint64
+	if len(env.gasUsed) > 0 {
+		gasUsed = env.gasUsed[0]
+	} else {
+		gasUsed = env.header.GasLimit
+	}
 	if env.gasPool == nil {
-		log.Info("GasPool")
-		env.gasPool = new(core.GasPool).AddGas(9523372036854775807)
+		log.Info("msg", "here", true)
+		env.gasPool = new(core.GasPool).AddGas(gasUsed)
 	}
 	var coalescedLogs []*types.Log
 
