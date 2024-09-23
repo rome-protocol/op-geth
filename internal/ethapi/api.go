@@ -70,18 +70,18 @@ func NewEthereumAPI(b Backend) *EthereumAPI {
 
 // GasPrice returns a suggestion for a gas price for legacy transactions.
 func (s *EthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
-	// log.Info("enter EthereumAPI GasPrice")
+	log.Info("enter EthereumAPI GasPrice")
 
-	// return fetchRomeGasPrice(ctx)
+	return fetchRomeGasPrice(ctx)
 
-	tipcap, err := s.b.SuggestGasTipCap(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if head := s.b.CurrentHeader(); head.BaseFee != nil {
-		tipcap.Add(tipcap, head.BaseFee)
-	}
-	return (*hexutil.Big)(tipcap), err
+	// tipcap, err := s.b.SuggestGasTipCap(ctx)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// if head := s.b.CurrentHeader(); head.BaseFee != nil {
+	// 	tipcap.Add(tipcap, head.BaseFee)
+	// }
+	// return (*hexutil.Big)(tipcap), err
 }
 
 func fetchRomeGasPrice(ctx context.Context) (*hexutil.Big, error) {
