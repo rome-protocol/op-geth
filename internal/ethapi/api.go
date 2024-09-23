@@ -70,18 +70,18 @@ func NewEthereumAPI(b Backend) *EthereumAPI {
 
 // GasPrice returns a suggestion for a gas price for legacy transactions.
 func (s *EthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
-	log.Info("enter EthereumAPI GasPrice")
+	// log.Info("enter EthereumAPI GasPrice")
 
-	return fetchRomeGasPrice(ctx)
+	// return fetchRomeGasPrice(ctx)
 
-	// tipcap, err := s.b.SuggestGasTipCap(ctx)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// if head := s.b.CurrentHeader(); head.BaseFee != nil {
-	// 	tipcap.Add(tipcap, head.BaseFee)
-	// }
-	// return (*hexutil.Big)(tipcap), err
+	tipcap, err := s.b.SuggestGasTipCap(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if head := s.b.CurrentHeader(); head.BaseFee != nil {
+		tipcap.Add(tipcap, head.BaseFee)
+	}
+	return (*hexutil.Big)(tipcap), err
 }
 
 func fetchRomeGasPrice(ctx context.Context) (*hexutil.Big, error) {
@@ -1356,34 +1356,34 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 // value is capped by both `args.Gas` (if non-nil & non-zero) and the backend's RPCGasCap
 // configuration (if non-zero).
 func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash, overrides *StateOverride) (hexutil.Uint64, error) {
-	log.Info("Rome: enter EthereumAPI EstimateGas")
+	// log.Info("Rome: enter EthereumAPI EstimateGas")
 
-	return estimateRomeGas(ctx, args)
+	// return estimateRomeGas(ctx, args)
 
-	// bNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
-	// if blockNrOrHash != nil {
-	// 	bNrOrHash = *blockNrOrHash
-	// }
+	bNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
+	if blockNrOrHash != nil {
+		bNrOrHash = *blockNrOrHash
+	}
 
-	// header, err := headerByNumberOrHash(ctx, s.b, bNrOrHash)
-	// if err != nil {
-	// 	return 0, err
-	// }
+	header, err := headerByNumberOrHash(ctx, s.b, bNrOrHash)
+	if err != nil {
+		return 0, err
+	}
 
-	// if s.b.ChainConfig().IsOptimismPreBedrock(header.Number) {
-	// 	if s.b.HistoricalRPCService() != nil {
-	// 		var res hexutil.Uint64
-	// 		err := s.b.HistoricalRPCService().CallContext(ctx, &res, "eth_estimateGas", args, blockNrOrHash)
-	// 		if err != nil {
-	// 			return 0, fmt.Errorf("historical backend error: %w", err)
-	// 		}
-	// 		return res, nil
-	// 	} else {
-	// 		return 0, rpc.ErrNoHistoricalFallback
-	// 	}
-	// }
+	if s.b.ChainConfig().IsOptimismPreBedrock(header.Number) {
+		if s.b.HistoricalRPCService() != nil {
+			var res hexutil.Uint64
+			err := s.b.HistoricalRPCService().CallContext(ctx, &res, "eth_estimateGas", args, blockNrOrHash)
+			if err != nil {
+				return 0, fmt.Errorf("historical backend error: %w", err)
+			}
+			return res, nil
+		} else {
+			return 0, rpc.ErrNoHistoricalFallback
+		}
+	}
 
-	// return DoEstimateGas(ctx, s.b, args, bNrOrHash, overrides, s.b.RPCGasCap())
+	return DoEstimateGas(ctx, s.b, args, bNrOrHash, overrides, s.b.RPCGasCap())
 }
 
 // Fetch gas estimate from Rome gasometer
