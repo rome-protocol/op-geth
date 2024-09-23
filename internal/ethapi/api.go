@@ -1356,7 +1356,7 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 // value is capped by both `args.Gas` (if non-nil & non-zero) and the backend's RPCGasCap
 // configuration (if non-zero).
 func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash, overrides *StateOverride) (hexutil.Uint64, error) {
-	// log.Info("Rome: enter EthereumAPI EstimateGas")
+	log.Info("Rome: enter EthereumAPI EstimateGas")
 
 	// return estimateRomeGas(ctx, args)
 
@@ -1383,7 +1383,12 @@ func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, b
 		}
 	}
 
-	return DoEstimateGas(ctx, s.b, args, bNrOrHash, overrides, s.b.RPCGasCap())
+	rome, err := estimateRomeGas(ctx, args)
+	evm, evm_err := DoEstimateGas(ctx, s.b, args, bNrOrHash, overrides, s.b.RPCGasCap())
+	log.Info("estimate gas", "rome", rome)
+	log.Info("estimate gas", "evm", evm)
+
+	return evm, evm_err
 }
 
 // Fetch gas estimate from Rome gasometer
