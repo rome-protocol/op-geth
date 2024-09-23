@@ -1384,11 +1384,11 @@ func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, b
 	}
 
 	rome, err := estimateRomeGas(ctx, args)
-	evm, evm_err := DoEstimateGas(ctx, s.b, args, bNrOrHash, overrides, s.b.RPCGasCap())
+	evm, _ := DoEstimateGas(ctx, s.b, args, bNrOrHash, overrides, s.b.RPCGasCap())
 	log.Info("estimate gas", "rome", rome)
 	log.Info("estimate gas", "evm", evm)
 
-	return evm, evm_err
+	return rome, err
 }
 
 // Fetch gas estimate from Rome gasometer
