@@ -1134,7 +1134,9 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 		return &newPayloadResult{err: err}
 	}
 	defer work.discard()
-	work.gasPool = new(core.GasPool).AddGas(9523372036854775807)
+	if work.gasPool == nil {
+		work.gasPool = new(core.GasPool).AddGas(work.header.GasLimit)
+	}
 
 	misc.EnsureCreate2Deployer(w.chainConfig, work.header.Time, work.state)
 
