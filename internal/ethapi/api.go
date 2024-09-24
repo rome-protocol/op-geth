@@ -1322,9 +1322,11 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 	// Retrieve the base state and mutate it with any overrides
 	state, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
 	if state == nil || err != nil {
+		log.Info("StateAndHeaderByNumberOrHash", err)
 		return 0, err
 	}
 	if err = overrides.Apply(state); err != nil {
+		log.Info("overrides", err)
 		return 0, err
 	}
 	// Construct the gas estimator option from the user input
@@ -1338,13 +1340,16 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 	// Run the gas estimation andwrap any revertals into a custom return
 	call, err := args.ToMessage(gasCap, header.BaseFee)
 	if err != nil {
+		log.Info("to message err", err)
 		return 0, err
 	}
 	estimate, revert, err := gasestimator.Estimate(ctx, call, opts, gasCap)
 	if err != nil {
 		if len(revert) > 0 {
+			log.Info("newRevertError", newRevertError(revert))
 			return 0, newRevertError(revert)
 		}
+		log.Info("estimate err", err)
 		return 0, err
 	}
 	return hexutil.Uint64(estimate), nil
