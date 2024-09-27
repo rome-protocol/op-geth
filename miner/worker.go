@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -77,10 +78,11 @@ const (
 )
 
 var (
-	errBlockInterruptedByNewHead  = errors.New("new head arrived while building block")
-	errBlockInterruptedByRecommit = errors.New("recommit interrupt while building block")
-	errBlockInterruptedByTimeout  = errors.New("timeout while building block")
-	errBlockInterruptedByResolve  = errors.New("payload resolution while building block")
+	errBlockInterruptedByNewHead      = errors.New("new head arrived while building block")
+	errBlockInterruptedByRecommit     = errors.New("recommit interrupt while building block")
+	errBlockInterruptedByTimeout      = errors.New("timeout while building block")
+	errBlockInterruptedByResolve      = errors.New("payload resolution while building block")
+	errBlockInterruptedByWrongGasUsed = errors.New("romeGasUsed has wrong dimension")
 )
 
 // environment is the worker's current environment and holds all
@@ -591,7 +593,6 @@ func (w *worker) mainLoop() {
 				}
 				txset := newTransactionsByPriceAndNonce(w.current.signer, txs, w.current.header.BaseFee)
 				tcount := w.current.tcount
-				/// ROME-GASOMETER SendRawTransaction
 				w.commitTransactions(w.current, txset, nil)
 
 				// Only update the snapshot if any new transactions were added
@@ -745,7 +746,6 @@ func (w *worker) resultLoop() {
 func (w *worker) makeEnv(parent *types.Header, header *types.Header, genParams *generateParams) (*environment, error) {
 	// Retrieve the parent state to execute on top and start a prefetcher for
 	// the miner to speed block sealing up a bit.
-	log.Warn("inside make env")
 	state, err := w.chain.StateAt(parent.Root)
 	if err != nil && w.chainConfig.Optimism != nil { // Allow the miner to reorg its own chain arbitrarily deep
 		if historicalBackend, ok := w.eth.(BackendWithHistoricalState); ok {
@@ -852,17 +852,11 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 }
 
 func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAndNonce, interrupt *atomic.Int32) error {
-	var gasUsed uint64
-	if len(env.gasUsed) > 0 {
-		gasUsed = env.gasUsed[0]
-	} else {
-		gasUsed = env.header.GasLimit
-	}
 	if env.gasPool == nil {
-		log.Info("msg", "here", true)
-		env.gasPool = new(core.GasPool).AddGas(gasUsed)
+		env.gasPool = new(core.GasPool).AddGas(math.MaxUint64)
 	}
 	var coalescedLogs []*types.Log
+	var index int = 0
 
 	for {
 		// Check interruption signal and abort building if it's fired.
@@ -914,13 +908,14 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 		env.state.SetTxContext(tx.Hash(), env.tcount)
 
 		var gasUsed uint64
-		if len(env.gasUsed) == 0 {
-			gasUsed = 21000
+		if len(env.gasUsed) < index+1 {
+			return errBlockInterruptedByWrongGasUsed
 		} else {
-			gasUsed = env.gasUsed[0]
+			gasUsed = env.gasUsed[index]
 		}
 
-		logs, err := w.commitTransaction(env, tx, 0, gasUsed)
+		index++
+		logs, err := w.commitTransaction(env, tx, index, gasUsed)
 		switch {
 		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
@@ -1060,7 +1055,6 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	}
 	log.Warn("gasLimit")
 	if genParams.gasLimit != nil { // override gas limit if specified
-		log.Warn("inside gasLimit")
 		header.GasLimit = *genParams.gasLimit
 	} else if w.chain.Config().Optimism != nil && w.config.GasCeil != 0 {
 		// configure the gas limit of pending blocks with the miner gas limit config when using optimism
@@ -1081,7 +1075,6 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	}
 	// Run the consensus preparation with the default or customized consensus engine.
 	if err := w.engine.Prepare(w.chain, header); err != nil {
-		log.Warn("Prepare error")
 		log.Error("Failed to prepare header for sealing", "err", err)
 		return nil, err
 	}
