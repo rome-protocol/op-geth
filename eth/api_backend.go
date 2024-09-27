@@ -292,7 +292,6 @@ func (b *EthAPIBackend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscri
 	return b.eth.BlockChain().SubscribeLogsEvent(ch)
 }
 
-/// ROME-GASOMETER SendRawTransaction
 func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
 	if b.ChainConfig().IsOptimism() && signedTx.Type() == types.BlobTxType {
 		return types.ErrTxTypeNotSupported
@@ -371,7 +370,6 @@ func (b *EthAPIBackend) SyncProgress() ethereum.SyncProgress {
 }
 
 func (b *EthAPIBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
-	log.Info("Rome: enter EthAPIBackend SuggestGasTipCap")
 	return b.gpo.SuggestTipCap(ctx)
 }
 

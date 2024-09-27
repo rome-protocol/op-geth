@@ -109,7 +109,7 @@ func NewEVMInterpreter(evm *EVM) *EVMInterpreter {
 // It's important to note that any errors returned by the interpreter should be
 // considered a revert-and-consume-all-gas operation except for
 // ErrExecutionReverted which means revert-and-keep-gas-left.
-func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, romeGasUsed uint64) (ret []byte, err error) {
+func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (ret []byte, err error) {
 	// Increment the call depth which is restricted to 1024
 	in.evm.depth++
 	defer func() { in.evm.depth-- }()
@@ -177,7 +177,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, r
 	for {
 		if debug {
 			// Capture pre-execution values for tracing.
-			logged, pcCopy, gasCopy = false, pc, cost
+			logged, pcCopy, gasCopy = false, pc, contract.Gas
 		}
 		// Get the operation from the jump table and validate the stack to ensure there are
 		// enough stack items available to perform the operation.
@@ -191,7 +191,6 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, r
 			return nil, &ErrStackOverflow{stackLen: sLen, limit: operation.maxStack}
 		}
 		if !contract.UseGas(cost) {
-			log.Info("error msg", "contract gas", contract.Gas)
 			return nil, ErrOutOfGas
 		}
 		if operation.dynamicGas != nil {
@@ -218,7 +217,6 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, r
 			dynamicCost, err = operation.dynamicGas(in.evm, contract, stack, mem, memorySize)
 			cost += dynamicCost // for tracing
 			if err != nil || !contract.UseGas(dynamicCost) {
-				log.Info("error msg", "dynamicgas", cost)
 				return nil, ErrOutOfGas
 			}
 			// Do tracing before memory expansion
@@ -235,15 +233,11 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool, r
 		}
 		// execute the operation
 		res, err = operation.execute(&pc, in, callContext)
-
 		if err != nil {
-			log.Info("error msg", "interpreter", err)
 			break
 		}
 		pc++
 	}
-
-	log.Info("ended")
 
 	if err == errStopToken {
 		err = nil // clear stop token error

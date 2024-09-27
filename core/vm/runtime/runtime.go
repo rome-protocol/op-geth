@@ -136,7 +136,6 @@ func Execute(code, input []byte, cfg *Config) ([]byte, *state.StateDB, error) {
 		input,
 		cfg.GasLimit,
 		cfg.Value,
-		0,
 	)
 	return ret, cfg.State, err
 }
@@ -166,7 +165,6 @@ func Create(input []byte, cfg *Config) ([]byte, common.Address, uint64, error) {
 		input,
 		cfg.GasLimit,
 		cfg.Value,
-		0,
 	)
 	return code, address, leftOverGas, err
 }
@@ -197,7 +195,6 @@ func Call(address common.Address, input []byte, cfg *Config) ([]byte, uint64, er
 		input,
 		cfg.GasLimit,
 		cfg.Value,
-		0,
 	)
 	return ret, leftOverGas, err
 }
