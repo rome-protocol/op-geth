@@ -1395,7 +1395,7 @@ func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, b
 	log.Info("estimate gas", "gas cap", s.b.RPCGasCap())
 	log.Info("estimate gas", "evm err", evm_err)
 
-	return rome, evm_err
+	return rome, err
 }
 
 // Fetch gas estimate from Rome gasometer
