@@ -494,10 +494,10 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	} else {
 		fee := new(big.Int).SetUint64(st.gasUsed())
 		fee.Mul(fee, effectiveTip)
-		// zeroAddress := common.Address{}
-		// if st.evm.Context.Coinbase != zeroAddress {
-		st.state.AddBalance(st.evm.Context.Coinbase, fee)
-		// }
+		zeroAddress := common.Address{}
+		if st.evm.Context.Coinbase != zeroAddress {
+			st.state.AddBalance(st.evm.Context.Coinbase, fee)
+		}
 	}
 
 	// Check that we are post bedrock to enable op-geth to be able to create pseudo pre-bedrock blocks (these are pre-bedrock, but don't follow l2 geth rules)
