@@ -1215,7 +1215,7 @@ func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.S
 	}()
 
 	// Execute the message.
-	gp := new(core.GasPool).AddGas(9523372036854775807)
+	gp := new(core.GasPool).AddGas(math.MaxUint64)
 	result, err := core.ApplyMessage(evm, msg, gp, 0)
 	if err := state.Error(); err != nil {
 		return nil, err
