@@ -835,14 +835,7 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 		gp   = env.gasPool.Gas()
 	)
 
-	log.Info("tx", "tx", tx)
-	log.Info("env", "txs", env.txs)
-	log.Info("env", "gas", env.gasUsed)
-	log.Info("env", "headergas", env.header.GasUsed)
-
 	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed)
-	log.Info("applyTransaction", "receipt", receipt)
-	log.Info("applyTransaction", "err", err)
 
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
@@ -1053,7 +1046,6 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 			header.GasLimit = core.CalcGasLimit(parentGasLimit, w.config.GasCeil)
 		}
 	}
-	log.Warn("gasLimit")
 	if genParams.gasLimit != nil { // override gas limit if specified
 		header.GasLimit = *genParams.gasLimit
 	} else if w.chain.Config().Optimism != nil && w.config.GasCeil != 0 {
@@ -1127,7 +1119,6 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 
 // generateWork generates a sealing block based on the given parameters.
 func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
-	log.Warn("generateWork")
 	work, err := w.prepareWork(genParams)
 	if err != nil {
 		return &newPayloadResult{err: err}
@@ -1142,7 +1133,6 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 	for idx, tx := range genParams.txs {
 		from, _ := types.Sender(work.signer, tx)
 		work.state.SetTxContext(tx.Hash(), work.tcount)
-		log.Info("msg", "GasUsed", genParams.gasUsed[idx])
 		_, err := w.commitTransaction(work, tx, idx, genParams.gasUsed[idx])
 		if err != nil {
 			return &newPayloadResult{err: fmt.Errorf("failed to force-include tx: %s type: %d sender: %s nonce: %d, err: %w", tx.Hash(), tx.Type(), from, tx.Nonce(), err)}

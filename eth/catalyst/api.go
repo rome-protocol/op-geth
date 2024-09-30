@@ -228,13 +228,11 @@ func checkAttribute(active func(*big.Int, uint64) bool, exists bool, block *big.
 }
 
 func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payloadAttributes *engine.RomePayloadAttributes) (engine.ForkChoiceResponse, error) {
-	log.Warn("forkchoiceUpdated 1")
 	api.forkchoiceLock.Lock()
 	defer api.forkchoiceLock.Unlock()
 
 	log.Trace("Engine API request received", "method", "ForkchoiceUpdated", "head", update.HeadBlockHash, "finalized", update.FinalizedBlockHash, "safe", update.SafeBlockHash)
 	if update.HeadBlockHash == (common.Hash{}) {
-		log.Warn("Forkchoice requested update to zero hash")
 		return engine.STATUS_INVALID, nil // TODO(karalabe): Why does someone send us this?
 	}
 	// Stash away the last update to warn the user if the beacon client goes offline
@@ -242,13 +240,11 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	api.lastForkchoiceUpdate = time.Now()
 	api.lastForkchoiceLock.Unlock()
 
-	log.Warn("forkchoiceUpdated 2")
 	// Check whether we have the block yet in our database or not. If not, we'll
 	// need to either trigger a sync, or to reject this forkchoice update for a
 	// reason.
 	block := api.eth.BlockChain().GetBlockByHash(update.HeadBlockHash)
 	if block == nil {
-		log.Warn("forkchoiceUpdated 3")
 		// If this block was previously invalidated, keep rejecting it here too
 		if res := api.checkInvalidAncestor(update.HeadBlockHash, update.HeadBlockHash); res != nil {
 			return engine.ForkChoiceResponse{PayloadStatus: *res, PayloadID: nil}, nil
@@ -281,18 +277,15 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 				context = append(context, []interface{}{"finalized", finalized.Number}...)
 			}
 		}
-		log.Info("Forkchoice requested sync to new head", context...)
 		if err := api.eth.Downloader().BeaconSync(api.eth.SyncMode(), header, finalized); err != nil {
 			return engine.STATUS_SYNCING, err
 		}
 		return engine.STATUS_SYNCING, nil
 	}
 
-	log.Warn("forkchoiceUpdated 4")
 	// Block is known locally, just sanity check that the beacon client does not
 	// attempt to push us back to before the merge.
 	if block.Difficulty().BitLen() > 0 || block.NumberU64() == 0 {
-		log.Warn("forkchoiceUpdated 5")
 		var (
 			td  = api.eth.BlockChain().GetTd(update.HeadBlockHash, block.NumberU64())
 			ptd = api.eth.BlockChain().GetTd(block.ParentHash(), block.NumberU64()-1)
@@ -318,7 +311,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		}
 	}
 
-	log.Warn("forkchoiceUpdated 6")
 	if rawdb.ReadCanonicalHash(api.eth.ChainDb(), block.NumberU64()) != update.HeadBlockHash {
 		// Block is not canonical, set head.
 		if latestValid, err := api.eth.BlockChain().SetCanonical(block); err != nil {
@@ -336,11 +328,9 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	}
 	api.eth.SetSynced()
 
-	log.Warn("forkchoiceUpdated 7")
 	// If the beacon client also advertised a finalized block, mark the local
 	// chain final and completely in PoS mode.
 	if update.FinalizedBlockHash != (common.Hash{}) {
-		log.Warn("forkchoiceUpdated 8")
 		if merger := api.eth.Merger(); !merger.PoSFinalized() {
 			merger.FinalizePoS()
 		}
@@ -357,10 +347,8 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		api.eth.BlockChain().SetFinalized(finalBlock.Header())
 	}
 
-	log.Warn("forkchoiceUpdated 8")
 	// Check if the safe block hash is in our canonical tree, if not somethings wrong
 	if update.SafeBlockHash != (common.Hash{}) {
-		log.Warn("forkchoiceUpdated 9")
 		safeBlock := api.eth.BlockChain().GetBlockByHash(update.SafeBlockHash)
 		if safeBlock == nil {
 			log.Warn("Safe block not available in database")
@@ -373,17 +361,14 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		// Set the safe block
 		api.eth.BlockChain().SetSafe(safeBlock.Header())
 	}
-	log.Warn("forkchoiceUpdated 10")
 	// If payload generation was requested, create a new block to be potentially
 	// sealed by the beacon client. The payload will be requested later, and we
 	// will replace it arbitrarily many times in between.
 	if payloadAttributes != nil {
-		log.Warn("forkchoiceUpdated 11")
 		if api.eth.BlockChain().Config().Optimism != nil && payloadAttributes.GasLimit == nil {
 			return engine.STATUS_INVALID, engine.InvalidPayloadAttributes.With(errors.New("gasLimit parameter is required"))
 		}
 
-		log.Warn("forkchoiceUpdated 12")
 		transactions := make(types.Transactions, 0, len(payloadAttributes.Transactions))
 		for i, otx := range payloadAttributes.Transactions {
 			var tx types.Transaction
@@ -392,7 +377,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			}
 			transactions = append(transactions, &tx)
 		}
-		log.Warn("forkchoiceUpdated 13")
 		args := &miner.BuildPayloadArgs{
 			Parent:       update.HeadBlockHash,
 			Timestamp:    payloadAttributes.Timestamp,
@@ -405,7 +389,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			GasLimit:     payloadAttributes.GasLimit,
 			GasUsed:      payloadAttributes.GasUsed,
 		}
-		log.Warn("forkchoiceUpdated 14")
 		id := args.Id()
 		// If we already are busy generating this work, then we do not need
 		// to start a second process.
@@ -413,7 +396,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			return valid(&id), nil
 		}
 		payload, err := api.eth.Miner().BuildPayload(args)
-		log.Warn("forkchoiceUpdated 15")
 		if err != nil {
 			log.Error("Failed to build payload", "err", err)
 			return valid(nil), engine.InvalidPayloadAttributes.With(err)
@@ -543,7 +525,6 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 	// check whether we already have the block locally.
 	api.newPayloadLock.Lock()
 	defer api.newPayloadLock.Unlock()
-	log.Info("msg", "payload", params.RomeGasUsed)
 	log.Trace("Engine API request received", "method", "NewPayload", "number", params.Number, "hash", params.BlockHash)
 	block, err := engine.ExecutableDataToBlock(params, versionedHashes, beaconRoot)
 	if err != nil {

@@ -70,26 +70,10 @@ func NewEthereumAPI(b Backend) *EthereumAPI {
 
 // GasPrice returns a suggestion for a gas price for legacy transactions.
 func (s *EthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
-	log.Info("enter EthereumAPI GasPrice")
-
 	return fetchRomeGasPrice(ctx)
-
-	// tipcap, err := s.b.SuggestGasTipCap(ctx)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// if head := s.b.CurrentHeader(); head.BaseFee != nil {
-	// 	tipcap.Add(tipcap, head.BaseFee)
-	// }
-	// return (*hexutil.Big)(tipcap), err
 }
 
 func fetchRomeGasPrice(ctx context.Context) (*hexutil.Big, error) {
-	log.Info("Rome: enter fetchRomeGasPrice")
-
-	// gasPrice := big.NewInt(1 * params.GWei)
-	// return (*hexutil.Big)(gasPrice), nil
-
 	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
 	if gasometerUrl == "" {
 		return nil, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
@@ -1322,11 +1306,9 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 	// Retrieve the base state and mutate it with any overrides
 	state, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
 	if state == nil || err != nil {
-		log.Info("StateAndHeaderByNumberOrHash", err)
 		return 0, err
 	}
 	if err = overrides.Apply(state); err != nil {
-		log.Info("overrides", err)
 		return 0, err
 	}
 	// Construct the gas estimator option from the user input
@@ -1340,16 +1322,13 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 	// Run the gas estimation andwrap any revertals into a custom return
 	call, err := args.ToMessage(gasCap, header.BaseFee)
 	if err != nil {
-		log.Info("to message err", err)
 		return 0, err
 	}
 	estimate, revert, err := gasestimator.Estimate(ctx, call, opts, gasCap)
 	if err != nil {
 		if len(revert) > 0 {
-			log.Info("newRevertError", newRevertError(revert))
 			return 0, newRevertError(revert)
 		}
-		log.Info("estimate err", err)
 		return 0, err
 	}
 	return hexutil.Uint64(estimate), nil
@@ -1362,8 +1341,6 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 // configuration (if non-zero).
 func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash, overrides *StateOverride) (hexutil.Uint64, error) {
 	log.Info("Rome: enter EthereumAPI EstimateGas")
-
-	// return estimateRomeGas(ctx, args)
 
 	bNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
 	if blockNrOrHash != nil {
@@ -1388,19 +1365,11 @@ func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, b
 		}
 	}
 
-	rome, err := estimateRomeGas(ctx, args)
-	evm, evm_err := DoEstimateGas(ctx, s.b, args, bNrOrHash, overrides, s.b.RPCGasCap())
-	log.Info("estimate gas", "rome", rome)
-	log.Info("estimate gas", "evm", evm)
-	log.Info("estimate gas", "gas cap", s.b.RPCGasCap())
-	log.Info("estimate gas", "evm err", evm_err)
-
-	return rome, err
+	return estimateRomeGas(ctx, args)
 }
 
 // Fetch gas estimate from Rome gasometer
 func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64, error) {
-	log.Info("Rome: enter estimateRomeGas with args", "args", args)
 	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
 	if gasometerUrl == "" {
 		return 0, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
