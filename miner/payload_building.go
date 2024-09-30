@@ -275,7 +275,6 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 			gasUsed:     args.GasUsed,
 		}
 		empty := w.getSealingBlock(emptyParams)
-		log.Warn("forkchoiceUpdated 16a")
 		if empty.err != nil {
 			return nil, empty.err
 		}

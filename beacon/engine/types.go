@@ -279,7 +279,6 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 		h := types.DeriveSha(types.Withdrawals(params.Withdrawals), trie.NewStackTrie(nil))
 		withdrawalsRoot = &h
 	}
-
 	header := &types.Header{
 		ParentHash:       params.ParentHash,
 		UncleHash:        types.EmptyUncleHash,

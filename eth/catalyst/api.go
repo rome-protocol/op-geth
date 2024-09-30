@@ -282,7 +282,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		}
 		return engine.STATUS_SYNCING, nil
 	}
-
 	// Block is known locally, just sanity check that the beacon client does not
 	// attempt to push us back to before the merge.
 	if block.Difficulty().BitLen() > 0 || block.NumberU64() == 0 {
@@ -310,7 +309,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			PayloadID:     id,
 		}
 	}
-
 	if rawdb.ReadCanonicalHash(api.eth.ChainDb(), block.NumberU64()) != update.HeadBlockHash {
 		// Block is not canonical, set head.
 		if latestValid, err := api.eth.BlockChain().SetCanonical(block); err != nil {
@@ -346,7 +344,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		// Set the finalized block
 		api.eth.BlockChain().SetFinalized(finalBlock.Header())
 	}
-
 	// Check if the safe block hash is in our canonical tree, if not somethings wrong
 	if update.SafeBlockHash != (common.Hash{}) {
 		safeBlock := api.eth.BlockChain().GetBlockByHash(update.SafeBlockHash)
@@ -368,7 +365,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		if api.eth.BlockChain().Config().Optimism != nil && payloadAttributes.GasLimit == nil {
 			return engine.STATUS_INVALID, engine.InvalidPayloadAttributes.With(errors.New("gasLimit parameter is required"))
 		}
-
 		transactions := make(types.Transactions, 0, len(payloadAttributes.Transactions))
 		for i, otx := range payloadAttributes.Transactions {
 			var tx types.Transaction
@@ -589,7 +585,6 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 		return engine.PayloadStatusV1{Status: engine.ACCEPTED}, nil
 	}
 	log.Trace("Inserting block without sethead", "hash", block.Hash(), "number", block.Number)
-	/// ROME-GASOMETER NewPayload
 	if err := api.eth.BlockChain().InsertBlockWithoutSetHead(block, params.RomeGasUsed); err != nil {
 		log.Warn("NewPayloadV1: inserting block failed", "error", err)
 
