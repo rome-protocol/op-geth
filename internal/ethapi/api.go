@@ -70,26 +70,10 @@ func NewEthereumAPI(b Backend) *EthereumAPI {
 
 // GasPrice returns a suggestion for a gas price for legacy transactions.
 func (s *EthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
-	log.Info("enter EthereumAPI GasPrice")
-
 	return fetchRomeGasPrice(ctx)
-
-	// tipcap, err := s.b.SuggestGasTipCap(ctx)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// if head := s.b.CurrentHeader(); head.BaseFee != nil {
-	// 	tipcap.Add(tipcap, head.BaseFee)
-	// }
-	// return (*hexutil.Big)(tipcap), err
 }
 
 func fetchRomeGasPrice(ctx context.Context) (*hexutil.Big, error) {
-	log.Info("Rome: enter fetchRomeGasPrice")
-
-	// gasPrice := big.NewInt(1 * params.GWei)
-	// return (*hexutil.Big)(gasPrice), nil
-
 	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
 	if gasometerUrl == "" {
 		return nil, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
@@ -1216,7 +1200,7 @@ func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.S
 
 	// Execute the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
-	result, err := core.ApplyMessage(evm, msg, gp)
+	result, err := core.ApplyMessage(evm, msg, gp, 0)
 	if err := state.Error(); err != nil {
 		return nil, err
 	}
@@ -1358,37 +1342,34 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash, overrides *StateOverride) (hexutil.Uint64, error) {
 	log.Info("Rome: enter EthereumAPI EstimateGas")
 
+	bNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
+	if blockNrOrHash != nil {
+		bNrOrHash = *blockNrOrHash
+	}
+
+	header, err := headerByNumberOrHash(ctx, s.b, bNrOrHash)
+	if err != nil {
+		return 0, err
+	}
+
+	if s.b.ChainConfig().IsOptimismPreBedrock(header.Number) {
+		if s.b.HistoricalRPCService() != nil {
+			var res hexutil.Uint64
+			err := s.b.HistoricalRPCService().CallContext(ctx, &res, "eth_estimateGas", args, blockNrOrHash)
+			if err != nil {
+				return 0, fmt.Errorf("historical backend error: %w", err)
+			}
+			return res, nil
+		} else {
+			return 0, rpc.ErrNoHistoricalFallback
+		}
+	}
+
 	return estimateRomeGas(ctx, args)
-
-	// bNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
-	// if blockNrOrHash != nil {
-	// 	bNrOrHash = *blockNrOrHash
-	// }
-
-	// header, err := headerByNumberOrHash(ctx, s.b, bNrOrHash)
-	// if err != nil {
-	// 	return 0, err
-	// }
-
-	// if s.b.ChainConfig().IsOptimismPreBedrock(header.Number) {
-	// 	if s.b.HistoricalRPCService() != nil {
-	// 		var res hexutil.Uint64
-	// 		err := s.b.HistoricalRPCService().CallContext(ctx, &res, "eth_estimateGas", args, blockNrOrHash)
-	// 		if err != nil {
-	// 			return 0, fmt.Errorf("historical backend error: %w", err)
-	// 		}
-	// 		return res, nil
-	// 	} else {
-	// 		return 0, rpc.ErrNoHistoricalFallback
-	// 	}
-	// }
-
-	// return DoEstimateGas(ctx, s.b, args, bNrOrHash, overrides, s.b.RPCGasCap())
 }
 
 // Fetch gas estimate from Rome gasometer
 func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64, error) {
-	log.Info("Rome: enter estimateRomeGas with args", "args", args)
 	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
 	if gasometerUrl == "" {
 		return 0, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
@@ -1787,7 +1768,7 @@ func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrH
 		tracer := logger.NewAccessListTracer(accessList, args.from(), to, precompiles)
 		config := vm.Config{Tracer: tracer, NoBaseFee: true}
 		vmenv := b.GetEVM(ctx, msg, statedb, header, &config, nil)
-		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit))
+		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(math.MaxUint64), 0)
 		if err != nil {
 			return nil, 0, nil, fmt.Errorf("failed to apply transaction: %v err: %v", args.toTransaction().Hash(), err)
 		}
@@ -2125,6 +2106,7 @@ func (s *TransactionAPI) SendRawTransaction(ctx context.Context, input hexutil.B
 	if err := tx.UnmarshalBinary(input); err != nil {
 		return common.Hash{}, err
 	}
+
 	return SubmitTransaction(ctx, s.b, tx)
 }
 

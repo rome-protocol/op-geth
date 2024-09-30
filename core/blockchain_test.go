@@ -162,7 +162,7 @@ func testBlockChainImport(chain types.Blocks, blockchain *BlockChain) error {
 		if err != nil {
 			return err
 		}
-		receipts, _, usedGas, err := blockchain.processor.Process(block, statedb, vm.Config{})
+		receipts, _, usedGas, err := blockchain.processor.Process(block, statedb, vm.Config{}, make([]uint64, 0))
 		if err != nil {
 			blockchain.reportBlock(block, receipts, err)
 			return err
@@ -3957,7 +3957,7 @@ func testSetCanonical(t *testing.T, scheme string) {
 		gen.AddTx(tx)
 	})
 	for _, block := range side {
-		err := chain.InsertBlockWithoutSetHead(block)
+		err := chain.InsertBlockWithoutSetHead(block, make([]uint64, 0))
 		if err != nil {
 			t.Fatalf("Failed to insert into chain: %v", err)
 		}

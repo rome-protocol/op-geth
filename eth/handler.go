@@ -272,7 +272,7 @@ func newHandler(config *handlerConfig) (*handler, error) {
 					log.Info("Filtered out non-terminal pow block", "number", block.NumberU64(), "hash", block.Hash())
 					return 0, nil
 				}
-				if err := h.chain.InsertBlockWithoutSetHead(block); err != nil {
+				if err := h.chain.InsertBlockWithoutSetHead(block, make([]uint64, 0)); err != nil {
 					return i, err
 				}
 			}

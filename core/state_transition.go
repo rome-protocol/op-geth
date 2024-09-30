@@ -66,52 +66,7 @@ func (result *ExecutionResult) Revert() []byte {
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
 func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation bool, isHomestead, isEIP2028 bool, isEIP3860 bool) (uint64, error) {
-	// Set the starting gas for the raw transaction
-	// var gas uint64
-	// if isContractCreation && isHomestead {
-	// 	gas = params.TxGasContractCreation
-	// } else {
-	// 	gas = params.TxGas
-	// }
-	// dataLen := uint64(len(data))
-	// // Bump the required gas by the amount of transactional data
-	// if dataLen > 0 {
-	// 	// Zero and non-zero bytes are priced differently
-	// 	var nz uint64
-	// 	for _, byt := range data {
-	// 		if byt != 0 {
-	// 			nz++
-	// 		}
-	// 	}
-	// 	// Make sure we don't exceed uint64 for all data combinations
-	// 	nonZeroGas := params.TxDataNonZeroGasFrontier
-	// 	if isEIP2028 {
-	// 		nonZeroGas = params.TxDataNonZeroGasEIP2028
-	// 	}
-	// 	if (math.MaxUint64-gas)/nonZeroGas < nz {
-	// 		return 0, ErrGasUintOverflow
-	// 	}
-	// 	gas += nz * nonZeroGas
-
-	// 	z := dataLen - nz
-	// 	if (math.MaxUint64-gas)/params.TxDataZeroGas < z {
-	// 		return 0, ErrGasUintOverflow
-	// 	}
-	// 	gas += z * params.TxDataZeroGas
-
-	// 	if isContractCreation && isEIP3860 {
-	// 		lenWords := toWordSize(dataLen)
-	// 		if (math.MaxUint64-gas)/params.InitCodeWordGas < lenWords {
-	// 			return 0, ErrGasUintOverflow
-	// 		}
-	// 		gas += lenWords * params.InitCodeWordGas
-	// 	}
-	// }
-	// if accessList != nil {
-	// 	gas += uint64(len(accessList)) * params.TxAccessListAddressGas
-	// 	gas += uint64(accessList.StorageKeys()) * params.TxAccessListStorageKeyGas
-	// }
-	return 21000, nil
+	return 0, nil
 }
 
 // toWordSize returns the ceiled word size required for init code payment calculation.
@@ -187,8 +142,8 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.In
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg *Message, gp *GasPool) (*ExecutionResult, error) {
-	return NewStateTransition(evm, msg, gp).TransitionDb()
+func ApplyMessage(evm *vm.EVM, msg *Message, gp *GasPool, romeGasUsed uint64) (*ExecutionResult, error) {
+	return NewStateTransition(evm, msg, gp).TransitionDb(romeGasUsed)
 }
 
 // StateTransition represents a state transition.
@@ -280,7 +235,12 @@ func (st *StateTransition) buyGas() error {
 	st.gasRemaining += st.msg.GasLimit
 
 	st.initialGas = st.msg.GasLimit
-	st.state.SubBalance(st.msg.From, mgval)
+
+	zeroAddress := common.Address{}
+	if st.evm.Context.Coinbase != zeroAddress {
+		st.state.SubBalance(st.msg.From, mgval)
+	}
+
 	return nil
 }
 
@@ -341,10 +301,10 @@ func (st *StateTransition) preCheck() error {
 			}
 			// This will panic if baseFee is nil, but basefee presence is verified
 			// as part of header validation.
-			if msg.GasFeeCap.Cmp(st.evm.Context.BaseFee) < 0 {
-				return fmt.Errorf("%w: address %v, maxFeePerGas: %s, baseFee: %s", ErrFeeCapTooLow,
-					msg.From.Hex(), msg.GasFeeCap, st.evm.Context.BaseFee)
-			}
+			// if msg.GasFeeCap.Cmp(st.evm.Context.BaseFee) < 0 {
+			// 	return fmt.Errorf("%w: address %v, maxFeePerGas: %s, baseFee: %s", ErrFeeCapTooLow,
+			// 		msg.From.Hex(), msg.GasFeeCap, st.evm.Context.BaseFee)
+			// }
 		}
 	}
 	// Check the blob version validity
@@ -387,13 +347,13 @@ func (st *StateTransition) preCheck() error {
 //
 // However if any consensus issue encountered, return the error directly with
 // nil evm execution result.
-func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
+func (st *StateTransition) TransitionDb(romeGasUsed uint64) (*ExecutionResult, error) {
 	if mint := st.msg.Mint; mint != nil {
 		st.state.AddBalance(st.msg.From, mint)
 	}
 	snap := st.state.Snapshot()
 
-	result, err := st.innerTransitionDb()
+	result, err := st.innerTransitionDb(romeGasUsed)
 	// Failed deposits must still be included. Unless we cannot produce the block at all due to the gas limit.
 	// On deposit failure, we rewind any state changes from after the minting, and increment the nonce.
 	if err != nil && err != ErrGasLimitReached && st.msg.IsDepositTx {
@@ -418,7 +378,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	return result, err
 }
 
-func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
+func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResult, error) {
 	// First check this message satisfies all consensus rules before
 	// applying the message. The rules include these clauses
 	//
@@ -514,7 +474,7 @@ func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
 	if st.msg.IsDepositTx && rules.IsOptimismRegolith {
 		// Skip coinbase payments for deposit tx in Regolith
 		return &ExecutionResult{
-			UsedGas:     st.gasUsed(),
+			UsedGas:     romeGasUsed,
 			RefundedGas: gasRefund,
 			Err:         vmerr,
 			ReturnData:  ret,
@@ -532,7 +492,10 @@ func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
 	} else {
 		fee := new(big.Int).SetUint64(st.gasUsed())
 		fee.Mul(fee, effectiveTip)
-		st.state.AddBalance(st.evm.Context.Coinbase, fee)
+		zeroAddress := common.Address{}
+		if st.evm.Context.Coinbase != zeroAddress {
+			st.state.AddBalance(st.evm.Context.Coinbase, fee)
+		}
 	}
 
 	// Check that we are post bedrock to enable op-geth to be able to create pseudo pre-bedrock blocks (these are pre-bedrock, but don't follow l2 geth rules)
@@ -545,7 +508,7 @@ func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
 	}
 
 	return &ExecutionResult{
-		UsedGas:     st.gasUsed(),
+		UsedGas:     romeGasUsed,
 		RefundedGas: gasRefund,
 		Err:         vmerr,
 		ReturnData:  ret,
@@ -562,11 +525,14 @@ func (st *StateTransition) refundGas(refundQuotient uint64) uint64 {
 
 	// Return ETH for remaining gas, exchanged at the original rate.
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gasRemaining), st.msg.GasPrice)
-	st.state.AddBalance(st.msg.From, remaining)
+	zeroAddress := common.Address{}
+	if st.evm.Context.Coinbase != zeroAddress {
+		st.state.AddBalance(st.msg.From, remaining)
+	}
 
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.
-	st.gp.AddGas(st.gasRemaining)
+	//st.gp.AddGas(st.gasRemaining)
 
 	return refund
 }

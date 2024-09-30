@@ -127,7 +127,7 @@ func TestEth2AssembleBlock(t *testing.T) {
 
 // assembleWithTransactions tries to assemble a block, retrying until it has 'want',
 // number of transactions in it, or it has retried three times.
-func assembleWithTransactions(api *ConsensusAPI, parentHash common.Hash, params *engine.RomePayloadAttributes, want int) (execData *engine.ExecutableData, err error) {
+func assembleWithTransactions(api *ConsensusAPI, parentHash common.Hash, params *engine.RomePayloadAttributes, want int) (execData *engine.RomeExecutableData, err error) {
 	for retries := 3; retries > 0; retries-- {
 		execData, err = assembleBlock(api, parentHash, params)
 		if err != nil {
@@ -626,7 +626,7 @@ func TestNewPayloadOnInvalidChain(t *testing.T) {
 				SafeBlockHash:      common.Hash{},
 				FinalizedBlockHash: common.Hash{},
 			}
-			payload *engine.ExecutableData
+			payload *engine.RomeExecutableData
 			resp    engine.ForkChoiceResponse
 			err     error
 		)
@@ -672,7 +672,7 @@ func TestNewPayloadOnInvalidChain(t *testing.T) {
 	}
 }
 
-func assembleBlock(api *ConsensusAPI, parentHash common.Hash, params *engine.RomePayloadAttributes) (*engine.ExecutableData, error) {
+func assembleBlock(api *ConsensusAPI, parentHash common.Hash, params *engine.RomePayloadAttributes) (*engine.RomeExecutableData, error) {
 	args := &miner.BuildPayloadArgs{
 		Parent:       parentHash,
 		Timestamp:    params.Timestamp,
@@ -749,7 +749,7 @@ func TestEmptyBlocks(t *testing.T) {
 	}
 }
 
-func getNewPayload(t *testing.T, api *ConsensusAPI, parent *types.Header, withdrawals []*types.Withdrawal) *engine.ExecutableData {
+func getNewPayload(t *testing.T, api *ConsensusAPI, parent *types.Header, withdrawals []*types.Withdrawal) *engine.RomeExecutableData {
 	params := engine.RomePayloadAttributes{
 		Timestamp:             parent.Time + 1,
 		Random:                crypto.Keccak256Hash([]byte{byte(1)}),
@@ -766,7 +766,7 @@ func getNewPayload(t *testing.T, api *ConsensusAPI, parent *types.Header, withdr
 
 // setBlockhash sets the blockhash of a modified ExecutableData.
 // Can be used to make modified payloads look valid.
-func setBlockhash(data *engine.ExecutableData) *engine.ExecutableData {
+func setBlockhash(data *engine.RomeExecutableData) *engine.RomeExecutableData {
 	txs, _ := decodeTransactions(data.Transactions)
 	number := big.NewInt(0)
 	number.SetUint64(data.Number)
@@ -825,7 +825,7 @@ func TestTrickRemoteBlockCache(t *testing.T) {
 	setupBlocks(t, ethserviceA, 10, commonAncestor, func(parent *types.Header) {}, nil)
 	commonAncestor = ethserviceA.BlockChain().CurrentBlock()
 
-	var invalidChain []*engine.ExecutableData
+	var invalidChain []*engine.RomeExecutableData
 	// create a valid payload (P1)
 	//payload1 := getNewPayload(t, apiA, commonAncestor)
 	//invalidChain = append(invalidChain, payload1)
