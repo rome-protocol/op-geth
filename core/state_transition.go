@@ -25,7 +25,6 @@ import (
 	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -236,11 +235,16 @@ func (st *StateTransition) buyGas() error {
 	st.gasRemaining += st.msg.GasLimit
 
 	st.initialGas = st.msg.GasLimit
-	st.state.SubBalance(st.msg.From, mgval)
+
+	zeroAddress := common.Address{}
+	if st.evm.Context.Coinbase != zeroAddress {
+		st.state.SubBalance(st.msg.From, mgval)
+	}
+
 	return nil
 }
 
-func (st *StateTransition) preCheck(romeGasUsed uint64) error {
+func (st *StateTransition) preCheck() error {
 	if st.msg.IsDepositTx {
 		// No fee fields to check, no nonce to check, and no need to check if EOA (L1 already verified it for us)
 		// Gas is free, but no refunds!
@@ -386,8 +390,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	// 6. caller has enough balance to cover asset transfer for **topmost** call
 
 	// Check clauses 1-3, buy gas if everything is correct
-	if err := st.preCheck(romeGasUsed); err != nil {
-		log.Info("msg", "err", err)
+	if err := st.preCheck(); err != nil {
 		return nil, err
 	}
 
@@ -435,16 +438,11 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		vmerr error // vm errors do not effect consensus and are therefore not assigned to err
 	)
 	if contractCreation {
-		log.Info("inside contract creation")
-		ret, _, st.gasRemaining, vmerr = st.evm.Create(sender, msg.Data, st.gasRemaining, msg.Value, romeGasUsed)
-		log.Info("after contract creation", "gas remaining", st.gasRemaining)
-		log.Info("after contract creation", "vm err", vmerr)
+		ret, _, st.gasRemaining, vmerr = st.evm.Create(sender, msg.Data, st.gasRemaining, msg.Value)
 	} else {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From, st.state.GetNonce(sender.Address())+1)
-		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, msg.Value, romeGasUsed)
-		log.Info("after contract call", "gas remaining", st.gasRemaining)
-		log.Info("after contract call", "vm err", vmerr)
+		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, msg.Value)
 	}
 
 	// if deposit: skip refunds, skip tipping coinbase
@@ -527,7 +525,10 @@ func (st *StateTransition) refundGas(refundQuotient uint64) uint64 {
 
 	// Return ETH for remaining gas, exchanged at the original rate.
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gasRemaining), st.msg.GasPrice)
-	st.state.AddBalance(st.msg.From, remaining)
+	zeroAddress := common.Address{}
+	if st.evm.Context.Coinbase != zeroAddress {
+		st.state.AddBalance(st.msg.From, remaining)
+	}
 
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.
