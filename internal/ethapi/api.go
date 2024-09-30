@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"strings"
 	"time"
 
@@ -69,18 +70,32 @@ func NewEthereumAPI(b Backend) *EthereumAPI {
 
 // GasPrice returns a suggestion for a gas price for legacy transactions.
 func (s *EthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
-	tipcap, err := s.b.SuggestGasTipCap(ctx)
+	return fetchRomeGasPrice(ctx)
+}
+
+func fetchRomeGasPrice(ctx context.Context) (*hexutil.Big, error) {
+	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
+	if gasometerUrl == "" {
+		return nil, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
+	}
+	client, err := rpc.Dial(gasometerUrl)
+	if err != nil {
+		log.Error("Failed to connect to the Ethereum client: %v", err)
+	}
+	defer client.Close()
+
+	var estimatedGas hexutil.Big
+	err = client.CallContext(ctx, &estimatedGas, "eth_gasPrice")
 	if err != nil {
 		return nil, err
 	}
-	if head := s.b.CurrentHeader(); head.BaseFee != nil {
-		tipcap.Add(tipcap, head.BaseFee)
-	}
-	return (*hexutil.Big)(tipcap), err
+
+	return &estimatedGas, nil
 }
 
 // MaxPriorityFeePerGas returns a suggestion for a gas tip cap for dynamic fee transactions.
 func (s *EthereumAPI) MaxPriorityFeePerGas(ctx context.Context) (*hexutil.Big, error) {
+	log.Info("Rome: enter EthereumAPI MaxPriorityFeePerGas")
 	tipcap, err := s.b.SuggestGasTipCap(ctx)
 	if err != nil {
 		return nil, err
@@ -1185,7 +1200,7 @@ func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.S
 
 	// Execute the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
-	result, err := core.ApplyMessage(evm, msg, gp)
+	result, err := core.ApplyMessage(evm, msg, gp, 0)
 	if err := state.Error(); err != nil {
 		return nil, err
 	}
@@ -1325,6 +1340,8 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 // value is capped by both `args.Gas` (if non-nil & non-zero) and the backend's RPCGasCap
 // configuration (if non-zero).
 func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash, overrides *StateOverride) (hexutil.Uint64, error) {
+	log.Info("Rome: enter EthereumAPI EstimateGas")
+
 	bNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
 	if blockNrOrHash != nil {
 		bNrOrHash = *blockNrOrHash
@@ -1348,7 +1365,28 @@ func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, b
 		}
 	}
 
-	return DoEstimateGas(ctx, s.b, args, bNrOrHash, overrides, s.b.RPCGasCap())
+	return estimateRomeGas(ctx, args)
+}
+
+// Fetch gas estimate from Rome gasometer
+func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64, error) {
+	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
+	if gasometerUrl == "" {
+		return 0, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
+	}
+	client, err := rpc.Dial(gasometerUrl)
+	if err != nil {
+		log.Error("Failed to connect to the Ethereum client: %v", err)
+	}
+	defer client.Close()
+
+	var estimatedGas hexutil.Uint64
+	err = client.CallContext(ctx, &estimatedGas, "eth_estimateGas", args)
+	if err != nil {
+		return 0, err
+	}
+
+	return estimatedGas, nil
 }
 
 // RPCMarshalHeader converts the given header to the RPC output .
@@ -1730,7 +1768,7 @@ func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrH
 		tracer := logger.NewAccessListTracer(accessList, args.from(), to, precompiles)
 		config := vm.Config{Tracer: tracer, NoBaseFee: true}
 		vmenv := b.GetEVM(ctx, msg, statedb, header, &config, nil)
-		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit))
+		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(math.MaxUint64), 0)
 		if err != nil {
 			return nil, 0, nil, fmt.Errorf("failed to apply transaction: %v err: %v", args.toTransaction().Hash(), err)
 		}
@@ -2068,6 +2106,7 @@ func (s *TransactionAPI) SendRawTransaction(ctx context.Context, input hexutil.B
 	if err := tx.UnmarshalBinary(input); err != nil {
 		return common.Hash{}, err
 	}
+
 	return SubmitTransaction(ctx, s.b, tx)
 }
 

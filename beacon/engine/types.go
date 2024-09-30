@@ -46,6 +46,25 @@ type PayloadAttributes struct {
 	GasLimit *uint64 `json:"gasLimit,omitempty" gencodec:"optional"`
 }
 
+//go:generate go run github.com/fjl/gencodec -type RomePayloadAttributes -field-override payloadAttributesMarshaling -out gen_romeblockparams.go
+type RomePayloadAttributes struct {
+	Timestamp             uint64              `json:"timestamp"            gencodec:"required"`
+	GasPrice              []uint64            `json:"gasPrices"            gencodec:"required"`
+	GasUsed               []uint64            `json:"gasUsed"              gencodec:"required"`
+	Random                common.Hash         `json:"prevRandao"            gencodec:"required"`
+	SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient" gencodec:"required"`
+	Withdrawals           []*types.Withdrawal `json:"withdrawals"`
+	BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
+
+	// Transactions is a field for rollups: the transactions list is forced into the block
+	Transactions [][]byte `json:"transactions,omitempty"  gencodec:"optional"`
+	// NoTxPool is a field for rollups: if true, the no transactions are taken out of the tx-pool,
+	// only transactions from the above Transactions list will be included.
+	NoTxPool bool `json:"noTxPool,omitempty" gencodec:"optional"`
+	// GasLimit is a field for rollups: if set, this sets the exact gas limit the block produced with.
+	GasLimit *uint64 `json:"gasLimit,omitempty" gencodec:"optional"`
+}
+
 // JSON type overrides for PayloadAttributes.
 type payloadAttributesMarshaling struct {
 	Timestamp hexutil.Uint64
@@ -91,13 +110,51 @@ type executableDataMarshaling struct {
 	ExcessBlobGas *hexutil.Uint64
 }
 
+//go:generate go run github.com/fjl/gencodec -type RomeExecutableData -field-override RomeExecutableDataMarshaling -out rome_gen_ed.go
+
+// RomeExecutableData is the data necessary to execute an EL payload.
+type RomeExecutableData struct {
+	ParentHash    common.Hash         `json:"parentHash"    gencodec:"required"`
+	FeeRecipient  common.Address      `json:"feeRecipient"  gencodec:"required"`
+	StateRoot     common.Hash         `json:"stateRoot"     gencodec:"required"`
+	ReceiptsRoot  common.Hash         `json:"receiptsRoot"  gencodec:"required"`
+	LogsBloom     []byte              `json:"logsBloom"     gencodec:"required"`
+	Random        common.Hash         `json:"prevRandao"    gencodec:"required"`
+	Number        uint64              `json:"blockNumber"   gencodec:"required"`
+	GasLimit      uint64              `json:"gasLimit"      gencodec:"required"`
+	GasUsed       uint64              `json:"gasUsed"       gencodec:"required"`
+	RomeGasUsed   []uint64            `json:"romeGasUsed"   gencodec:"required"`
+	Timestamp     uint64              `json:"timestamp"     gencodec:"required"`
+	ExtraData     []byte              `json:"extraData"     gencodec:"required"`
+	BaseFeePerGas *big.Int            `json:"baseFeePerGas" gencodec:"required"`
+	BlockHash     common.Hash         `json:"blockHash"     gencodec:"required"`
+	Transactions  [][]byte            `json:"transactions"  gencodec:"required"`
+	Withdrawals   []*types.Withdrawal `json:"withdrawals"`
+	BlobGasUsed   *uint64             `json:"blobGasUsed"`
+	ExcessBlobGas *uint64             `json:"excessBlobGas"`
+}
+
+// JSON type overrides for RomeExecutableData.
+type RomeExecutableDataMarshaling struct {
+	Number        hexutil.Uint64
+	GasLimit      hexutil.Uint64
+	GasUsed       []hexutil.Uint64
+	Timestamp     hexutil.Uint64
+	BaseFeePerGas *hexutil.Big
+	ExtraData     hexutil.Bytes
+	LogsBloom     hexutil.Bytes
+	Transactions  []hexutil.Bytes
+	BlobGasUsed   *hexutil.Uint64
+	ExcessBlobGas *hexutil.Uint64
+}
+
 //go:generate go run github.com/fjl/gencodec -type ExecutionPayloadEnvelope -field-override executionPayloadEnvelopeMarshaling -out gen_epe.go
 
 type ExecutionPayloadEnvelope struct {
-	ExecutionPayload *ExecutableData `json:"executionPayload"  gencodec:"required"`
-	BlockValue       *big.Int        `json:"blockValue"  gencodec:"required"`
-	BlobsBundle      *BlobsBundleV1  `json:"blobsBundle"`
-	Override         bool            `json:"shouldOverrideBuilder"`
+	ExecutionPayload *RomeExecutableData `json:"executionPayload"  gencodec:"required"`
+	BlockValue       *big.Int            `json:"blockValue"  gencodec:"required"`
+	BlobsBundle      *BlobsBundleV1      `json:"blobsBundle"`
+	Override         bool                `json:"shouldOverrideBuilder"`
 
 	// OP-Stack: Ecotone specific fields
 	ParentBeaconBlockRoot *common.Hash `json:"parentBeaconBlockRoot,omitempty"`
@@ -187,7 +244,7 @@ func decodeTransactions(enc [][]byte) ([]*types.Transaction, error) {
 // and that the blockhash of the constructed block matches the parameters. Nil
 // Withdrawals value will propagate through the returned block. Empty
 // Withdrawals value must be passed via non-nil, length 0 value in params.
-func ExecutableDataToBlock(params ExecutableData, versionedHashes []common.Hash, beaconRoot *common.Hash) (*types.Block, error) {
+func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.Hash, beaconRoot *common.Hash) (*types.Block, error) {
 	txs, err := decodeTransactions(params.Transactions)
 	if err != nil {
 		return nil, err
@@ -253,7 +310,7 @@ func ExecutableDataToBlock(params ExecutableData, versionedHashes []common.Hash,
 // BlockToExecutableData constructs the ExecutableData structure by filling the
 // fields from the given block. It assumes the given block is post-merge block.
 func BlockToExecutableData(block *types.Block, fees *big.Int, sidecars []*types.BlobTxSidecar) *ExecutionPayloadEnvelope {
-	data := &ExecutableData{
+	data := &RomeExecutableData{
 		BlockHash:     block.Hash(),
 		ParentHash:    block.ParentHash(),
 		FeeRecipient:  block.Coinbase(),

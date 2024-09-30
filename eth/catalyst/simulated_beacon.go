@@ -148,7 +148,7 @@ func (c *SimulatedBeacon) sealBlock(withdrawals []*types.Withdrawal) error {
 
 	var random [32]byte
 	rand.Read(random[:])
-	fcResponse, err := c.engineAPI.ForkchoiceUpdatedV2(c.curForkchoiceState, &engine.PayloadAttributes{
+	fcResponse, err := c.engineAPI.ForkchoiceUpdatedV2(c.curForkchoiceState, &engine.RomePayloadAttributes{
 		Timestamp:             tstamp,
 		SuggestedFeeRecipient: feeRecipient,
 		Withdrawals:           withdrawals,

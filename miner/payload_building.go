@@ -46,6 +46,8 @@ type BuildPayloadArgs struct {
 
 	NoTxPool     bool                 // Optimism addition: option to disable tx pool contents from being included
 	Transactions []*types.Transaction // Optimism addition: txs forced into the block via engine API
+	GasPrice     []uint64             // The provided gas prices of transactions
+	GasUsed      []uint64             // The provided gas used while executing these transactions
 	GasLimit     *uint64              // Optimism addition: override gas limit of the block to build
 }
 
@@ -73,6 +75,7 @@ func (args *BuildPayloadArgs) Id() engine.PayloadID {
 	if args.GasLimit != nil {
 		binary.Write(hasher, binary.BigEndian, *args.GasLimit)
 	}
+	binary.Write(hasher, binary.BigEndian, args.GasPrice)
 
 	var out engine.PayloadID
 	copy(out[:], hasher.Sum(nil)[:8])
@@ -269,6 +272,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 			noTxs:       true,
 			txs:         args.Transactions,
 			gasLimit:    args.GasLimit,
+			gasUsed:     args.GasUsed,
 		}
 		empty := w.getSealingBlock(emptyParams)
 		if empty.err != nil {
@@ -293,6 +297,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 		noTxs:       false,
 		txs:         args.Transactions,
 		gasLimit:    args.GasLimit,
+		gasUsed:     args.GasUsed,
 	}
 
 	// Since we skip building the empty block when using the tx pool, we need to explicitly
