@@ -483,6 +483,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		// Skip fee payment when NoBaseFee is set and the fee fields
 		// are 0. This avoids a negative effectiveTip being applied to
 		// the coinbase when simulating calls.
+		log.Info("inside no base fee")
 	} else {
 		fee := new(big.Int).SetUint64(romeGasUsed)
 		// fee.Mul(fee, effectiveTip)
