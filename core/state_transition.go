@@ -483,6 +483,9 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	}
 	effectiveTip := msg.GasPrice
 	if rules.IsLondon {
+		log.Info("effectiveTip", "cmath.BigMin", msg.GasTipCap)
+		log.Info("effectiveTip", "cmath.GasFeeCap", msg.GasFeeCap)
+		log.Info("effectiveTip", "cmath.BaseFee", st.evm.Context.BaseFee)
 		effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))
 	}
 
