@@ -25,6 +25,7 @@ import (
 	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -493,6 +494,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		fee := new(big.Int).SetUint64(st.gasUsed())
 		fee.Mul(fee, effectiveTip)
 		zeroAddress := common.Address{}
+		log.Info("coinbase", "address", st.evm.Context.Coinbase)
 		if st.evm.Context.Coinbase != zeroAddress {
 			st.state.AddBalance(st.evm.Context.Coinbase, fee)
 		}
