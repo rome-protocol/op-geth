@@ -483,9 +483,6 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	}
 	effectiveTip := msg.GasPrice
 	if rules.IsLondon {
-		log.Info("effectiveTip", "cmath.BigMin", msg.GasTipCap)
-		log.Info("effectiveTip", "cmath.GasFeeCap", msg.GasFeeCap)
-		log.Info("effectiveTip", "cmath.BaseFee", st.evm.Context.BaseFee)
 		effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))
 	}
 
@@ -494,12 +491,12 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		// are 0. This avoids a negative effectiveTip being applied to
 		// the coinbase when simulating calls.
 	} else {
-		fee := new(big.Int).SetUint64(st.gasUsed())
+		fee := new(big.Int).SetUint64(romeGasUsed)
 		// fee.Mul(fee, effectiveTip)
 		zeroAddress := common.Address{}
 		if st.evm.Context.Coinbase != zeroAddress {
 			log.Info("coinbase", "address", st.evm.Context.Coinbase)
-			log.Info("coinbase", "gasUsed", st.gasUsed())
+			log.Info("coinbase", "gasUsed", romeGasUsed)
 			log.Info("coinbase", "effectiveTip", effectiveTip)
 			log.Info("coinbase", "fee", fee)
 			st.state.AddBalance(st.evm.Context.Coinbase, fee)
