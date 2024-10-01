@@ -488,7 +488,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		// the coinbase when simulating calls.
 	} else {
 		fee := new(big.Int).SetUint64(romeGasUsed)
-		fee.Mul(fee, effectiveTip)
+		// fee.Mul(fee, effectiveTip)
 		zeroAddress := common.Address{}
 		if st.evm.Context.Coinbase != zeroAddress {
 			log.Info("coinbase", "address", st.evm.Context.Coinbase)
