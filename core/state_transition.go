@@ -381,6 +381,8 @@ func (st *StateTransition) TransitionDb(romeGasUsed uint64) (*ExecutionResult, e
 }
 
 func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResult, error) {
+	log.Info("innerTransitionDb")
+
 	// First check this message satisfies all consensus rules before
 	// applying the message. The rules include these clauses
 	//
@@ -488,6 +490,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	} else {
 		fee := new(big.Int).SetUint64(romeGasUsed)
 		fee.Mul(fee, effectiveTip)
+		log.Info("outside coinbase", "address", st.evm.Context.Coinbase)
 		zeroAddress := common.Address{}
 		if st.evm.Context.Coinbase != zeroAddress {
 			log.Info("coinbase", "address", st.evm.Context.Coinbase)
