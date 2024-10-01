@@ -494,8 +494,9 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		fee := new(big.Int).SetUint64(st.gasUsed())
 		fee.Mul(fee, effectiveTip)
 		zeroAddress := common.Address{}
-		log.Info("coinbase", "address", st.evm.Context.Coinbase)
 		if st.evm.Context.Coinbase != zeroAddress {
+			log.Info("coinbase", "address", st.evm.Context.Coinbase)
+			log.Info("coinbase", "fee", fee)
 			st.state.AddBalance(st.evm.Context.Coinbase, fee)
 		}
 	}
