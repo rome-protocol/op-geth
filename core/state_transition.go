@@ -355,6 +355,7 @@ func (st *StateTransition) TransitionDb(romeGasUsed uint64) (*ExecutionResult, e
 	snap := st.state.Snapshot()
 
 	result, err := st.innerTransitionDb(romeGasUsed)
+	log.Info("result after transition", result)
 	// Failed deposits must still be included. Unless we cannot produce the block at all due to the gas limit.
 	// On deposit failure, we rewind any state changes from after the minting, and increment the nonce.
 	if err != nil && err != ErrGasLimitReached && st.msg.IsDepositTx {
@@ -451,12 +452,8 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	if st.msg.IsDepositTx && !rules.IsOptimismRegolith {
 		// Record deposits as using all their gas (matches the gas pool)
 		// System Transactions are special & are not recorded as using any gas (anywhere)
-		gasUsed := st.msg.GasLimit
-		if st.msg.IsSystemTx {
-			gasUsed = 0
-		}
 		return &ExecutionResult{
-			UsedGas:    gasUsed,
+			UsedGas:    romeGasUsed,
 			Err:        vmerr,
 			ReturnData: ret,
 		}, nil
