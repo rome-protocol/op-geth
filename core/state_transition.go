@@ -479,23 +479,33 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		}, nil
 	}
 	effectiveTip := msg.GasPrice
-	if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
-		// Skip fee payment when NoBaseFee is set and the fee fields
-		// are 0. This avoids a negative effectiveTip being applied to
-		// the coinbase when simulating calls.
-		log.Info("inside no base fee")
-	} else {
-		fee := new(big.Int).SetUint64(romeGasUsed)
-		// fee.Mul(fee, effectiveTip)
-		zeroAddress := common.Address{}
-		if st.evm.Context.Coinbase != zeroAddress {
-			log.Info("coinbase", "address", st.evm.Context.Coinbase)
-			log.Info("coinbase", "gasUsed", romeGasUsed)
-			log.Info("coinbase", "effectiveTip", effectiveTip)
-			log.Info("coinbase", "fee", fee)
-			st.state.AddBalance(st.evm.Context.Coinbase, fee)
-		}
+	fee := new(big.Int).SetUint64(romeGasUsed)
+	// fee.Mul(fee, effectiveTip)
+	zeroAddress := common.Address{}
+	if st.evm.Context.Coinbase != zeroAddress {
+		log.Info("coinbase", "address", st.evm.Context.Coinbase)
+		log.Info("coinbase", "gasUsed", romeGasUsed)
+		log.Info("coinbase", "effectiveTip", effectiveTip)
+		log.Info("coinbase", "fee", fee)
+		st.state.AddBalance(st.evm.Context.Coinbase, fee)
 	}
+	// if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
+	// 	// Skip fee payment when NoBaseFee is set and the fee fields
+	// 	// are 0. This avoids a negative effectiveTip being applied to
+	// 	// the coinbase when simulating calls.
+	// 	log.Info("inside no base fee")
+	// } else {
+	// 	fee := new(big.Int).SetUint64(romeGasUsed)
+	// 	// fee.Mul(fee, effectiveTip)
+	// 	zeroAddress := common.Address{}
+	// 	if st.evm.Context.Coinbase != zeroAddress {
+	// 		log.Info("coinbase", "address", st.evm.Context.Coinbase)
+	// 		log.Info("coinbase", "gasUsed", romeGasUsed)
+	// 		log.Info("coinbase", "effectiveTip", effectiveTip)
+	// 		log.Info("coinbase", "fee", fee)
+	// 		st.state.AddBalance(st.evm.Context.Coinbase, fee)
+	// 	}
+	// }
 
 	// Check that we are post bedrock to enable op-geth to be able to create pseudo pre-bedrock blocks (these are pre-bedrock, but don't follow l2 geth rules)
 	// Note optimismConfig will not be nil if rules.IsOptimismBedrock is true
