@@ -110,7 +110,7 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.In
 	msg := &Message{
 		Nonce:          tx.Nonce(),
 		GasLimit:       tx.Gas(),
-		GasPrice:       new(big.Int).Set(big.NewInt(1)),
+		GasPrice:       new(big.Int).Set(tx.GasPrice()),
 		GasFeeCap:      new(big.Int).Set(tx.GasFeeCap()),
 		GasTipCap:      new(big.Int).Set(tx.GasTipCap()),
 		To:             tx.To(),
