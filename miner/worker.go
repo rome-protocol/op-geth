@@ -795,7 +795,6 @@ func (w *worker) commitTransaction(env *environment, tx *types.Transaction, inde
 		return w.commitBlobTransaction(env, tx)
 	}
 	receipt, err := w.applyTransaction(env, tx, index, romeGasUsed)
-	log.Info("msg", "receipt", receipt)
 	if err != nil {
 		return nil, err
 	}
