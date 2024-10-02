@@ -243,7 +243,6 @@ func (st *StateTransition) buyGas() error {
 
 	zeroAddress := common.Address{}
 	if st.evm.Context.Coinbase != zeroAddress {
-		log.Info("inside buy gas")
 		st.state.SubBalance(st.msg.From, mgval)
 	}
 
