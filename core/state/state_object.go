@@ -431,7 +431,9 @@ func (s *stateObject) SubBalance(amount *big.Int) {
 }
 
 func (s *stateObject) SetBalance(amount *big.Int) {
-	log.Info("inside set balance")
+	log.Info("inside set balance", "address", s.address)
+	log.Info("inside set balance", "amount", amount)
+
 	s.db.journal.append(balanceChange{
 		account: &s.address,
 		prev:    new(big.Int).Set(s.data.Balance),
