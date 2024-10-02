@@ -534,6 +534,7 @@ func (st *StateTransition) refundGas(refundQuotient uint64) uint64 {
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gasRemaining), st.msg.GasPrice)
 	zeroAddress := common.Address{}
 	if st.evm.Context.Coinbase != zeroAddress {
+		log.Info("inside refund gas", "amount", remaining)
 		st.state.AddBalance(st.msg.From, remaining)
 	}
 
