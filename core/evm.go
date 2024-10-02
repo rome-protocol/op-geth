@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -138,10 +137,6 @@ func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 
 // Transfer subtracts amount from sender and adds amount to recipient using the given Db
 func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
-	log.Info("inside transfer", "amount", amount)
-	log.Info("inside transfer", "sender", sender)
-	log.Info("inside transfer", "recipient", recipient)
-
 	db.SubBalance(sender, amount)
 	db.AddBalance(recipient, amount)
 }

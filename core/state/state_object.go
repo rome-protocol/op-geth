@@ -26,7 +26,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie/trienode"
@@ -407,8 +406,6 @@ func (s *stateObject) commit() (*trienode.NodeSet, error) {
 // AddBalance adds amount to s's balance.
 // It is used to add funds to the destination account of a transfer.
 func (s *stateObject) AddBalance(amount *big.Int) {
-	log.Info("inside add balance", "initial amount", s.Balance())
-	log.Info("inside add balance", "amount", amount)
 	// EIP161: We must check emptiness for the objects such that the account
 	// clearing (0,0,0 objects) can take effect.
 	if amount.Sign() == 0 {
@@ -423,9 +420,6 @@ func (s *stateObject) AddBalance(amount *big.Int) {
 // SubBalance removes amount from s's balance.
 // It is used to remove funds from the origin account of a transfer.
 func (s *stateObject) SubBalance(amount *big.Int) {
-	log.Info("inside sub balance", "initial amount", s.Balance())
-	log.Info("inside sub balance", "amount", amount)
-
 	if amount.Sign() == 0 {
 		return
 	}
@@ -433,9 +427,6 @@ func (s *stateObject) SubBalance(amount *big.Int) {
 }
 
 func (s *stateObject) SetBalance(amount *big.Int) {
-	log.Info("inside set balance", "address", s.address)
-	log.Info("inside set balance", "amount", amount)
-
 	s.db.journal.append(balanceChange{
 		account: &s.address,
 		prev:    new(big.Int).Set(s.data.Balance),

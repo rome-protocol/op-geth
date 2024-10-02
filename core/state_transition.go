@@ -25,7 +25,6 @@ import (
 	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -237,10 +236,6 @@ func (st *StateTransition) buyGas() error {
 
 	st.initialGas = st.msg.GasLimit
 
-	log.Info("inside buy gas", "from", st.msg.From)
-	log.Info("inside buy gas", "from balance", st.state.GetBalance(st.msg.From))
-	log.Info("inside buy gas", "balance", mgval)
-
 	zeroAddress := common.Address{}
 	if st.evm.Context.Coinbase != zeroAddress {
 		st.state.SubBalance(st.msg.From, mgval)
@@ -359,7 +354,6 @@ func (st *StateTransition) TransitionDb(romeGasUsed uint64) (*ExecutionResult, e
 	snap := st.state.Snapshot()
 
 	result, err := st.innerTransitionDb(romeGasUsed)
-	log.Info("result after transition", result)
 	// Failed deposits must still be included. Unless we cannot produce the block at all due to the gas limit.
 	// On deposit failure, we rewind any state changes from after the minting, and increment the nonce.
 	if err != nil && err != ErrGasLimitReached && st.msg.IsDepositTx {
@@ -385,8 +379,6 @@ func (st *StateTransition) TransitionDb(romeGasUsed uint64) (*ExecutionResult, e
 }
 
 func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResult, error) {
-	log.Info("innerTransitionDb")
-
 	// First check this message satisfies all consensus rules before
 	// applying the message. The rules include these clauses
 	//
@@ -490,17 +482,11 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		// Skip fee payment when NoBaseFee is set and the fee fields
 		// are 0. This avoids a negative effectiveTip being applied to
 		// the coinbase when simulating calls.
-		log.Info("inside no base fee")
 	} else {
 		fee := new(big.Int).SetUint64(romeGasUsed)
 		fee.Mul(fee, effectiveTip)
-		log.Info("outside coinbase", "address", st.evm.Context.Coinbase)
 		zeroAddress := common.Address{}
 		if st.evm.Context.Coinbase != zeroAddress {
-			log.Info("coinbase", "address", st.evm.Context.Coinbase)
-			log.Info("coinbase", "gasUsed", romeGasUsed)
-			log.Info("coinbase", "effectiveTip", effectiveTip)
-			log.Info("coinbase", "fee", fee)
 			st.state.AddBalance(st.evm.Context.Coinbase, fee)
 		}
 	}
@@ -534,7 +520,6 @@ func (st *StateTransition) refundGas(refundQuotient uint64) uint64 {
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gasRemaining), st.msg.GasPrice)
 	zeroAddress := common.Address{}
 	if st.evm.Context.Coinbase != zeroAddress {
-		log.Info("inside refund gas", "amount", remaining)
 		st.state.AddBalance(st.msg.From, remaining)
 	}
 
