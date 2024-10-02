@@ -407,6 +407,8 @@ func (s *stateObject) commit() (*trienode.NodeSet, error) {
 // AddBalance adds amount to s's balance.
 // It is used to add funds to the destination account of a transfer.
 func (s *stateObject) AddBalance(amount *big.Int) {
+	log.Info("inside add balance", "initial amount", s.Balance())
+	log.Info("inside sub balance", "amount", amount)
 	// EIP161: We must check emptiness for the objects such that the account
 	// clearing (0,0,0 objects) can take effect.
 	if amount.Sign() == 0 {
