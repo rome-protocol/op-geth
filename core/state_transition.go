@@ -516,7 +516,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 
 	return &ExecutionResult{
 		UsedGas:     romeGasUsed,
-		RefundedGas: gasRefund,
+		RefundedGas: 0,
 		Err:         vmerr,
 		ReturnData:  ret,
 	}, nil
