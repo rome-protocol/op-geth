@@ -467,19 +467,19 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	// Note for deposit tx there is no ETH refunded for unused gas, but that's taken care of by the fact that gasPrice
 	// is always 0 for deposit tx. So calling refundGas will ensure the gasUsed accounting is correct without actually
 	// changing the sender's balance
-	var gasRefund uint64
-	if !rules.IsLondon {
-		// Before EIP-3529: refunds were capped to gasUsed / 2
-		gasRefund = st.refundGas(params.RefundQuotient)
-	} else {
-		// After EIP-3529: refunds are capped to gasUsed / 5
-		gasRefund = st.refundGas(params.RefundQuotientEIP3529)
-	}
+	// var gasRefund uint64
+	// if !rules.IsLondon {
+	// 	// Before EIP-3529: refunds were capped to gasUsed / 2
+	// 	gasRefund = st.refundGas(params.RefundQuotient)
+	// } else {
+	// 	// After EIP-3529: refunds are capped to gasUsed / 5
+	// 	gasRefund = st.refundGas(params.RefundQuotientEIP3529)
+	// }
 	if st.msg.IsDepositTx && rules.IsOptimismRegolith {
 		// Skip coinbase payments for deposit tx in Regolith
 		return &ExecutionResult{
 			UsedGas:     romeGasUsed,
-			RefundedGas: gasRefund,
+			RefundedGas: 0,
 			Err:         vmerr,
 			ReturnData:  ret,
 		}, nil
