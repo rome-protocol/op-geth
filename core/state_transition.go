@@ -434,7 +434,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 
 	effectiveTip := msg.GasPrice
 	if rules.IsLondon {
-		effectiveTip = msg.GasFeeCap
+		effectiveTip = msg.GasTipCap
 	}
 
 	if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {

@@ -164,7 +164,7 @@ func (tx *BlobTx) blobGas() uint64        { return params.BlobTxBlobGasPerBlob *
 func (tx *BlobTx) isSystemTx() bool       { return false }
 
 func (tx *BlobTx) effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.Int {
-	return dst.Set(tx.GasFeeCap.ToBig())
+	return dst.Set(tx.gasTipCap())
 }
 
 func (tx *BlobTx) rawSignatureValues() (v, r, s *big.Int) {
