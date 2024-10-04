@@ -69,15 +69,6 @@ func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation b
 	return 0, nil
 }
 
-// toWordSize returns the ceiled word size required for init code payment calculation.
-// func toWordSize(size uint64) uint64 {
-// 	if size > math.MaxUint64-31 {
-// 		return math.MaxUint64/32 + 1
-// 	}
-
-// 	return (size + 31) / 32
-// }
-
 // A Message contains the data derived from a single transaction that is relevant to state
 // processing.
 type Message struct {
@@ -282,31 +273,6 @@ func (st *StateTransition) preCheck() error {
 				msg.From.Hex(), codeHash)
 		}
 	}
-	// Make sure that transaction gasFeeCap is greater than the baseFee (post london)
-	if st.evm.ChainConfig().IsLondon(st.evm.Context.BlockNumber) {
-		// Skip the checks if gas fields are zero and baseFee was explicitly disabled (eth_call)
-		skipCheck := st.evm.Config.NoBaseFee && msg.GasFeeCap.BitLen() == 0 && msg.GasTipCap.BitLen() == 0
-		if !skipCheck {
-			if l := msg.GasFeeCap.BitLen(); l > 256 {
-				return fmt.Errorf("%w: address %v, maxFeePerGas bit length: %d", ErrFeeCapVeryHigh,
-					msg.From.Hex(), l)
-			}
-			if l := msg.GasTipCap.BitLen(); l > 256 {
-				return fmt.Errorf("%w: address %v, maxPriorityFeePerGas bit length: %d", ErrTipVeryHigh,
-					msg.From.Hex(), l)
-			}
-			if msg.GasFeeCap.Cmp(msg.GasTipCap) < 0 {
-				return fmt.Errorf("%w: address %v, maxPriorityFeePerGas: %s, maxFeePerGas: %s", ErrTipAboveFeeCap,
-					msg.From.Hex(), msg.GasTipCap, msg.GasFeeCap)
-			}
-			// This will panic if baseFee is nil, but basefee presence is verified
-			// as part of header validation.
-			// if msg.GasFeeCap.Cmp(st.evm.Context.BaseFee) < 0 {
-			// 	return fmt.Errorf("%w: address %v, maxFeePerGas: %s, baseFee: %s", ErrFeeCapTooLow,
-			// 		msg.From.Hex(), msg.GasFeeCap, st.evm.Context.BaseFee)
-			// }
-		}
-	}
 	// Check the blob version validity
 	if msg.BlobHashes != nil {
 		if len(msg.BlobHashes) == 0 {
@@ -456,17 +422,6 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 			ReturnData: ret,
 		}, nil
 	}
-	// Note for deposit tx there is no ETH refunded for unused gas, but that's taken care of by the fact that gasPrice
-	// is always 0 for deposit tx. So calling refundGas will ensure the gasUsed accounting is correct without actually
-	// changing the sender's balance
-	// var gasRefund uint64
-	// if !rules.IsLondon {
-	// 	// Before EIP-3529: refunds were capped to gasUsed / 2
-	// 	gasRefund = st.refundGas(params.RefundQuotient)
-	// } else {
-	// 	// After EIP-3529: refunds are capped to gasUsed / 5
-	// 	gasRefund = st.refundGas(params.RefundQuotientEIP3529)
-	// }
 	if st.msg.IsDepositTx && rules.IsOptimismRegolith {
 		// Skip coinbase payments for deposit tx in Regolith
 		return &ExecutionResult{
@@ -476,7 +431,11 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 			ReturnData:  ret,
 		}, nil
 	}
+
 	effectiveTip := msg.GasPrice
+	if rules.IsLondon {
+		effectiveTip = msg.GasFeeCap
+	}
 
 	if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
 		// Skip fee payment when NoBaseFee is set and the fee fields
