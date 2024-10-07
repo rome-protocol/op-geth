@@ -17,7 +17,6 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -186,123 +185,6 @@ func (st *StateTransition) to() common.Address {
 	return *st.msg.To
 }
 
-func (st *StateTransition) buyGas() error {
-	mgval := new(big.Int).SetUint64(st.msg.GasLimit)
-	mgval = mgval.Mul(mgval, st.msg.GasPrice)
-	var l1Cost *big.Int
-	if st.evm.Context.L1CostFunc != nil && !st.msg.SkipAccountChecks {
-		l1Cost = st.evm.Context.L1CostFunc(st.msg.RollupCostData, st.evm.Context.Time)
-		if l1Cost != nil {
-			mgval = mgval.Add(mgval, l1Cost)
-		}
-	}
-	balanceCheck := new(big.Int).Set(mgval)
-	if st.msg.GasFeeCap != nil {
-		balanceCheck.SetUint64(st.msg.GasLimit)
-		balanceCheck = balanceCheck.Mul(balanceCheck, st.msg.GasFeeCap)
-		balanceCheck.Add(balanceCheck, st.msg.Value)
-		if l1Cost != nil {
-			balanceCheck.Add(balanceCheck, l1Cost)
-		}
-	}
-	if st.evm.ChainConfig().IsCancun(st.evm.Context.BlockNumber, st.evm.Context.Time) {
-		if blobGas := st.blobGasUsed(); blobGas > 0 {
-			// Check that the user has enough funds to cover blobGasUsed * tx.BlobGasFeeCap
-			blobBalanceCheck := new(big.Int).SetUint64(blobGas)
-			blobBalanceCheck.Mul(blobBalanceCheck, st.msg.BlobGasFeeCap)
-			balanceCheck.Add(balanceCheck, blobBalanceCheck)
-			// Pay for blobGasUsed * actual blob fee
-			blobFee := new(big.Int).SetUint64(blobGas)
-			blobFee.Mul(blobFee, st.evm.Context.BlobBaseFee)
-			mgval.Add(mgval, blobFee)
-		}
-	}
-	if have, want := st.state.GetBalance(st.msg.From), balanceCheck; have.Cmp(want) < 0 {
-		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
-	}
-	if err := st.gp.SubGas(st.msg.GasLimit); err != nil {
-		return err
-	}
-	st.gasRemaining += st.msg.GasLimit
-
-	st.initialGas = st.msg.GasLimit
-
-	zeroAddress := common.Address{}
-	if st.evm.Context.Coinbase != zeroAddress {
-		st.state.SubBalance(st.msg.From, mgval)
-	}
-
-	return nil
-}
-
-func (st *StateTransition) preCheck() error {
-	if st.msg.IsDepositTx {
-		// No fee fields to check, no nonce to check, and no need to check if EOA (L1 already verified it for us)
-		// Gas is free, but no refunds!
-		st.initialGas = st.msg.GasLimit
-		st.gasRemaining += st.msg.GasLimit // Add gas here in order to be able to execute calls.
-		// Don't touch the gas pool for system transactions
-		if st.msg.IsSystemTx {
-			if st.evm.ChainConfig().IsOptimismRegolith(st.evm.Context.Time) {
-				return fmt.Errorf("%w: address %v", ErrSystemTxNotSupported,
-					st.msg.From.Hex())
-			}
-			return nil
-		}
-		return st.gp.SubGas(st.msg.GasLimit) // gas used by deposits may not be used by other txs
-	}
-	// Only check transactions that are not fake
-	msg := st.msg
-	if !msg.SkipAccountChecks {
-		// Make sure this transaction's nonce is correct.
-		stNonce := st.state.GetNonce(msg.From)
-		if msgNonce := msg.Nonce; stNonce < msgNonce {
-			return fmt.Errorf("%w: address %v, tx: %d state: %d", ErrNonceTooHigh,
-				msg.From.Hex(), msgNonce, stNonce)
-		} else if stNonce > msgNonce {
-			return fmt.Errorf("%w: address %v, tx: %d state: %d", ErrNonceTooLow,
-				msg.From.Hex(), msgNonce, stNonce)
-		} else if stNonce+1 < stNonce {
-			return fmt.Errorf("%w: address %v, nonce: %d", ErrNonceMax,
-				msg.From.Hex(), stNonce)
-		}
-		// Make sure the sender is an EOA
-		codeHash := st.state.GetCodeHash(msg.From)
-		if codeHash != (common.Hash{}) && codeHash != types.EmptyCodeHash {
-			return fmt.Errorf("%w: address %v, codehash: %s", ErrSenderNoEOA,
-				msg.From.Hex(), codeHash)
-		}
-	}
-	// Check the blob version validity
-	if msg.BlobHashes != nil {
-		if len(msg.BlobHashes) == 0 {
-			return errors.New("blob transaction missing blob hashes")
-		}
-		for i, hash := range msg.BlobHashes {
-			if hash[0] != params.BlobTxHashVersion {
-				return fmt.Errorf("blob %d hash version mismatch (have %d, supported %d)",
-					i, hash[0], params.BlobTxHashVersion)
-			}
-		}
-	}
-	// Check that the user is paying at least the current blob fee
-	if st.evm.ChainConfig().IsCancun(st.evm.Context.BlockNumber, st.evm.Context.Time) {
-		if st.blobGasUsed() > 0 {
-			// Skip the checks if gas fields are zero and blobBaseFee was explicitly disabled (eth_call)
-			skipCheck := st.evm.Config.NoBaseFee && msg.BlobGasFeeCap.BitLen() == 0
-			if !skipCheck {
-				// This will panic if blobBaseFee is nil, but blobBaseFee presence
-				// is verified as part of header validation.
-				if msg.BlobGasFeeCap.Cmp(st.evm.Context.BlobBaseFee) < 0 {
-					return fmt.Errorf("%w: address %v blobGasFeeCap: %v, blobBaseFee: %v", ErrBlobFeeCapTooLow,
-						msg.From.Hex(), msg.BlobGasFeeCap, st.evm.Context.BlobBaseFee)
-				}
-			}
-		}
-	}
-	return st.buyGas()
-}
-
 // TransitionDb will transition the state by applying the current message and
 // returning the evm execution result with following fields.
 //
@@ -356,9 +238,6 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	// 6. caller has enough balance to cover asset transfer for **topmost** call
 
 	// Check clauses 1-3, buy gas if everything is correct
-	if err := st.preCheck(); err != nil {
-		return nil, err
-	}
 
 	if tracer := st.evm.Config.Tracer; tracer != nil {
 		tracer.CaptureTxStart(st.initialGas)
