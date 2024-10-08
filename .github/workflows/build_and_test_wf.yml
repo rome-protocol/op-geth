@@ -1,0 +1,27 @@
+name: Build docker image
+
+on:
+  push:
+
+jobs:
+  prepare_env:
+    runs-on: ubuntu-latest
+    env:
+      OP_GETH_REF_NAME: ${{github.ref_name}} # If updating this, also update the uses in the job reusable-wf-build at bottom of this file
+      
+    outputs:
+      op_geth_ref_name: ${{ steps.set_rome_op_geth_ref.outputs.op_geth_ref_name }}
+
+    steps:
+      - name: 'Set REF NAME'
+        id: set_rome_op_geth_ref
+        run: |
+          echo "op_geth_ref_name=${{ env.OP_GETH_REF_NAME || 'older-optimism' }}" >> $GITHUB_OUTPUT
+
+  reusable-wf-op-geth-build:
+    uses: rome-protocol/rome-rollup-clients/.github/workflows/reusable_wf_build.yml@ci-wf
+    needs: [prepare_env]
+    secrets: inherit
+    with:
+      op_geth_ref_name: ${{ needs.prepare_env.outputs.op_geth_ref_name }}
+  
