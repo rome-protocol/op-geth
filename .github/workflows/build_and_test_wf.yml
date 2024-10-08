@@ -23,7 +23,7 @@ jobs:
         with:
           github-token: ${{ secrets.GIT_ROLLUP_TOKEN }}
           script: |
-            const response = await github.actions.createWorkflowDispatch({
+            const response = github.rest.actions.createWorkflowDispatch({
               owner: 'rome-protocol',              // Replace with the owner of the target repository
               repo: 'rome-rollup-clients',                // Replace with the target repository name
               workflow_id: 'manual_tests.yml',      // The workflow file in the target repo
