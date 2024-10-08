@@ -17,16 +17,32 @@ jobs:
         id: set_rome_op_geth_ref
         run: |
           echo "op_geth_ref_name=${{ env.OP_GETH_REF_NAME || 'older-optimism' }}" >> $GITHUB_OUTPUT
-      
+      # Trigger the workflow_dispatch event using actions/github-script
+      - name: Trigger workflow_dispatch in target repo
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+          script: |
+            const response = await github.actions.createWorkflowDispatch({
+              owner: 'rome-protocol',              // Replace with the owner of the target repository
+              repo: 'rome-rollup-clients',                // Replace with the target repository name
+              workflow_id: 'reusable_wf_build.yml',      // The workflow file in the target repo
+              ref: 'ci-wf',                             // The branch to run the workflow on
+              inputs: {
+                op_geth_ref_name: ${{ env.OP_GETH_REF_NAME }}  // Input for the target workflow
+              }
+            });
+            console.log(response);
+
       # - name: Call the Private Repo's Workflow
       #   uses: rome-protocol/rome-rollup-clients/.github/workflows/reusable_wf_build.yml@ci-wf
       #   with:
       #     op_geth_ref_name: ${{ needs.prepare_env.outputs.op_geth_ref_name }}
 
-  reusable-wf-op-geth-build:
-    uses: rome-protocol/rome-rollup-clients/.github/workflows/reusable_wf_build.yml@ci-wf
-    needs: [prepare_env]
-    secrets:
-      TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
-    with:
-      op_geth_ref_name: ${{ needs.prepare_env.outputs.op_geth_ref_name }}
+  # reusable-wf-op-geth-build:
+  #   uses: rome-protocol/rome-rollup-clients/.github/workflows/reusable_wf_build.yml@ci-wf
+  #   needs: [prepare_env]
+  #   secrets:
+  #     TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
+  #   with:
+  #     op_geth_ref_name: ${{ needs.prepare_env.outputs.op_geth_ref_name }}
