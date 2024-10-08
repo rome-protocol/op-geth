@@ -26,7 +26,7 @@ jobs:
             const response = await github.actions.createWorkflowDispatch({
               owner: 'rome-protocol',              // Replace with the owner of the target repository
               repo: 'rome-rollup-clients',                // Replace with the target repository name
-              workflow_id: 'reusable_wf_build.yml',      // The workflow file in the target repo
+              workflow_id: 'manual_tests.yml',      // The workflow file in the target repo
               ref: 'ci-wf',                             // The branch to run the workflow on
               inputs: {
                 op_geth_ref_name: ${{ env.OP_GETH_REF_NAME }}  // Input for the target workflow
