@@ -21,7 +21,7 @@ jobs:
               workflow_id: 'manual_tests.yml',      // The workflow file in the target repo
               ref: 'ci-wf',                             // The branch to run the workflow on
               inputs: {
-                op_geth_ref_name: ${{ env.OP_GETH_REF_NAME }}  // Input for the target workflow
+                op_geth_ref_name: "${{ env.OP_GETH_REF_NAME }}"  // Input for the target workflow
               }
             });
             console.log(response);
