@@ -27,6 +27,6 @@ jobs:
     uses: rome-protocol/rome-rollup-clients/.github/workflows/reusable_wf_build.yml@ci-wf
     needs: [prepare_env]
     secrets:
-      TOKEN: ${{ secrets.GIT_ROLLUP_TOKEN }}
+      TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
     with:
       op_geth_ref_name: ${{ needs.prepare_env.outputs.op_geth_ref_name }}
