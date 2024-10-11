@@ -336,7 +336,6 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 
 	// Check clauses 1-3, buy gas if everything is correct
 	log.Info("inside inner transition db")
-
 	if err := st.preCheck(); err != nil {
 		return nil, err
 	}
@@ -425,6 +424,9 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	} else {
 		fee := new(big.Int).SetUint64(romeGasUsed)
 		fee.Mul(fee, effectiveTip)
+		log.Info("effective tip", effectiveTip)
+		log.Info("fee", fee)
+
 		zeroAddress := common.Address{}
 		if st.evm.Context.Coinbase != zeroAddress {
 			st.state.AddBalance(st.evm.Context.Coinbase, fee)
@@ -457,11 +459,11 @@ func (st *StateTransition) refundGas(refundQuotient uint64) uint64 {
 	st.gasRemaining += refund
 
 	// Return ETH for remaining gas, exchanged at the original rate.
-	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gasRemaining), st.msg.GasPrice)
-	zeroAddress := common.Address{}
-	if st.evm.Context.Coinbase != zeroAddress {
-		st.state.AddBalance(st.msg.From, remaining)
-	}
+	// remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gasRemaining), st.msg.GasPrice)
+	// zeroAddress := common.Address{}
+	// if st.evm.Context.Coinbase != zeroAddress {
+	// 	st.state.AddBalance(st.msg.From, remaining)
+	// }
 
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.
