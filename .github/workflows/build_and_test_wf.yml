@@ -1,0 +1,27 @@
+name: Build docker image
+
+on:
+  push:
+
+jobs:
+  prepare_env:
+    runs-on: ubuntu-latest
+    env:
+      OP_GETH_REF_NAME: "${{github.ref_name}}" # If updating this, also update the uses in the job reusable-wf-build at bottom of this file
+      
+    steps:
+      - name: Trigger workflow_dispatch in target repo
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+          script: |
+            const response = github.rest.actions.createWorkflowDispatch({
+              owner: 'rome-protocol',              // Replace with the owner of the target repository
+              repo: 'rome-rollup-clients',                // Replace with the target repository name
+              workflow_id: 'manual_tests.yml',      // The workflow file in the target repo
+              ref: 'main',                             // The branch to run the workflow on
+              inputs: {
+                op_geth_ref_name: "${{ env.OP_GETH_REF_NAME }}"  // Input for the target workflow
+              }
+            });
+            console.log(response);
