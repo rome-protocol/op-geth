@@ -25,6 +25,7 @@ import (
 	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -187,12 +188,15 @@ func (st *StateTransition) to() common.Address {
 }
 
 func (st *StateTransition) buyGas() error {
+	log.Info("buyGas")
 	mgval := new(big.Int).SetUint64(st.msg.GasLimit)
 	if st.msg.GasFeeCap != nil {
 		mgval = mgval.Mul(mgval, st.msg.GasFeeCap)
 	} else {
 		mgval = mgval.Mul(mgval, st.msg.GasPrice)
 	}
+	log.Info("mgval = %v", mgval)
+	log.Info("st.evm.Context.Coinbase = %v", st.evm.Context.Coinbase)
 	balanceCheck := new(big.Int).Set(mgval)
 	if have, want := st.state.GetBalance(st.msg.From), balanceCheck; have.Cmp(want) < 0 {
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
