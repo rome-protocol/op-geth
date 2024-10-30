@@ -187,6 +187,11 @@ func (st *StateTransition) to() common.Address {
 }
 
 func (st *StateTransition) buyGas() error {
+	zeroAddress := common.Address{}
+	if st.evm.Context.Coinbase == zeroAddress {
+		return nil
+	}
+
 	mgval := new(big.Int).SetUint64(st.msg.GasLimit)
 	if st.msg.GasFeeCap != nil {
 		mgval = mgval.Mul(mgval, st.msg.GasTipCap)
@@ -203,11 +208,7 @@ func (st *StateTransition) buyGas() error {
 	st.gasRemaining += st.msg.GasLimit
 
 	st.initialGas = st.msg.GasLimit
-
-	zeroAddress := common.Address{}
-	if st.evm.Context.Coinbase != zeroAddress {
-		st.state.SubBalance(st.msg.From, mgval)
-	}
+	st.state.SubBalance(st.msg.From, mgval)
 
 	return nil
 }
