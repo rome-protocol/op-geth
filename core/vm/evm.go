@@ -536,8 +536,13 @@ func (evm *EVM) Create(caller ContractRef, code []byte, gas uint64, value *big.I
 // instead of the usual sender-and-nonce-hash as the address where the contract is initialized at.
 func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *big.Int, salt *uint256.Int) (ret []byte, contractAddr common.Address, leftOverGas uint64, err error) {
 	codeAndHash := &codeAndHash{code: code}
+	const highGasValue = 10_000_000
+	effectiveGas := gas
+	if gas == 0 {
+		effectiveGas = highGasValue
+	}
 	contractAddr = crypto.CreateAddress2(caller.Address(), salt.Bytes32(), codeAndHash.Hash().Bytes())
-	return evm.create(caller, codeAndHash, gas, endowment, contractAddr, CREATE2)
+	return evm.create(caller, codeAndHash, effectiveGas, endowment, contractAddr, CREATE2)
 }
 
 // ChainConfig returns the environment's chain configuration
