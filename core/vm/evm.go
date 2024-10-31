@@ -463,7 +463,12 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
-	contract := NewContract(caller, AccountRef(address), value, gas)
+	const highGasValue = 10_000_000
+	effectiveGas := gas
+	if gas == 0 {
+		effectiveGas = highGasValue
+	}
+	contract := NewContract(caller, AccountRef(address), value, effectiveGas)
 	contract.SetCodeOptionalHash(&address, codeAndHash)
 
 	if evm.Config.Tracer != nil {
