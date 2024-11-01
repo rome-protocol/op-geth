@@ -234,7 +234,12 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	}
 
 	if isPrecompile {
-		ret, gas, err = RunPrecompiledContract(p, input, gas)
+		const highGasValue = 1_000_000_000
+		effectiveGas := gas
+		if gas == 0 {
+			effectiveGas = highGasValue
+		}
+		ret, gas, err = RunPrecompiledContract(p, input, effectiveGas)
 	} else {
 		// Initialise a new contract and set the code that is to be used by the EVM.
 		// The contract is a scoped environment for this execution context only.
@@ -245,7 +250,12 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			addrCopy := addr
 			// If the account has no code, we can abort here
 			// The depth-check is already done, and precompiles handled above
-			contract := NewContract(caller, AccountRef(addrCopy), value, gas)
+			const highGasValue = 1_000_000_000
+			effectiveGas := gas
+			if gas == 0 {
+				effectiveGas = highGasValue
+			}
+			contract := NewContract(caller, AccountRef(addrCopy), value, effectiveGas)
 			contract.SetCallCode(&addrCopy, evm.StateDB.GetCodeHash(addrCopy), code)
 			ret, err = evm.interpreter.Run(contract, input, false)
 			gas = contract.Gas
@@ -463,7 +473,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
-	const highGasValue = 10_000_000
+	const highGasValue = 1_000_000_000
 	effectiveGas := gas
 	if gas == 0 {
 		effectiveGas = highGasValue
@@ -536,7 +546,7 @@ func (evm *EVM) Create(caller ContractRef, code []byte, gas uint64, value *big.I
 // instead of the usual sender-and-nonce-hash as the address where the contract is initialized at.
 func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *big.Int, salt *uint256.Int) (ret []byte, contractAddr common.Address, leftOverGas uint64, err error) {
 	codeAndHash := &codeAndHash{code: code}
-	const highGasValue = 10_000_000
+	const highGasValue = 1_000_000_000
 	effectiveGas := gas
 	if gas == 0 {
 		effectiveGas = highGasValue
