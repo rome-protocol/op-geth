@@ -100,10 +100,6 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 	if tx.Value().Sign() < 0 {
 		return ErrNegativeValue
 	}
-	// Ensure the transaction doesn't exceed the current block limit gas
-	if EffectiveGasLimit(opts.Config, head.GasLimit) < tx.Gas() {
-		return ErrGasLimit
-	}
 	// Sanity check for extremely large numbers (supported by RLP or RPC)
 	if tx.GasFeeCap().BitLen() > 256 {
 		return core.ErrFeeCapVeryHigh
