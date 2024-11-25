@@ -345,10 +345,6 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 	if parent.Time+c.config.Period > header.Time {
 		return errInvalidTimestamp
 	}
-	// Verify that the gasUsed is <= gasLimit
-	if header.GasUsed > header.GasLimit {
-		return fmt.Errorf("invalid gasUsed: have %d, gasLimit %d", header.GasUsed, header.GasLimit)
-	}
 	if !chain.Config().IsLondon(header.Number) {
 		// Verify BaseFee not present before EIP-1559 fork.
 		if header.BaseFee != nil {
