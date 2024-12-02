@@ -153,7 +153,7 @@ var DefaultConfig = Config{
 	AccountQueue: 64,
 	GlobalQueue:  1024,
 
-	Lifetime: 3 * time.Hour,
+	Lifetime: 5 * time.Minute,
 }
 
 // sanitize checks the provided user configurations and changes anything that's
