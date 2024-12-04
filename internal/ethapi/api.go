@@ -112,6 +112,7 @@ type feeHistoryResult struct {
 
 // FeeHistory returns the fee market history.
 func (s *EthereumAPI) FeeHistory(ctx context.Context, blockCount math.HexOrDecimal64, lastBlock rpc.BlockNumber, rewardPercentiles []float64) (*feeHistoryResult, error) {
+	log.Info("Rome: enter FeeHistory", "lastblock", lastBlock)
 	oldest, reward, baseFee, gasUsed, err := s.b.FeeHistory(ctx, uint64(blockCount), lastBlock, rewardPercentiles)
 	if err != nil {
 		return nil, err
@@ -146,6 +147,8 @@ func (s *EthereumAPI) FeeHistory(ctx context.Context, blockCount math.HexOrDecim
 // - pulledStates:  number of state entries processed until now
 // - knownStates:   number of known state entries that still need to be pulled
 func (s *EthereumAPI) Syncing() (interface{}, error) {
+	log.Info("Rome: enter Syncing")
+
 	progress := s.b.SyncProgress()
 
 	// Return not syncing if the synchronisation already completed
@@ -212,7 +215,7 @@ func (s *TxPoolAPI) Content() map[string]map[string]map[string]*RPCTransaction {
 
 // ContentFrom returns the transactions contained within the transaction pool.
 func (s *TxPoolAPI) ContentFrom(addr common.Address) map[string]map[string]*RPCTransaction {
-	log.Info("Rome: enter TxPoolAPI ContentFrom")
+	log.Info("Rome: enter TxPoolAPI ContentFrom", "address", addr)
 	content := make(map[string]map[string]*RPCTransaction, 2)
 	pending, queue := s.b.TxPoolContentFrom(addr)
 	curHeader := s.b.CurrentHeader()
@@ -424,7 +427,7 @@ func (s *PersonalAccountAPI) ImportRawKey(privkey string, password string) (comm
 // the given password for duration seconds. If duration is nil it will use a
 // default of 300 seconds. It returns an indication if the account was unlocked.
 func (s *PersonalAccountAPI) UnlockAccount(ctx context.Context, addr common.Address, password string, duration *uint64) (bool, error) {
-	log.Info("Rome: enter PersonalAccountAPI UnlockAccount")
+	log.Info("Rome: enter PersonalAccountAPI UnlockAccount", "address", addr, "password", password)
 	// When the API is exposed by external RPC(http, ws etc), unless the user
 	// explicitly specifies to allow the insecure account unlocking, otherwise
 	// it is disabled.
@@ -464,7 +467,7 @@ func (s *PersonalAccountAPI) LockAccount(addr common.Address) bool {
 // NOTE: the caller needs to ensure that the nonceLock is held, if applicable,
 // and release it after the transaction has been submitted to the tx pool
 func (s *PersonalAccountAPI) signTransaction(ctx context.Context, args *TransactionArgs, passwd string) (*types.Transaction, error) {
-	log.Info("Rome: enter PersonalAccountAPI signTransaction")
+	log.Info("Rome: enter PersonalAccountAPI signTransaction", "request", args)
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.from()}
 	wallet, err := s.am.Find(account)
@@ -485,7 +488,7 @@ func (s *PersonalAccountAPI) signTransaction(ctx context.Context, args *Transact
 // tries to sign it with the key associated with args.From. If the given
 // passwd isn't able to decrypt the key it fails.
 func (s *PersonalAccountAPI) SendTransaction(ctx context.Context, args TransactionArgs, passwd string) (common.Hash, error) {
-	log.Info("Rome: enter PersonalAccountAPI SendTransaction")
+	log.Info("Rome: enter PersonalAccountAPI SendTransaction", "request", args)
 	if args.Nonce == nil {
 		// Hold the mutex around signing to prevent concurrent assignment of
 		// the same nonce to multiple accounts.
@@ -505,7 +508,7 @@ func (s *PersonalAccountAPI) SendTransaction(ctx context.Context, args Transacti
 // able to decrypt the key it fails. The transaction is returned in RLP-form, not broadcast
 // to other nodes
 func (s *PersonalAccountAPI) SignTransaction(ctx context.Context, args TransactionArgs, passwd string) (*SignTransactionResult, error) {
-	log.Info("Rome: enter PersonalAccountAPI SignTransaction")
+	log.Info("Rome: enter PersonalAccountAPI SignTransaction", "request", args)
 	// No need to obtain the noncelock mutex, since we won't be sending this
 	// tx into the transaction pool, but right back to the user
 	if args.From == nil {
@@ -547,7 +550,7 @@ func (s *PersonalAccountAPI) SignTransaction(ctx context.Context, args Transacti
 //
 // https://github.com/ethereum/go-ethereum/wiki/Management-APIs#personal_sign
 func (s *PersonalAccountAPI) Sign(ctx context.Context, data hexutil.Bytes, addr common.Address, passwd string) (hexutil.Bytes, error) {
-	log.Info("Rome: enter PersonalAccountAPI Sign")
+	log.Info("Rome: enter PersonalAccountAPI Sign", "address", addr)
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
 
@@ -665,7 +668,7 @@ func (s *BlockChainAPI) BlockNumber() hexutil.Uint64 {
 // given block number. The rpc.LatestBlockNumber and rpc.PendingBlockNumber meta
 // block numbers are also allowed.
 func (s *BlockChainAPI) GetBalance(ctx context.Context, address common.Address, blockNrOrHash rpc.BlockNumberOrHash) (*hexutil.Big, error) {
-	log.Info("Rome: enter BlockChainAPI GetBalance")
+	log.Info("Rome: enter BlockChainAPI GetBalance", "address", address, "blockNrOrHash", blockNrOrHash)
 	header, err := headerByNumberOrHash(ctx, s.b, blockNrOrHash)
 	if err != nil {
 		return nil, err
@@ -723,7 +726,7 @@ func (n *proofList) Delete(key []byte) error {
 
 // GetProof returns the Merkle-proof for a given account and optionally some storage keys.
 func (s *BlockChainAPI) GetProof(ctx context.Context, address common.Address, storageKeys []string, blockNrOrHash rpc.BlockNumberOrHash) (*AccountResult, error) {
-	log.Info("Rome: enter BlockChainAPI GetProof")
+	log.Info("Rome: enter BlockChainAPI GetProof", "address", address)
 	header, err := headerByNumberOrHash(ctx, s.b, blockNrOrHash)
 	if err != nil {
 		return nil, err
@@ -839,7 +842,7 @@ func decodeHash(s string) (h common.Hash, inputLength int, err error) {
 //   - When blockNr is -3 the chain finalized header is returned.
 //   - When blockNr is -4 the chain safe header is returned.
 func (s *BlockChainAPI) GetHeaderByNumber(ctx context.Context, number rpc.BlockNumber) (map[string]interface{}, error) {
-	log.Info("Rome: enter BlockChainAPI GetHeaderByNumber")
+	log.Info("Rome: enter BlockChainAPI GetHeaderByNumber", "blockNumber", number)
 	header, err := s.b.HeaderByNumber(ctx, number)
 	if header != nil && err == nil {
 		response := s.rpcMarshalHeader(ctx, header)
@@ -856,7 +859,7 @@ func (s *BlockChainAPI) GetHeaderByNumber(ctx context.Context, number rpc.BlockN
 
 // GetHeaderByHash returns the requested header by hash.
 func (s *BlockChainAPI) GetHeaderByHash(ctx context.Context, hash common.Hash) map[string]interface{} {
-	log.Info("Rome: enter BlockChainAPI GetHeaderByHash")
+	log.Info("Rome: enter BlockChainAPI GetHeaderByHash", "blockHash", hash)
 	header, _ := s.b.HeaderByHash(ctx, hash)
 	if header != nil {
 		return s.rpcMarshalHeader(ctx, header)
@@ -872,7 +875,7 @@ func (s *BlockChainAPI) GetHeaderByHash(ctx context.Context, hash common.Hash) m
 //   - When fullTx is true all transactions in the block are returned, otherwise
 //     only the transaction hash is returned.
 func (s *BlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.BlockNumber, fullTx bool) (map[string]interface{}, error) {
-	log.Info("Rome: enter BlockChainAPI GetBlockByNumber")
+	log.Info("Rome: enter BlockChainAPI GetBlockByNumber", "blockNumber", number)
 	block, err := s.b.BlockByNumber(ctx, number)
 	if block != nil && err == nil {
 		response, err := s.rpcMarshalBlock(ctx, block, true, fullTx)
@@ -890,7 +893,7 @@ func (s *BlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.BlockNu
 // GetBlockByHash returns the requested block. When fullTx is true all transactions in the block are returned in full
 // detail, otherwise only the transaction hash is returned.
 func (s *BlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Hash, fullTx bool) (map[string]interface{}, error) {
-	log.Info("Rome: enter BlockChainAPI GetBlockByHash")
+	log.Info("Rome: enter BlockChainAPI GetBlockByHash", "blockHash", hash, "full_tx", fullTx)
 	block, err := s.b.BlockByHash(ctx, hash)
 	if block != nil {
 		return s.rpcMarshalBlock(ctx, block, true, fullTx)
@@ -900,7 +903,7 @@ func (s *BlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Hash, fu
 
 // GetUncleByBlockNumberAndIndex returns the uncle block for the given block hash and index.
 func (s *BlockChainAPI) GetUncleByBlockNumberAndIndex(ctx context.Context, blockNr rpc.BlockNumber, index hexutil.Uint) (map[string]interface{}, error) {
-	log.Info("Rome: enter BlockChainAPI GetUncleByBlockNumberAndIndex")
+	log.Info("Rome: enter BlockChainAPI GetUncleByBlockNumberAndIndex", "blockNumber", blockNr, "index", index)
 	block, err := s.b.BlockByNumber(ctx, blockNr)
 	if block != nil {
 		uncles := block.Uncles()
@@ -916,7 +919,7 @@ func (s *BlockChainAPI) GetUncleByBlockNumberAndIndex(ctx context.Context, block
 
 // GetUncleByBlockHashAndIndex returns the uncle block for the given block hash and index.
 func (s *BlockChainAPI) GetUncleByBlockHashAndIndex(ctx context.Context, blockHash common.Hash, index hexutil.Uint) (map[string]interface{}, error) {
-	log.Info("Rome: enter BlockChainAPI GetUncleByBlockHashAndIndex")
+	log.Info("Rome: enter BlockChainAPI GetUncleByBlockHashAndIndex", "blockHash", blockHash, "index", index)
 	block, err := s.b.BlockByHash(ctx, blockHash)
 	if block != nil {
 		uncles := block.Uncles()
@@ -932,7 +935,7 @@ func (s *BlockChainAPI) GetUncleByBlockHashAndIndex(ctx context.Context, blockHa
 
 // GetUncleCountByBlockNumber returns number of uncles in the block for the given block number
 func (s *BlockChainAPI) GetUncleCountByBlockNumber(ctx context.Context, blockNr rpc.BlockNumber) *hexutil.Uint {
-	log.Info("Rome: enter BlockChainAPI GetUncleCountByBlockNumber")
+	log.Info("Rome: enter BlockChainAPI GetUncleCountByBlockNumber", "blockNumber", blockNr)
 	if block, _ := s.b.BlockByNumber(ctx, blockNr); block != nil {
 		n := hexutil.Uint(len(block.Uncles()))
 		return &n
@@ -942,7 +945,7 @@ func (s *BlockChainAPI) GetUncleCountByBlockNumber(ctx context.Context, blockNr 
 
 // GetUncleCountByBlockHash returns number of uncles in the block for the given block hash
 func (s *BlockChainAPI) GetUncleCountByBlockHash(ctx context.Context, blockHash common.Hash) *hexutil.Uint {
-	log.Info("Rome: enter BlockChainAPI GetUncleCountByBlockHash")
+	log.Info("Rome: enter BlockChainAPI GetUncleCountByBlockHash", "blockHash", blockHash)
 	if block, _ := s.b.BlockByHash(ctx, blockHash); block != nil {
 		n := hexutil.Uint(len(block.Uncles()))
 		return &n
@@ -952,7 +955,7 @@ func (s *BlockChainAPI) GetUncleCountByBlockHash(ctx context.Context, blockHash 
 
 // GetCode returns the code stored at the given address in the state for the given block number.
 func (s *BlockChainAPI) GetCode(ctx context.Context, address common.Address, blockNrOrHash rpc.BlockNumberOrHash) (hexutil.Bytes, error) {
-	log.Info("Rome: enter BlockChainAPI GetCode")
+	log.Info("Rome: enter BlockChainAPI GetCode", "contractAddress", address)
 	header, err := headerByNumberOrHash(ctx, s.b, blockNrOrHash)
 	if err != nil {
 		return nil, err
@@ -984,7 +987,7 @@ func (s *BlockChainAPI) GetCode(ctx context.Context, address common.Address, blo
 // block number. The rpc.LatestBlockNumber and rpc.PendingBlockNumber meta block
 // numbers are also allowed.
 func (s *BlockChainAPI) GetStorageAt(ctx context.Context, address common.Address, hexKey string, blockNrOrHash rpc.BlockNumberOrHash) (hexutil.Bytes, error) {
-	log.Info("Rome: enter BlockChainAPI GetStorageAt")
+	log.Info("Rome: enter BlockChainAPI GetStorageAt", "address", address, "key", hexKey)
 	header, err := headerByNumberOrHash(ctx, s.b, blockNrOrHash)
 	if err != nil {
 		return nil, err
@@ -1030,7 +1033,7 @@ func headerByNumberOrHash(ctx context.Context, b Backend, blockNrOrHash rpc.Bloc
 
 // GetBlockReceipts returns the block receipts for the given block hash or number or tag.
 func (s *BlockChainAPI) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]map[string]interface{}, error) {
-	log.Info("Rome: enter BlockChainAPI GetBlockReceipts")
+	log.Info("Rome: enter BlockChainAPI GetBlockReceipts", "blockNrOrHash", blockNrOrHash)
 	block, err := s.b.BlockByNumberOrHash(ctx, blockNrOrHash)
 	if block == nil || err != nil {
 		// When the block doesn't exist, the RPC method should return JSON null
@@ -1288,7 +1291,7 @@ func (e *revertError) ErrorData() interface{} {
 // Note, this function doesn't make and changes in the state/blockchain and is
 // useful to execute and retrieve values.
 func (s *BlockChainAPI) Call(ctx context.Context, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash, overrides *StateOverride, blockOverrides *BlockOverrides) (hexutil.Bytes, error) {
-	log.Info("Rome: enter BlockChainAPI Call")
+	log.Info("Rome: enter BlockChainAPI Call", "request", args, "blockNrOrHash", blockNrOrHash)
 	if blockNrOrHash == nil {
 		latest := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
 		blockNrOrHash = &latest
@@ -1365,7 +1368,7 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 // value is capped by both `args.Gas` (if non-nil & non-zero) and the backend's RPCGasCap
 // configuration (if non-zero).
 func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash, overrides *StateOverride) (hexutil.Uint64, error) {
-	log.Info("Rome: enter EthereumAPI EstimateGas")
+	log.Info("Rome: enter EthereumAPI EstimateGas", "request", args, "blockNrOrHash", blockNrOrHash)
 	bNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
 	if blockNrOrHash != nil {
 		bNrOrHash = *blockNrOrHash
@@ -1820,7 +1823,7 @@ func NewTransactionAPI(b Backend, nonceLock *AddrLocker) *TransactionAPI {
 
 // GetBlockTransactionCountByNumber returns the number of transactions in the block with the given block number.
 func (s *TransactionAPI) GetBlockTransactionCountByNumber(ctx context.Context, blockNr rpc.BlockNumber) *hexutil.Uint {
-	log.Info("Rome: enter TransactionAPI GetBlockTransactionCountByNumber")
+	log.Info("Rome: enter TransactionAPI GetBlockTransactionCountByNumber", "blockNumber", blockNr)
 	if block, _ := s.b.BlockByNumber(ctx, blockNr); block != nil {
 		n := hexutil.Uint(len(block.Transactions()))
 		return &n
@@ -1830,7 +1833,7 @@ func (s *TransactionAPI) GetBlockTransactionCountByNumber(ctx context.Context, b
 
 // GetBlockTransactionCountByHash returns the number of transactions in the block with the given hash.
 func (s *TransactionAPI) GetBlockTransactionCountByHash(ctx context.Context, blockHash common.Hash) *hexutil.Uint {
-	log.Info("Rome: enter TransactionAPI GetBlockTransactionCountByHash")
+	log.Info("Rome: enter TransactionAPI GetBlockTransactionCountByHash", "blockHash", blockHash)
 	if block, _ := s.b.BlockByHash(ctx, blockHash); block != nil {
 		n := hexutil.Uint(len(block.Transactions()))
 		return &n
@@ -1840,7 +1843,7 @@ func (s *TransactionAPI) GetBlockTransactionCountByHash(ctx context.Context, blo
 
 // GetTransactionByBlockNumberAndIndex returns the transaction for the given block number and index.
 func (s *TransactionAPI) GetTransactionByBlockNumberAndIndex(ctx context.Context, blockNr rpc.BlockNumber, index hexutil.Uint) *RPCTransaction {
-	log.Info("Rome: enter TransactionAPI GetTransactionByBlockNumberAndIndex")
+	log.Info("Rome: enter TransactionAPI GetTransactionByBlockNumberAndIndex", "blockNumber", blockNr, "index", index)
 	if block, _ := s.b.BlockByNumber(ctx, blockNr); block != nil {
 		return newRPCTransactionFromBlockIndex(ctx, block, uint64(index), s.b.ChainConfig(), s.b)
 	}
@@ -1849,7 +1852,7 @@ func (s *TransactionAPI) GetTransactionByBlockNumberAndIndex(ctx context.Context
 
 // GetTransactionByBlockHashAndIndex returns the transaction for the given block hash and index.
 func (s *TransactionAPI) GetTransactionByBlockHashAndIndex(ctx context.Context, blockHash common.Hash, index hexutil.Uint) *RPCTransaction {
-	log.Info("Rome: enter TransactionAPI GetTransactionByBlockHashAndIndex")
+	log.Info("Rome: enter TransactionAPI GetTransactionByBlockHashAndIndex", "blockHash", blockHash, "index", index)
 	if block, _ := s.b.BlockByHash(ctx, blockHash); block != nil {
 		return newRPCTransactionFromBlockIndex(ctx, block, uint64(index), s.b.ChainConfig(), s.b)
 	}
@@ -1858,7 +1861,7 @@ func (s *TransactionAPI) GetTransactionByBlockHashAndIndex(ctx context.Context, 
 
 // GetRawTransactionByBlockNumberAndIndex returns the bytes of the transaction for the given block number and index.
 func (s *TransactionAPI) GetRawTransactionByBlockNumberAndIndex(ctx context.Context, blockNr rpc.BlockNumber, index hexutil.Uint) hexutil.Bytes {
-	log.Info("Rome: enter TransactionAPI GetRawTransactionByBlockNumberAndIndex")
+	log.Info("Rome: enter TransactionAPI GetRawTransactionByBlockNumberAndIndex", "blockNumber", blockNr, "index", index)
 	if block, _ := s.b.BlockByNumber(ctx, blockNr); block != nil {
 		return newRPCRawTransactionFromBlockIndex(block, uint64(index))
 	}
@@ -1867,7 +1870,7 @@ func (s *TransactionAPI) GetRawTransactionByBlockNumberAndIndex(ctx context.Cont
 
 // GetRawTransactionByBlockHashAndIndex returns the bytes of the transaction for the given block hash and index.
 func (s *TransactionAPI) GetRawTransactionByBlockHashAndIndex(ctx context.Context, blockHash common.Hash, index hexutil.Uint) hexutil.Bytes {
-	log.Info("Rome: enter TransactionAPI GetRawTransactionByBlockHashAndIndex")
+	log.Info("Rome: enter TransactionAPI GetRawTransactionByBlockHashAndIndex", "blockHash", blockHash, "index", index)
 	if block, _ := s.b.BlockByHash(ctx, blockHash); block != nil {
 		return newRPCRawTransactionFromBlockIndex(block, uint64(index))
 	}
@@ -1876,7 +1879,7 @@ func (s *TransactionAPI) GetRawTransactionByBlockHashAndIndex(ctx context.Contex
 
 // GetTransactionCount returns the number of transactions the given address has sent for the given block number
 func (s *TransactionAPI) GetTransactionCount(ctx context.Context, address common.Address, blockNrOrHash rpc.BlockNumberOrHash) (*hexutil.Uint64, error) {
-	log.Info("Rome: enter TransactionAPI GetTransactionCount")
+	log.Info("Rome: enter TransactionAPI GetTransactionCount", "address", address, "blockNrOrHash", blockNrOrHash)
 	// Ask transaction pool for the nonce which includes pending transactions
 	if blockNr, ok := blockNrOrHash.Number(); ok && blockNr == rpc.PendingBlockNumber {
 		nonce, err := s.b.GetPoolNonce(ctx, address)
@@ -1915,7 +1918,7 @@ func (s *TransactionAPI) GetTransactionCount(ctx context.Context, address common
 
 // GetTransactionByHash returns the transaction for the given hash
 func (s *TransactionAPI) GetTransactionByHash(ctx context.Context, hash common.Hash) (*RPCTransaction, error) {
-	log.Info("Rome: enter TransactionAPI GetTransactionByHash")
+	log.Info("Rome: enter TransactionAPI GetTransactionByHash", "txHash", hash)
 	// Try to return an already finalized transaction
 	tx, blockHash, blockNumber, index, err := s.b.GetTransaction(ctx, hash)
 	if err != nil {
@@ -1940,7 +1943,7 @@ func (s *TransactionAPI) GetTransactionByHash(ctx context.Context, hash common.H
 
 // GetRawTransactionByHash returns the bytes of the transaction for the given hash.
 func (s *TransactionAPI) GetRawTransactionByHash(ctx context.Context, hash common.Hash) (hexutil.Bytes, error) {
-	log.Info("Rome: enter TransactionAPI GetRawTransactionByHash")
+	log.Info("Rome: enter TransactionAPI GetRawTransactionByHash", "txHash", hash)
 	// Retrieve a finalized transaction, or a pooled otherwise
 	tx, _, _, _, err := s.b.GetTransaction(ctx, hash)
 	if err != nil {
@@ -1958,7 +1961,7 @@ func (s *TransactionAPI) GetRawTransactionByHash(ctx context.Context, hash commo
 
 // GetTransactionReceipt returns the transaction receipt for the given transaction hash.
 func (s *TransactionAPI) GetTransactionReceipt(ctx context.Context, hash common.Hash) (map[string]interface{}, error) {
-	log.Info("Rome: enter TransactionAPI GetTransactionReceipt")
+	log.Info("Rome: enter TransactionAPI GetTransactionReceipt", "txHash", hash)
 	tx, blockHash, blockNumber, index, err := s.b.GetTransaction(ctx, hash)
 	if tx == nil || err != nil {
 		// When the transaction doesn't exist, the RPC method should return JSON null
@@ -2042,7 +2045,7 @@ func marshalReceipt(receipt *types.Receipt, blockHash common.Hash, blockNumber u
 
 // sign is a helper function that signs a transaction with the private key of the given address.
 func (s *TransactionAPI) sign(addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
-	log.Info("Rome: enter TransactionAPI sign")
+	log.Info("Rome: enter TransactionAPI sign", "address", addr)
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
 
@@ -2056,7 +2059,7 @@ func (s *TransactionAPI) sign(addr common.Address, tx *types.Transaction) (*type
 
 // SubmitTransaction is a helper function that submits tx to txPool and logs a message.
 func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (common.Hash, error) {
-	log.Info("Rome: enter TransactionAPI SubmitTransaction")
+	log.Info("Rome: enter TransactionAPI SubmitTransaction", "tx", tx)
 	// If the transaction fee cap is already specified, ensure the
 	// fee of the given transaction is _reasonable_.
 	if err := checkTxFee(tx.GasPrice(), tx.Gas(), b.RPCTxFeeCap()); err != nil {
@@ -2089,7 +2092,7 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 // SendTransaction creates a transaction for the given argument, sign it and submit it to the
 // transaction pool.
 func (s *TransactionAPI) SendTransaction(ctx context.Context, args TransactionArgs) (common.Hash, error) {
-	log.Info("Rome: enter TransactionAPI SendTransaction")
+	log.Info("Rome: enter TransactionAPI SendTransaction", "request", args)
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.from()}
 
@@ -2123,7 +2126,7 @@ func (s *TransactionAPI) SendTransaction(ctx context.Context, args TransactionAr
 // on a given unsigned transaction, and returns it to the caller for further
 // processing (signing + broadcast).
 func (s *TransactionAPI) FillTransaction(ctx context.Context, args TransactionArgs) (*SignTransactionResult, error) {
-	log.Info("Rome: enter TransactionAPI FillTransaction")
+	log.Info("Rome: enter TransactionAPI FillTransaction", "request", args)
 	// Set some sanity defaults and terminate on failure
 	if err := args.setDefaults(ctx, s.b); err != nil {
 		return nil, err
@@ -2140,7 +2143,7 @@ func (s *TransactionAPI) FillTransaction(ctx context.Context, args TransactionAr
 // SendRawTransaction will add the signed transaction to the transaction pool.
 // The sender is responsible for signing the transaction and using the correct nonce.
 func (s *TransactionAPI) SendRawTransaction(ctx context.Context, input hexutil.Bytes) (common.Hash, error) {
-	log.Info("Rome: enter TransactionAPI SendRawTransaction")
+	log.Info("Rome: enter TransactionAPI SendRawTransaction", "request", input)
 	tx := new(types.Transaction)
 	if err := tx.UnmarshalBinary(input); err != nil {
 		return common.Hash{}, err
@@ -2159,7 +2162,7 @@ func (s *TransactionAPI) SendRawTransaction(ctx context.Context, input hexutil.B
 //
 // https://github.com/ethereum/wiki/wiki/JSON-RPC#eth_sign
 func (s *TransactionAPI) Sign(addr common.Address, data hexutil.Bytes) (hexutil.Bytes, error) {
-	log.Info("Rome: enter TransactionAPI Sign")
+	log.Info("Rome: enter TransactionAPI Sign", "address", addr)
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
 
@@ -2185,7 +2188,7 @@ type SignTransactionResult struct {
 // The node needs to have the private key of the account corresponding with
 // the given from address and it needs to be unlocked.
 func (s *TransactionAPI) SignTransaction(ctx context.Context, args TransactionArgs) (*SignTransactionResult, error) {
-	log.Info("Rome: enter TransactionAPI SignTransaction")
+	log.Info("Rome: enter TransactionAPI SignTransaction", "args", args)
 	if args.Gas == nil {
 		return nil, errors.New("gas not specified")
 	}
@@ -2242,7 +2245,7 @@ func (s *TransactionAPI) PendingTransactions() ([]*RPCTransaction, error) {
 // Resend accepts an existing transaction and a new gas price and limit. It will remove
 // the given transaction from the pool and reinsert it with the new gas price and limit.
 func (s *TransactionAPI) Resend(ctx context.Context, sendArgs TransactionArgs, gasPrice *hexutil.Big, gasLimit *hexutil.Uint64) (common.Hash, error) {
-	log.Info("Rome: enter TransactionAPI Resend")
+	log.Info("Rome: enter TransactionAPI Resend", "request", sendArgs)
 	if sendArgs.Nonce == nil {
 		return common.Hash{}, errors.New("missing transaction nonce in transaction spec")
 	}
