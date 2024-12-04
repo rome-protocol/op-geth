@@ -108,6 +108,7 @@ func (api *API) chainContext(ctx context.Context) core.ChainContext {
 // blockByNumber is the wrapper of the chain access function offered by the backend.
 // It will return an error if the block is not found.
 func (api *API) blockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
+	log.Info("Rome: enter EthereumAPI blockByNumber")
 	block, err := api.backend.BlockByNumber(ctx, number)
 	if err != nil {
 		return nil, err
@@ -121,6 +122,7 @@ func (api *API) blockByNumber(ctx context.Context, number rpc.BlockNumber) (*typ
 // blockByHash is the wrapper of the chain access function offered by the backend.
 // It will return an error if the block is not found.
 func (api *API) blockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
+	log.Info("Rome: enter EthereumAPI blockByHash")
 	block, err := api.backend.BlockByHash(ctx, hash)
 	if err != nil {
 		return nil, err
@@ -137,6 +139,7 @@ func (api *API) blockByHash(ctx context.Context, hash common.Hash) (*types.Block
 // Note this function is friendly for the light client which can only retrieve the
 // historical(before the CHT) header/block by number.
 func (api *API) blockByNumberAndHash(ctx context.Context, number rpc.BlockNumber, hash common.Hash) (*types.Block, error) {
+	log.Info("Rome: enter EthereumAPI blockByNumberAndHash")
 	block, err := api.blockByNumber(ctx, number)
 	if err != nil {
 		return nil, err
@@ -433,6 +436,7 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 // TraceBlockByNumber returns the structured logs created during the execution of
 // EVM and returns them as a JSON object.
 func (api *API) TraceBlockByNumber(ctx context.Context, number rpc.BlockNumber, config *TraceConfig) ([]*txTraceResult, error) {
+	log.Info("Rome: enter EthereumAPI TraceBlockByNumber")
 	block, err := api.blockByNumber(ctx, number)
 	if err != nil {
 		return nil, err
@@ -982,6 +986,7 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 // executes the given message in the provided environment. The return value will
 // be tracer dependent.
 func (api *API) traceTx(ctx context.Context, message *core.Message, txctx *Context, vmctx vm.BlockContext, statedb *state.StateDB, config *TraceConfig) (interface{}, error) {
+	log.Info("Rome: enter EthereumAPI traceTx")
 	var (
 		tracer    Tracer
 		err       error
