@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/holiman/uint256"
 )
@@ -54,6 +55,11 @@ type txJSON struct {
 	From       *common.Address `json:"from,omitempty"`
 	Mint       *hexutil.Big    `json:"mint,omitempty"`
 	IsSystemTx *bool           `json:"isSystemTx,omitempty"`
+
+	// Blob transaction sidecar encoding:
+	Blobs       []kzg4844.Blob       `json:"blobs,omitempty"`
+	Commitments []kzg4844.Commitment `json:"commitments,omitempty"`
+	Proofs      []kzg4844.Proof      `json:"proofs,omitempty"`
 
 	// Only used for encoding:
 	Hash common.Hash `json:"hash"`
@@ -150,6 +156,12 @@ func (tx *Transaction) MarshalJSON() ([]byte, error) {
 		enc.S = (*hexutil.Big)(itx.S.ToBig())
 		yparity := itx.V.Uint64()
 		enc.YParity = (*hexutil.Uint64)(&yparity)
+		if sidecar := itx.Sidecar; sidecar != nil {
+			enc.Blobs = itx.Sidecar.Blobs
+			enc.Commitments = itx.Sidecar.Commitments
+			enc.Proofs = itx.Sidecar.Proofs
+		}
+
 	case *DepositTx:
 		enc.Gas = (*hexutil.Uint64)(&itx.Gas)
 		enc.Value = (*hexutil.Big)(itx.Value)
@@ -161,6 +173,20 @@ func (tx *Transaction) MarshalJSON() ([]byte, error) {
 			enc.Mint = (*hexutil.Big)(itx.Mint)
 		}
 		enc.IsSystemTx = &itx.IsSystemTransaction
+		// other fields will show up as null.
+
+	case *depositTxWithNonce:
+		enc.Gas = (*hexutil.Uint64)(&itx.Gas)
+		enc.Value = (*hexutil.Big)(itx.Value)
+		enc.Input = (*hexutil.Bytes)(&itx.Data)
+		enc.To = tx.To()
+		enc.SourceHash = &itx.SourceHash
+		enc.From = &itx.From
+		if itx.Mint != nil {
+			enc.Mint = (*hexutil.Big)(itx.Mint)
+		}
+		enc.IsSystemTx = &itx.IsSystemTransaction
+		enc.Nonce = (*hexutil.Uint64)(&itx.EffectiveNonce)
 		// other fields will show up as null.
 	}
 	return json.Marshal(&enc)

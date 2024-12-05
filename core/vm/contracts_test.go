@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // precompiledTest defines the input/output pairs for precompiled contract tests.
@@ -54,9 +55,11 @@ var allPrecompiles = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{0xf5}): &bigModExp{eip2565: true},
 	common.BytesToAddress([]byte{6}):    &bn256AddIstanbul{},
 	common.BytesToAddress([]byte{7}):    &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}):    &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{8}):    &bn256PairingGranite{},
 	common.BytesToAddress([]byte{9}):    &blake2F{},
 	common.BytesToAddress([]byte{0x0a}): &kzgPointEvaluation{},
+
+	common.BytesToAddress([]byte{0x01, 0x00}): &p256Verify{},
 
 	common.BytesToAddress([]byte{0x0f, 0x0a}): &bls12381G1Add{},
 	common.BytesToAddress([]byte{0x0f, 0x0b}): &bls12381G1Mul{},
@@ -98,7 +101,7 @@ func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
 	in := common.Hex2Bytes(test.Input)
 	gas := p.RequiredGas(in)
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.Name, gas), func(t *testing.T) {
-		if res, _, err := RunPrecompiledContract(p, in, gas); err != nil {
+		if res, _, err := RunPrecompiledContract(p, in, gas, nil); err != nil {
 			t.Error(err)
 		} else if common.Bytes2Hex(res) != test.Expected {
 			t.Errorf("Expected %v, got %v", test.Expected, common.Bytes2Hex(res))
@@ -120,7 +123,7 @@ func testPrecompiledOOG(addr string, test precompiledTest, t *testing.T) {
 	gas := p.RequiredGas(in) - 1
 
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.Name, gas), func(t *testing.T) {
-		_, _, err := RunPrecompiledContract(p, in, gas)
+		_, _, err := RunPrecompiledContract(p, in, gas, nil)
 		if err.Error() != "out of gas" {
 			t.Errorf("Expected error [out of gas], got [%v]", err)
 		}
@@ -137,7 +140,7 @@ func testPrecompiledFailure(addr string, test precompiledFailureTest, t *testing
 	in := common.Hex2Bytes(test.Input)
 	gas := p.RequiredGas(in)
 	t.Run(test.Name, func(t *testing.T) {
-		_, _, err := RunPrecompiledContract(p, in, gas)
+		_, _, err := RunPrecompiledContract(p, in, gas, nil)
 		if err.Error() != test.ExpectedError {
 			t.Errorf("Expected error [%v], got [%v]", test.ExpectedError, err)
 		}
@@ -169,7 +172,7 @@ func benchmarkPrecompiled(addr string, test precompiledTest, bench *testing.B) {
 		bench.ResetTimer()
 		for i := 0; i < bench.N; i++ {
 			copy(data, in)
-			res, _, err = RunPrecompiledContract(p, data, reqGas)
+			res, _, err = RunPrecompiledContract(p, data, reqGas, nil)
 		}
 		bench.StopTimer()
 		elapsed := uint64(time.Since(start))
@@ -223,7 +226,7 @@ func BenchmarkPrecompiledRipeMD(bench *testing.B) {
 	benchmarkPrecompiled("03", t, bench)
 }
 
-// Benchmarks the sample inputs from the identiy precompile.
+// Benchmarks the sample inputs from the identity precompile.
 func BenchmarkPrecompiledIdentity(bench *testing.B) {
 	t := precompiledTest{
 		Input:    "38d18acb67d25c8bb9942764b62f18e17054f66a817bd4295423adf9ed98873e000000000000000000000000000000000000000000000000000000000000001b38d18acb67d25c8bb9942764b62f18e17054f66a817bd4295423adf9ed98873e789d1dd423d25f0772d2748d60f7e4b81bb14d086eba8e8e8efb6dcff8a4ae02",
@@ -272,6 +275,15 @@ func TestPrecompileBlake2FMalformedInput(t *testing.T) {
 	}
 }
 
+func TestPrecompileBn256PairingTooLargeInput(t *testing.T) {
+	big := make([]byte, params.Bn256PairingMaxInputSizeGranite+1)
+	testPrecompiledFailure("08", precompiledFailureTest{
+		Input:         common.Bytes2Hex(big),
+		ExpectedError: "bad elliptic curve pairing input size",
+		Name:          "bn256Pairing_input_too_big",
+	}, t)
+}
+
 func TestPrecompiledEcrecover(t *testing.T) { testJson("ecRecover", "01", t) }
 
 func testJson(name, addr string, t *testing.T) {
@@ -315,6 +327,8 @@ func TestPrecompiledBLS12381MapG1(t *testing.T)      { testJson("blsMapG1", "f11
 func TestPrecompiledBLS12381MapG2(t *testing.T)      { testJson("blsMapG2", "f12", t) }
 
 func TestPrecompiledPointEvaluation(t *testing.T) { testJson("pointEvaluation", "0a", t) }
+
+func BenchmarkPrecompiledPointEvaluation(b *testing.B) { benchJson("pointEvaluation", "0a", b) }
 
 func BenchmarkPrecompiledBLS12381G1Add(b *testing.B)      { benchJson("blsG1Add", "f0a", b) }
 func BenchmarkPrecompiledBLS12381G1Mul(b *testing.B)      { benchJson("blsG1Mul", "f0b", b) }
@@ -372,7 +386,7 @@ func BenchmarkPrecompiledBLS12381G1MultiExpWorstCase(b *testing.B) {
 		Name:        "WorstCaseG1",
 		NoBenchmark: false,
 	}
-	benchmarkPrecompiled("0c", testcase, b)
+	benchmarkPrecompiled("f0c", testcase, b)
 }
 
 // BenchmarkPrecompiledBLS12381G2MultiExpWorstCase benchmarks the worst case we could find that still fits a gaslimit of 10MGas.
@@ -393,5 +407,17 @@ func BenchmarkPrecompiledBLS12381G2MultiExpWorstCase(b *testing.B) {
 		Name:        "WorstCaseG2",
 		NoBenchmark: false,
 	}
-	benchmarkPrecompiled("0f", testcase, b)
+	benchmarkPrecompiled("f0f", testcase, b)
 }
+
+// Benchmarks the sample inputs from the P256VERIFY precompile.
+func BenchmarkPrecompiledP256Verify(bench *testing.B) {
+	t := precompiledTest{
+		Input:    "4cee90eb86eaa050036147a12d49004b6b9c72bd725d39d4785011fe190f0b4da73bd4903f0ce3b639bbbf6e8e80d16931ff4bcf5993d58468e8fb19086e8cac36dbcd03009df8c59286b162af3bd7fcc0450c9aa81be5d10d312af6c66b1d604aebd3099c618202fcfe16ae7770b0c49ab5eadf74b754204a3bb6060e44eff37618b065f9832de4ca6ca971a7a1adc826d0f7c00181a5fb2ddf79ae00b4e10e",
+		Expected: "0000000000000000000000000000000000000000000000000000000000000001",
+		Name:     "p256Verify",
+	}
+	benchmarkPrecompiled("100", t, bench)
+}
+
+func TestPrecompiledP256Verify(t *testing.T) { testJson("p256Verify", "100", t) }

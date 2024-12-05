@@ -16,10 +16,11 @@ var _ = (*executionPayloadEnvelopeMarshaling)(nil)
 // MarshalJSON marshals as JSON.
 func (e ExecutionPayloadEnvelope) MarshalJSON() ([]byte, error) {
 	type ExecutionPayloadEnvelope struct {
-		ExecutionPayload      *RomeExecutableData `json:"executionPayload"  gencodec:"required"`
+		ExecutionPayload      *ExecutableData `json:"executionPayload"  gencodec:"required"`
 		BlockValue            *hexutil.Big    `json:"blockValue"  gencodec:"required"`
 		BlobsBundle           *BlobsBundleV1  `json:"blobsBundle"`
 		Override              bool            `json:"shouldOverrideBuilder"`
+		Witness               *hexutil.Bytes  `json:"witness"`
 		ParentBeaconBlockRoot *common.Hash    `json:"parentBeaconBlockRoot,omitempty"`
 	}
 	var enc ExecutionPayloadEnvelope
@@ -27,6 +28,7 @@ func (e ExecutionPayloadEnvelope) MarshalJSON() ([]byte, error) {
 	enc.BlockValue = (*hexutil.Big)(e.BlockValue)
 	enc.BlobsBundle = e.BlobsBundle
 	enc.Override = e.Override
+	enc.Witness = e.Witness
 	enc.ParentBeaconBlockRoot = e.ParentBeaconBlockRoot
 	return json.Marshal(&enc)
 }
@@ -34,10 +36,11 @@ func (e ExecutionPayloadEnvelope) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON unmarshals from JSON.
 func (e *ExecutionPayloadEnvelope) UnmarshalJSON(input []byte) error {
 	type ExecutionPayloadEnvelope struct {
-		ExecutionPayload      *RomeExecutableData `json:"executionPayload"  gencodec:"required"`
+		ExecutionPayload      *ExecutableData `json:"executionPayload"  gencodec:"required"`
 		BlockValue            *hexutil.Big    `json:"blockValue"  gencodec:"required"`
 		BlobsBundle           *BlobsBundleV1  `json:"blobsBundle"`
 		Override              *bool           `json:"shouldOverrideBuilder"`
+		Witness               *hexutil.Bytes  `json:"witness"`
 		ParentBeaconBlockRoot *common.Hash    `json:"parentBeaconBlockRoot,omitempty"`
 	}
 	var dec ExecutionPayloadEnvelope
@@ -57,6 +60,9 @@ func (e *ExecutionPayloadEnvelope) UnmarshalJSON(input []byte) error {
 	}
 	if dec.Override != nil {
 		e.Override = *dec.Override
+	}
+	if dec.Witness != nil {
+		e.Witness = dec.Witness
 	}
 	if dec.ParentBeaconBlockRoot != nil {
 		e.ParentBeaconBlockRoot = dec.ParentBeaconBlockRoot

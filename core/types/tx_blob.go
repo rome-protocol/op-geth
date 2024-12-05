@@ -43,7 +43,7 @@ type BlobTx struct {
 	BlobHashes []common.Hash
 
 	// A blob transaction can optionally contain blobs. This field must be set when BlobTx
-	// is used to create a transaction for sigining.
+	// is used to create a transaction for signing.
 	Sidecar *BlobTxSidecar `rlp:"-"`
 
 	// Signature values
@@ -61,9 +61,10 @@ type BlobTxSidecar struct {
 
 // BlobHashes computes the blob hashes of the given blobs.
 func (sc *BlobTxSidecar) BlobHashes() []common.Hash {
+	hasher := sha256.New()
 	h := make([]common.Hash, len(sc.Commitments))
 	for i := range sc.Blobs {
-		h[i] = blobHash(&sc.Commitments[i])
+		h[i] = kzg4844.CalcBlobHashV1(hasher, &sc.Commitments[i])
 	}
 	return h
 }
@@ -164,7 +165,14 @@ func (tx *BlobTx) blobGas() uint64        { return params.BlobTxBlobGasPerBlob *
 func (tx *BlobTx) isSystemTx() bool       { return false }
 
 func (tx *BlobTx) effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.Int {
-	return dst.Set(tx.gasTipCap())
+	if baseFee == nil {
+		return dst.Set(tx.GasFeeCap.ToBig())
+	}
+	tip := dst.Sub(tx.GasFeeCap.ToBig(), baseFee)
+	if tip.Cmp(tx.GasTipCap.ToBig()) > 0 {
+		tip.Set(tx.GasTipCap.ToBig())
+	}
+	return tip.Add(tip, baseFee)
 }
 
 func (tx *BlobTx) rawSignatureValues() (v, r, s *big.Int) {
@@ -181,6 +189,12 @@ func (tx *BlobTx) setSignatureValues(chainID, v, r, s *big.Int) {
 func (tx *BlobTx) withoutSidecar() *BlobTx {
 	cpy := *tx
 	cpy.Sidecar = nil
+	return &cpy
+}
+
+func (tx *BlobTx) withSidecar(sideCar *BlobTxSidecar) *BlobTx {
+	cpy := *tx
+	cpy.Sidecar = sideCar
 	return &cpy
 }
 
@@ -228,13 +242,4 @@ func (tx *BlobTx) decode(input []byte) error {
 		Proofs:      inner.Proofs,
 	}
 	return nil
-}
-
-func blobHash(commit *kzg4844.Commitment) common.Hash {
-	hasher := sha256.New()
-	hasher.Write(commit[:])
-	var vhash common.Hash
-	hasher.Sum(vhash[:0])
-	vhash[0] = params.BlobTxHashVersion
-	return vhash
 }

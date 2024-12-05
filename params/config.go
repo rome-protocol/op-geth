@@ -21,6 +21,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params/forks"
 )
 
 // Genesis hashes to enforce below configs on.
@@ -28,33 +29,12 @@ var (
 	MainnetGenesisHash = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	HoleskyGenesisHash = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
 	SepoliaGenesisHash = common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")
-	GoerliGenesisHash  = common.HexToHash("0xbf7e331f7f7c1dd2e05159666b3bf8bc7a8a3a9eb1d518969eab529dd9b88c1a")
 )
 
 const (
-	OPMainnetChainID        = 10
-	OPGoerliChainID         = 420
-	BaseMainnetChainID      = 8453
-	BaseGoerliChainID       = 84531
-	baseSepoliaChainID      = 84532
-	baseGoerliDevnetChainID = 11763071
-	pgnSepoliaChainID       = 58008
-	devnetChainID           = 997
-	chaosnetChainID         = 888
-)
-
-// OP Stack chain config
-var (
-	// March 17, 2023 @ 7:00:00 pm UTC
-	OptimismGoerliRegolithTime = uint64(1679079600)
-	// May 4, 2023 @ 5:00:00 pm UTC
-	BaseGoerliRegolithTime = uint64(1683219600)
-	// Apr 21, 2023 @ 6:30:00 pm UTC
-	baseGoerliDevnetRegolithTime = uint64(1682101800)
-	// March 5, 2023 @ 2:48:00 am UTC
-	devnetRegolithTime = uint64(1677984480)
-	// August 16, 2023 @ 3:34:22 am UTC
-	chaosnetRegolithTime = uint64(1692156862)
+	OPMainnetChainID   = 10
+	BaseMainnetChainID = 8453
+	baseSepoliaChainID = 84532
 )
 
 func newUint64(val uint64) *uint64 { return &val }
@@ -83,6 +63,8 @@ var (
 		TerminalTotalDifficulty:       MainnetTerminalTotalDifficulty, // 58_750_000_000_000_000_000_000
 		TerminalTotalDifficultyPassed: true,
 		ShanghaiTime:                  newUint64(1681338455),
+		CancunTime:                    newUint64(1710338135),
+		DepositContractAddress:        common.HexToAddress("0x00000000219ab540356cbb839cbe05303d7705fa"),
 		Ethash:                        new(EthashConfig),
 	}
 	// HoleskyChainConfig contains the chain parameters to run a node on the Holesky test network.
@@ -107,6 +89,7 @@ var (
 		TerminalTotalDifficultyPassed: true,
 		MergeNetsplitBlock:            nil,
 		ShanghaiTime:                  newUint64(1696000704),
+		CancunTime:                    newUint64(1707305664),
 		Ethash:                        new(EthashConfig),
 	}
 	// SepoliaChainConfig contains the chain parameters to run a node on the Sepolia test network.
@@ -131,32 +114,8 @@ var (
 		TerminalTotalDifficultyPassed: true,
 		MergeNetsplitBlock:            big.NewInt(1735371),
 		ShanghaiTime:                  newUint64(1677557088),
+		CancunTime:                    newUint64(1706655072),
 		Ethash:                        new(EthashConfig),
-	}
-	// GoerliChainConfig contains the chain parameters to run a node on the Görli test network.
-	GoerliChainConfig = &ChainConfig{
-		ChainID:                       big.NewInt(5),
-		HomesteadBlock:                big.NewInt(0),
-		DAOForkBlock:                  nil,
-		DAOForkSupport:                true,
-		EIP150Block:                   big.NewInt(0),
-		EIP155Block:                   big.NewInt(0),
-		EIP158Block:                   big.NewInt(0),
-		ByzantiumBlock:                big.NewInt(0),
-		ConstantinopleBlock:           big.NewInt(0),
-		PetersburgBlock:               big.NewInt(0),
-		IstanbulBlock:                 big.NewInt(1_561_651),
-		MuirGlacierBlock:              nil,
-		BerlinBlock:                   big.NewInt(4_460_644),
-		LondonBlock:                   big.NewInt(5_062_605),
-		ArrowGlacierBlock:             nil,
-		TerminalTotalDifficulty:       big.NewInt(10_790_000),
-		TerminalTotalDifficultyPassed: true,
-		ShanghaiTime:                  newUint64(1678832736),
-		Clique: &CliqueConfig{
-			Period: 15,
-			Epoch:  30000,
-		},
 	}
 	// AllEthashProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Ethash consensus.
@@ -204,6 +163,7 @@ var (
 		ArrowGlacierBlock:             big.NewInt(0),
 		GrayGlacierBlock:              big.NewInt(0),
 		ShanghaiTime:                  newUint64(0),
+		CancunTime:                    newUint64(0),
 		TerminalTotalDifficulty:       big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
 	}
@@ -268,6 +228,36 @@ var (
 		Clique:                        nil,
 	}
 
+	// MergedTestChainConfig contains every protocol change (EIPs) introduced
+	// and accepted by the Ethereum core developers for testing purposes.
+	MergedTestChainConfig = &ChainConfig{
+		ChainID:                       big.NewInt(1),
+		HomesteadBlock:                big.NewInt(0),
+		DAOForkBlock:                  nil,
+		DAOForkSupport:                false,
+		EIP150Block:                   big.NewInt(0),
+		EIP155Block:                   big.NewInt(0),
+		EIP158Block:                   big.NewInt(0),
+		ByzantiumBlock:                big.NewInt(0),
+		ConstantinopleBlock:           big.NewInt(0),
+		PetersburgBlock:               big.NewInt(0),
+		IstanbulBlock:                 big.NewInt(0),
+		MuirGlacierBlock:              big.NewInt(0),
+		BerlinBlock:                   big.NewInt(0),
+		LondonBlock:                   big.NewInt(0),
+		ArrowGlacierBlock:             big.NewInt(0),
+		GrayGlacierBlock:              big.NewInt(0),
+		MergeNetsplitBlock:            big.NewInt(0),
+		ShanghaiTime:                  newUint64(0),
+		CancunTime:                    newUint64(0),
+		PragueTime:                    nil,
+		VerkleTime:                    nil,
+		TerminalTotalDifficulty:       big.NewInt(0),
+		TerminalTotalDifficultyPassed: true,
+		Ethash:                        new(EthashConfig),
+		Clique:                        nil,
+	}
+
 	// NonActivatedConfig defines the chain configuration without activating
 	// any protocol change (EIPs).
 	NonActivatedConfig = &ChainConfig{
@@ -313,7 +303,6 @@ var (
 // NetworkNames are user friendly names to use in the chain spec banner.
 var NetworkNames = map[string]string{
 	MainnetChainConfig.ChainID.String(): "mainnet",
-	GoerliChainConfig.ChainID.String():  "goerli",
 	SepoliaChainConfig.ChainID.String(): "sepolia",
 	HoleskyChainConfig.ChainID.String(): "holesky",
 }
@@ -358,7 +347,10 @@ type ChainConfig struct {
 	RegolithTime *uint64  `json:"regolithTime,omitempty"` // Regolith switch time (nil = no fork, 0 = already on optimism regolith)
 	CanyonTime   *uint64  `json:"canyonTime,omitempty"`   // Canyon switch time (nil = no fork, 0 = already on optimism canyon)
 	// Delta: the Delta upgrade does not affect the execution-layer, and is thus not configurable in the chain config.
-	EcotoneTime *uint64 `json:"ecotoneTime,omitempty"` // Ecotone switch time (nil = no fork, 0 = already on optimism ecotone)
+	EcotoneTime  *uint64 `json:"ecotoneTime,omitempty"`  // Ecotone switch time (nil = no fork, 0 = already on optimism ecotone)
+	FjordTime    *uint64 `json:"fjordTime,omitempty"`    // Fjord switch time (nil = no fork, 0 = already on Optimism Fjord)
+	GraniteTime  *uint64 `json:"graniteTime,omitempty"`  // Granite switch time (nil = no fork, 0 = already on Optimism Granite)
+	HoloceneTime *uint64 `json:"holoceneTime,omitempty"` // Holocene switch time (nil = no fork, 0 = already on Optimism Holocene)
 
 	InteropTime *uint64 `json:"interopTime,omitempty"` // Interop switch time (nil = no fork, 0 = already on optimism interop)
 
@@ -369,7 +361,11 @@ type ChainConfig struct {
 	// TerminalTotalDifficultyPassed is a flag specifying that the network already
 	// passed the terminal total difficulty. Its purpose is to disable legacy sync
 	// even without having seen the TTD locally (safer long term).
+	//
+	// TODO(karalabe): Drop this field eventually (always assuming PoS mode)
 	TerminalTotalDifficultyPassed bool `json:"terminalTotalDifficultyPassed,omitempty"`
+
+	DepositContractAddress common.Address `json:"depositContractAddress,omitempty"`
 
 	// Various consensus engines
 	Ethash *EthashConfig `json:"ethash,omitempty"`
@@ -383,7 +379,7 @@ type ChainConfig struct {
 type EthashConfig struct{}
 
 // String implements the stringer interface, returning the consensus engine details.
-func (c *EthashConfig) String() string {
+func (c EthashConfig) String() string {
 	return "ethash"
 }
 
@@ -394,15 +390,15 @@ type CliqueConfig struct {
 }
 
 // String implements the stringer interface, returning the consensus engine details.
-func (c *CliqueConfig) String() string {
-	return "clique"
+func (c CliqueConfig) String() string {
+	return fmt.Sprintf("clique(period: %d, epoch: %d)", c.Period, c.Epoch)
 }
 
 // OptimismConfig is the optimism config.
 type OptimismConfig struct {
-	EIP1559Elasticity        uint64 `json:"eip1559Elasticity"`
-	EIP1559Denominator       uint64 `json:"eip1559Denominator"`
-	EIP1559DenominatorCanyon uint64 `json:"eip1559DenominatorCanyon"`
+	EIP1559Elasticity        uint64  `json:"eip1559Elasticity"`
+	EIP1559Denominator       uint64  `json:"eip1559Denominator"`
+	EIP1559DenominatorCanyon *uint64 `json:"eip1559DenominatorCanyon,omitempty"`
 }
 
 // String implements the stringer interface, returning the optimism fee config details.
@@ -493,7 +489,7 @@ func (c *ChainConfig) Description() string {
 		banner += fmt.Sprintf(" - Shanghai:                    @%-10v (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/shanghai.md)\n", *c.ShanghaiTime)
 	}
 	if c.CancunTime != nil {
-		banner += fmt.Sprintf(" - Cancun:                      @%-10v\n", *c.CancunTime)
+		banner += fmt.Sprintf(" - Cancun:                      @%-10v (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/cancun.md)\n", *c.CancunTime)
 	}
 	if c.PragueTime != nil {
 		banner += fmt.Sprintf(" - Prague:                      @%-10v\n", *c.PragueTime)
@@ -509,6 +505,15 @@ func (c *ChainConfig) Description() string {
 	}
 	if c.EcotoneTime != nil {
 		banner += fmt.Sprintf(" - Ecotone:                     @%-10v\n", *c.EcotoneTime)
+	}
+	if c.FjordTime != nil {
+		banner += fmt.Sprintf(" - Fjord:                       @%-10v\n", *c.FjordTime)
+	}
+	if c.GraniteTime != nil {
+		banner += fmt.Sprintf(" - Granite:                     @%-10v\n", *c.GraniteTime)
+	}
+	if c.HoloceneTime != nil {
+		banner += fmt.Sprintf(" - Holocene:                     @%-10v\n", *c.HoloceneTime)
 	}
 	if c.InteropTime != nil {
 		banner += fmt.Sprintf(" - Interop:                     @%-10v\n", *c.InteropTime)
@@ -601,19 +606,24 @@ func (c *ChainConfig) IsShanghai(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.ShanghaiTime, time)
 }
 
-// IsCancun returns whether num is either equal to the Cancun fork time or greater.
+// IsCancun returns whether time is either equal to the Cancun fork time or greater.
 func (c *ChainConfig) IsCancun(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.CancunTime, time)
 }
 
-// IsPrague returns whether num is either equal to the Prague fork time or greater.
+// IsPrague returns whether time is either equal to the Prague fork time or greater.
 func (c *ChainConfig) IsPrague(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.PragueTime, time)
 }
 
-// IsVerkle returns whether num is either equal to the Verkle fork time or greater.
+// IsVerkle returns whether time is either equal to the Verkle fork time or greater.
 func (c *ChainConfig) IsVerkle(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.VerkleTime, time)
+}
+
+// IsEIP4762 returns whether eip 4762 has been activated at given block.
+func (c *ChainConfig) IsEIP4762(num *big.Int, time uint64) bool {
+	return c.IsVerkle(num, time)
 }
 
 // IsBedrock returns whether num is either equal to the Bedrock fork block or greater.
@@ -631,6 +641,18 @@ func (c *ChainConfig) IsCanyon(time uint64) bool {
 
 func (c *ChainConfig) IsEcotone(time uint64) bool {
 	return isTimestampForked(c.EcotoneTime, time)
+}
+
+func (c *ChainConfig) IsFjord(time uint64) bool {
+	return isTimestampForked(c.FjordTime, time)
+}
+
+func (c *ChainConfig) IsGranite(time uint64) bool {
+	return isTimestampForked(c.GraniteTime, time)
+}
+
+func (c *ChainConfig) IsHolocene(time uint64) bool {
+	return isTimestampForked(c.HoloceneTime, time)
 }
 
 func (c *ChainConfig) IsInterop(time uint64) bool {
@@ -659,6 +681,18 @@ func (c *ChainConfig) IsOptimismEcotone(time uint64) bool {
 	return c.IsOptimism() && c.IsEcotone(time)
 }
 
+func (c *ChainConfig) IsOptimismFjord(time uint64) bool {
+	return c.IsOptimism() && c.IsFjord(time)
+}
+
+func (c *ChainConfig) IsOptimismGranite(time uint64) bool {
+	return c.IsOptimism() && c.IsGranite(time)
+}
+
+func (c *ChainConfig) IsOptimismHolocene(time uint64) bool {
+	return c.IsOptimism() && c.IsHolocene(time)
+}
+
 // IsOptimismPreBedrock returns true iff this is an optimism node & bedrock is not yet active
 func (c *ChainConfig) IsOptimismPreBedrock(num *big.Int) bool {
 	return c.IsOptimism() && !c.IsBedrock(num)
@@ -666,7 +700,7 @@ func (c *ChainConfig) IsOptimismPreBedrock(num *big.Int) bool {
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
 // with a mismatching chain configuration.
-func (c *ChainConfig) CheckCompatible(newcfg *ChainConfig, height uint64, time uint64) *ConfigCompatError {
+func (c *ChainConfig) CheckCompatible(newcfg *ChainConfig, height, time uint64, genesisTimestamp *uint64) *ConfigCompatError {
 	var (
 		bhead = new(big.Int).SetUint64(height)
 		btime = time
@@ -674,7 +708,7 @@ func (c *ChainConfig) CheckCompatible(newcfg *ChainConfig, height uint64, time u
 	// Iterate checkCompatible to find the lowest conflict.
 	var lasterr *ConfigCompatError
 	for {
-		err := c.checkCompatible(newcfg, bhead, btime)
+		err := c.checkCompatible(newcfg, bhead, btime, genesisTimestamp)
 		if err == nil || (lasterr != nil && err.RewindToBlock == lasterr.RewindToBlock && err.RewindToTime == lasterr.RewindToTime) {
 			break
 		}
@@ -729,7 +763,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 						lastFork.name, cur.name, cur.block)
 				} else {
 					return fmt.Errorf("unsupported fork ordering: %v not enabled, but %v enabled at timestamp %v",
-						lastFork.name, cur.name, cur.timestamp)
+						lastFork.name, cur.name, *cur.timestamp)
 				}
 
 			// Fork (whether defined by block or timestamp) must follow the fork definition sequence
@@ -739,7 +773,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 						lastFork.name, lastFork.block, cur.name, cur.block)
 				} else if lastFork.timestamp != nil && *lastFork.timestamp > *cur.timestamp {
 					return fmt.Errorf("unsupported fork ordering: %v enabled at timestamp %v, but %v enabled at timestamp %v",
-						lastFork.name, lastFork.timestamp, cur.name, cur.timestamp)
+						lastFork.name, *lastFork.timestamp, cur.name, *cur.timestamp)
 				}
 
 				// Timestamp based forks can follow block based ones, but not the other way around
@@ -757,7 +791,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 	return nil
 }
 
-func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, headTimestamp uint64) *ConfigCompatError {
+func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, headTimestamp uint64, genesisTimestamp *uint64) *ConfigCompatError {
 	if isForkBlockIncompatible(c.HomesteadBlock, newcfg.HomesteadBlock, headNumber) {
 		return newBlockCompatError("Homestead fork block", c.HomesteadBlock, newcfg.HomesteadBlock)
 	}
@@ -813,17 +847,41 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	if isForkBlockIncompatible(c.MergeNetsplitBlock, newcfg.MergeNetsplitBlock, headNumber) {
 		return newBlockCompatError("Merge netsplit fork block", c.MergeNetsplitBlock, newcfg.MergeNetsplitBlock)
 	}
-	if isForkTimestampIncompatible(c.ShanghaiTime, newcfg.ShanghaiTime, headTimestamp) {
+	if isForkTimestampIncompatible(c.ShanghaiTime, newcfg.ShanghaiTime, headTimestamp, genesisTimestamp) {
 		return newTimestampCompatError("Shanghai fork timestamp", c.ShanghaiTime, newcfg.ShanghaiTime)
 	}
-	if isForkTimestampIncompatible(c.CancunTime, newcfg.CancunTime, headTimestamp) {
+	if isForkTimestampIncompatible(c.CancunTime, newcfg.CancunTime, headTimestamp, genesisTimestamp) {
 		return newTimestampCompatError("Cancun fork timestamp", c.CancunTime, newcfg.CancunTime)
 	}
-	if isForkTimestampIncompatible(c.PragueTime, newcfg.PragueTime, headTimestamp) {
+	if isForkTimestampIncompatible(c.PragueTime, newcfg.PragueTime, headTimestamp, genesisTimestamp) {
 		return newTimestampCompatError("Prague fork timestamp", c.PragueTime, newcfg.PragueTime)
 	}
-	if isForkTimestampIncompatible(c.VerkleTime, newcfg.VerkleTime, headTimestamp) {
+	if isForkTimestampIncompatible(c.VerkleTime, newcfg.VerkleTime, headTimestamp, genesisTimestamp) {
 		return newTimestampCompatError("Verkle fork timestamp", c.VerkleTime, newcfg.VerkleTime)
+	}
+	if isForkBlockIncompatible(c.BedrockBlock, newcfg.BedrockBlock, headNumber) {
+		return newBlockCompatError("Bedrock fork block", c.BedrockBlock, newcfg.BedrockBlock)
+	}
+	if isForkTimestampIncompatible(c.RegolithTime, newcfg.RegolithTime, headTimestamp, genesisTimestamp) {
+		return newTimestampCompatError("Regolith fork timestamp", c.RegolithTime, newcfg.RegolithTime)
+	}
+	if isForkTimestampIncompatible(c.CanyonTime, newcfg.CanyonTime, headTimestamp, genesisTimestamp) {
+		return newTimestampCompatError("Canyon fork timestamp", c.CanyonTime, newcfg.CanyonTime)
+	}
+	if isForkTimestampIncompatible(c.EcotoneTime, newcfg.EcotoneTime, headTimestamp, genesisTimestamp) {
+		return newTimestampCompatError("Ecotone fork timestamp", c.EcotoneTime, newcfg.EcotoneTime)
+	}
+	if isForkTimestampIncompatible(c.FjordTime, newcfg.FjordTime, headTimestamp, genesisTimestamp) {
+		return newTimestampCompatError("Fjord fork timestamp", c.FjordTime, newcfg.FjordTime)
+	}
+	if isForkTimestampIncompatible(c.GraniteTime, newcfg.GraniteTime, headTimestamp, genesisTimestamp) {
+		return newTimestampCompatError("Granite fork timestamp", c.GraniteTime, newcfg.GraniteTime)
+	}
+	if isForkTimestampIncompatible(c.HoloceneTime, newcfg.HoloceneTime, headTimestamp, genesisTimestamp) {
+		return newTimestampCompatError("Holocene fork timestamp", c.HoloceneTime, newcfg.HoloceneTime)
+	}
+	if isForkTimestampIncompatible(c.InteropTime, newcfg.InteropTime, headTimestamp, genesisTimestamp) {
+		return newTimestampCompatError("Interop fork timestamp", c.InteropTime, newcfg.InteropTime)
 	}
 	return nil
 }
@@ -833,7 +891,10 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 func (c *ChainConfig) BaseFeeChangeDenominator(time uint64) uint64 {
 	if c.Optimism != nil {
 		if c.IsCanyon(time) {
-			return c.Optimism.EIP1559DenominatorCanyon
+			if c.Optimism.EIP1559DenominatorCanyon == nil || *c.Optimism.EIP1559DenominatorCanyon == 0 {
+				panic("invalid ChainConfig.Optimism.EIP1559DenominatorCanyon value: '0' or 'nil'")
+			}
+			return *c.Optimism.EIP1559DenominatorCanyon
 		}
 		return c.Optimism.EIP1559Denominator
 	}
@@ -848,8 +909,25 @@ func (c *ChainConfig) ElasticityMultiplier() uint64 {
 	return DefaultElasticityMultiplier
 }
 
+// LatestFork returns the latest time-based fork that would be active for the given time.
+func (c *ChainConfig) LatestFork(time uint64) forks.Fork {
+	// Assume last non-time-based fork has passed.
+	london := c.LondonBlock
+
+	switch {
+	case c.IsPrague(london, time):
+		return forks.Prague
+	case c.IsCancun(london, time):
+		return forks.Cancun
+	case c.IsShanghai(london, time):
+		return forks.Shanghai
+	default:
+		return forks.Paris
+	}
+}
+
 // isForkBlockIncompatible returns true if a fork scheduled at block s1 cannot be
-// rescheduled to block s2 because head is already past the fork.
+// rescheduled to block s2 because head is already past the fork and the fork was scheduled after genesis
 func isForkBlockIncompatible(s1, s2, head *big.Int) bool {
 	return (isBlockForked(s1, head) || isBlockForked(s2, head)) && !configBlockEqual(s1, s2)
 }
@@ -876,8 +954,15 @@ func configBlockEqual(x, y *big.Int) bool {
 
 // isForkTimestampIncompatible returns true if a fork scheduled at timestamp s1
 // cannot be rescheduled to timestamp s2 because head is already past the fork.
-func isForkTimestampIncompatible(s1, s2 *uint64, head uint64) bool {
-	return (isTimestampForked(s1, head) || isTimestampForked(s2, head)) && !configTimestampEqual(s1, s2)
+func isForkTimestampIncompatible(s1, s2 *uint64, head uint64, genesis *uint64) bool {
+	return (isTimestampForked(s1, head) || isTimestampForked(s2, head)) && !configTimestampEqual(s1, s2) && !isTimestampPreGenesis(s1, genesis) && !isTimestampPreGenesis(s2, genesis)
+}
+
+func isTimestampPreGenesis(s, genesis *uint64) bool {
+	if s == nil || genesis == nil {
+		return false
+	}
+	return *s < *genesis
 }
 
 // isTimestampForked returns whether a fork scheduled at timestamp s is active
@@ -956,7 +1041,7 @@ func newTimestampCompatError(what string, storedtime, newtime *uint64) *ConfigCo
 		NewTime:      newtime,
 		RewindToTime: 0,
 	}
-	if rew != nil {
+	if rew != nil && *rew != 0 {
 		err.RewindToTime = *rew - 1
 	}
 	return err
@@ -966,7 +1051,15 @@ func (err *ConfigCompatError) Error() string {
 	if err.StoredBlock != nil {
 		return fmt.Sprintf("mismatching %s in database (have block %d, want block %d, rewindto block %d)", err.What, err.StoredBlock, err.NewBlock, err.RewindToBlock)
 	}
-	return fmt.Sprintf("mismatching %s in database (have timestamp %d, want timestamp %d, rewindto timestamp %d)", err.What, err.StoredTime, err.NewTime, err.RewindToTime)
+
+	if err.StoredTime == nil && err.NewTime == nil {
+		return ""
+	} else if err.StoredTime == nil && err.NewTime != nil {
+		return fmt.Sprintf("mismatching %s in database (have timestamp nil, want timestamp %d, rewindto timestamp %d)", err.What, *err.NewTime, err.RewindToTime)
+	} else if err.StoredTime != nil && err.NewTime == nil {
+		return fmt.Sprintf("mismatching %s in database (have timestamp %d, want timestamp nil, rewindto timestamp %d)", err.What, *err.StoredTime, err.RewindToTime)
+	}
+	return fmt.Sprintf("mismatching %s in database (have timestamp %d, want timestamp %d, rewindto timestamp %d)", err.What, *err.StoredTime, *err.NewTime, err.RewindToTime)
 }
 
 // Rules wraps ChainConfig and is merely syntactic sugar or can be used for functions
@@ -977,12 +1070,14 @@ func (err *ConfigCompatError) Error() string {
 type Rules struct {
 	ChainID                                                 *big.Int
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
+	IsEIP2929, IsEIP4762                                    bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
 	IsMerge, IsShanghai, IsCancun, IsPrague                 bool
 	IsVerkle                                                bool
 	IsOptimismBedrock, IsOptimismRegolith                   bool
-	IsOptimismCanyon                                        bool
+	IsOptimismCanyon, IsOptimismFjord                       bool
+	IsOptimismGranite, IsOptimismHolocene                   bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -991,6 +1086,9 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 	if chainID == nil {
 		chainID = new(big.Int)
 	}
+	// disallow setting Merge out of order
+	isMerge = isMerge && c.IsLondon(num)
+	isVerkle := isMerge && c.IsVerkle(num, timestamp)
 	return Rules{
 		ChainID:          new(big.Int).Set(chainID),
 		IsHomestead:      c.IsHomestead(num),
@@ -1002,15 +1100,20 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsPetersburg:     c.IsPetersburg(num),
 		IsIstanbul:       c.IsIstanbul(num),
 		IsBerlin:         c.IsBerlin(num),
+		IsEIP2929:        c.IsBerlin(num) && !isVerkle,
 		IsLondon:         c.IsLondon(num),
 		IsMerge:          isMerge,
-		IsShanghai:       c.IsShanghai(num, timestamp),
-		IsCancun:         c.IsCancun(num, timestamp),
-		IsPrague:         c.IsPrague(num, timestamp),
-		IsVerkle:         c.IsVerkle(num, timestamp),
+		IsShanghai:       isMerge && c.IsShanghai(num, timestamp),
+		IsCancun:         isMerge && c.IsCancun(num, timestamp),
+		IsPrague:         isMerge && c.IsPrague(num, timestamp),
+		IsVerkle:         isVerkle,
+		IsEIP4762:        isVerkle,
 		// Optimism
-		IsOptimismBedrock:  c.IsOptimismBedrock(num),
-		IsOptimismRegolith: c.IsOptimismRegolith(timestamp),
-		IsOptimismCanyon:   c.IsOptimismCanyon(timestamp),
+		IsOptimismBedrock:  isMerge && c.IsOptimismBedrock(num),
+		IsOptimismRegolith: isMerge && c.IsOptimismRegolith(timestamp),
+		IsOptimismCanyon:   isMerge && c.IsOptimismCanyon(timestamp),
+		IsOptimismFjord:    isMerge && c.IsOptimismFjord(timestamp),
+		IsOptimismGranite:  isMerge && c.IsOptimismGranite(timestamp),
+		IsOptimismHolocene: isMerge && c.IsOptimismHolocene(timestamp),
 	}
 }

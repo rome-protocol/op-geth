@@ -26,9 +26,6 @@ var (
 	// ErrKnownBlock is returned when a block to import is already known locally.
 	ErrKnownBlock = errors.New("block already known")
 
-	// ErrBannedHash is returned if a block to import is on the banned list.
-	ErrBannedHash = errors.New("banned hash")
-
 	// ErrNoGenesis is returned when there is no Genesis Block.
 	ErrNoGenesis = errors.New("genesis not found in chain")
 
@@ -67,6 +64,11 @@ var (
 	// than init code size limit.
 	ErrMaxInitCodeSizeExceeded = errors.New("max initcode size exceeded")
 
+	// ErrInsufficientBalanceWitness is returned if the transaction sender has enough
+	// funds to cover the transfer, but not enough to pay for witness access/modification
+	// costs for the transaction
+	ErrInsufficientBalanceWitness = errors.New("insufficient funds to cover witness access costs for transaction")
+
 	// ErrInsufficientFunds is returned if the total cost of executing a transaction
 	// is higher than the balance of the user's account.
 	ErrInsufficientFunds = errors.New("insufficient funds for gas * price + value")
@@ -81,6 +83,10 @@ var (
 	// ErrTxTypeNotSupported is returned if a transaction is not supported in the
 	// current network configuration.
 	ErrTxTypeNotSupported = types.ErrTxTypeNotSupported
+
+	// ErrTxFilteredOut indicates an ingress filter has rejected the transaction from
+	// being included in the pool.
+	ErrTxFilteredOut = errors.New("transaction filtered out")
 
 	// ErrTipAboveFeeCap is a sanity error to ensure no one is able to specify a
 	// transaction with a tip higher than the total fee cap.
@@ -104,6 +110,12 @@ var (
 	// ErrBlobFeeCapTooLow is returned if the transaction fee cap is less than the
 	// blob gas fee of the block.
 	ErrBlobFeeCapTooLow = errors.New("max fee per blob gas less than block blob gas fee")
+
+	// ErrMissingBlobHashes is returned if a blob transaction has no blob hashes.
+	ErrMissingBlobHashes = errors.New("blob transaction missing blob hashes")
+
+	// ErrBlobTxCreate is returned if a blob transaction has no explicit to field.
+	ErrBlobTxCreate = errors.New("blob transaction of type create")
 
 	// ErrSystemTxNotSupported is returned for any deposit tx with IsSystemTx=true after the Regolith fork
 	ErrSystemTxNotSupported = errors.New("system tx not supported")
