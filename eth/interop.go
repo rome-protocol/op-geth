@@ -46,7 +46,7 @@ func (s *Ethereum) SimLogs(tx *types.Transaction) ([]*types.Log, error) {
 	txCtx := core.NewEVMTxContext(message)
 	vmenv := vm.NewEVM(blockCtx, txCtx, state, chainConfig, vmConf)
 	state.SetTxContext(tx.Hash(), 0)
-	result, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(header.GasLimit))
+	result, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(header.GasLimit), 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute tx: %w", err)
 	}
