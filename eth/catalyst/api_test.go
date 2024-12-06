@@ -121,7 +121,7 @@ func TestEth2AssembleBlock(t *testing.T) {
 		t.Fatalf("error signing transaction, err=%v", err)
 	}
 	ethservice.TxPool().Add([]*types.Transaction{tx}, true, true)
-	blockParams := engine.PayloadAttributes{
+	blockParams := engine.RomePayloadAttributes{
 		Timestamp: blocks[9].Time() + 5,
 	}
 	// The miner needs to pick up on the txs in the pool, so a few retries might be
@@ -133,7 +133,7 @@ func TestEth2AssembleBlock(t *testing.T) {
 
 // assembleWithTransactions tries to assemble a block, retrying until it has 'want',
 // number of transactions in it, or it has retried three times.
-func assembleWithTransactions(api *ConsensusAPI, parentHash common.Hash, params *engine.PayloadAttributes, want int) (execData *engine.RomeExecutableData, err error) {
+func assembleWithTransactions(api *ConsensusAPI, parentHash common.Hash, params *engine.RomePayloadAttributes, want int) (execData *engine.RomeExecutableData, err error) {
 	for retries := 3; retries > 0; retries-- {
 		execData, err = assembleBlock(api, parentHash, params)
 		if err != nil {
@@ -158,7 +158,7 @@ func TestEth2AssembleBlockWithAnotherBlocksTxs(t *testing.T) {
 	// Put the 10th block's tx in the pool and produce a new block
 	txs := blocks[9].Transactions()
 	api.eth.TxPool().Add(txs, false, true)
-	blockParams := engine.PayloadAttributes{
+	blockParams := engine.RomePayloadAttributes{
 		Timestamp: blocks[8].Time() + 5,
 	}
 	// The miner needs to pick up on the txs in the pool, so a few retries might be
@@ -198,7 +198,7 @@ func TestEth2PrepareAndGetPayload(t *testing.T) {
 	// Put the 10th block's tx in the pool and produce a new block
 	txs := blocks[9].Transactions()
 	ethservice.TxPool().Add(txs, true, true)
-	blockParams := engine.PayloadAttributes{
+	blockParams := engine.RomePayloadAttributes{
 		Timestamp: blocks[8].Time() + 5,
 	}
 	fcState := engine.ForkchoiceStateV1{
@@ -276,7 +276,7 @@ func TestInvalidPayloadTimestamp(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("Timestamp test: %v", i), func(t *testing.T) {
-			params := engine.PayloadAttributes{
+			params := engine.RomePayloadAttributes{
 				Timestamp:             test.time,
 				Random:                crypto.Keccak256Hash([]byte{byte(123)}),
 				SuggestedFeeRecipient: parent.Coinbase,
@@ -320,7 +320,7 @@ func TestEth2NewBlock(t *testing.T) {
 		tx, _ := types.SignTx(types.NewContractCreation(nonce, new(big.Int), 1000000, big.NewInt(2*params.InitialBaseFee), logCode), types.LatestSigner(ethservice.BlockChain().Config()), testKey)
 		ethservice.TxPool().Add([]*types.Transaction{tx}, true, true)
 
-		execData, err := assembleWithTransactions(api, parent.Hash(), &engine.PayloadAttributes{
+		execData, err := assembleWithTransactions(api, parent.Hash(), &engine.RomePayloadAttributes{
 			Timestamp: parent.Time() + 5,
 		}, 1)
 		if err != nil {
@@ -362,7 +362,7 @@ func TestEth2NewBlock(t *testing.T) {
 	)
 	parent = preMergeBlocks[len(preMergeBlocks)-1]
 	for i := 0; i < 10; i++ {
-		execData, err := assembleBlock(api, parent.Hash(), &engine.PayloadAttributes{
+		execData, err := assembleBlock(api, parent.Hash(), &engine.RomePayloadAttributes{
 			Timestamp: parent.Time() + 6,
 		})
 		if err != nil {
@@ -625,7 +625,7 @@ func TestNewPayloadOnInvalidChain(t *testing.T) {
 		})
 		ethservice.TxPool().Add([]*types.Transaction{tx}, false, true)
 		var (
-			params = engine.PayloadAttributes{
+			params = engine.RomePayloadAttributes{
 				Timestamp:             parent.Time + 1,
 				Random:                crypto.Keccak256Hash([]byte{byte(i)}),
 				SuggestedFeeRecipient: parent.Coinbase,
@@ -681,7 +681,7 @@ func TestNewPayloadOnInvalidChain(t *testing.T) {
 	}
 }
 
-func assembleBlock(api *ConsensusAPI, parentHash common.Hash, params *engine.PayloadAttributes) (*engine.RomeExecutableData, error) {
+func assembleBlock(api *ConsensusAPI, parentHash common.Hash, params *engine.RomePayloadAttributes) (*engine.RomeExecutableData, error) {
 	args := &miner.BuildPayloadArgs{
 		Parent:       parentHash,
 		Timestamp:    params.Timestamp,
@@ -759,7 +759,7 @@ func TestEmptyBlocks(t *testing.T) {
 }
 
 func getNewPayload(t *testing.T, api *ConsensusAPI, parent *types.Header, withdrawals []*types.Withdrawal, beaconRoot *common.Hash) *engine.RomeExecutableData {
-	params := engine.PayloadAttributes{
+	params := engine.RomePayloadAttributes{
 		Timestamp:             parent.Time + 1,
 		Random:                crypto.Keccak256Hash([]byte{byte(1)}),
 		SuggestedFeeRecipient: parent.Coinbase,
@@ -979,7 +979,7 @@ func TestSimultaneousNewBlock(t *testing.T) {
 		parent = preMergeBlocks[len(preMergeBlocks)-1]
 	)
 	for i := 0; i < 10; i++ {
-		execData, err := assembleBlock(api, parent.Hash(), &engine.PayloadAttributes{
+		execData, err := assembleBlock(api, parent.Hash(), &engine.RomePayloadAttributes{
 			Timestamp: parent.Time() + 5,
 		})
 		if err != nil {
@@ -1069,7 +1069,7 @@ func TestWithdrawals(t *testing.T) {
 
 	// 10: Build Shanghai block with no withdrawals.
 	parent := ethservice.BlockChain().CurrentHeader()
-	blockParams := engine.PayloadAttributes{
+	blockParams := engine.RomePayloadAttributes{
 		Timestamp:   parent.Time + 5,
 		Withdrawals: make([]*types.Withdrawal, 0),
 	}
@@ -1114,7 +1114,7 @@ func TestWithdrawals(t *testing.T) {
 	// 11: build shanghai block with withdrawal
 	aa := common.Address{0xaa}
 	bb := common.Address{0xbb}
-	blockParams = engine.PayloadAttributes{
+	blockParams = engine.RomePayloadAttributes{
 		Timestamp: execData.ExecutionPayload.Timestamp + 5,
 		Withdrawals: []*types.Withdrawal{
 			{
@@ -1191,27 +1191,27 @@ func TestNilWithdrawals(t *testing.T) {
 	aa := common.Address{0xaa}
 
 	type test struct {
-		blockParams engine.PayloadAttributes
+		blockParams engine.RomePayloadAttributes
 		wantErr     bool
 	}
 	tests := []test{
 		// Before Shanghai
 		{
-			blockParams: engine.PayloadAttributes{
+			blockParams: engine.RomePayloadAttributes{
 				Timestamp:   parent.Time + 2,
 				Withdrawals: nil,
 			},
 			wantErr: false,
 		},
 		{
-			blockParams: engine.PayloadAttributes{
+			blockParams: engine.RomePayloadAttributes{
 				Timestamp:   parent.Time + 2,
 				Withdrawals: make([]*types.Withdrawal, 0),
 			},
 			wantErr: true,
 		},
 		{
-			blockParams: engine.PayloadAttributes{
+			blockParams: engine.RomePayloadAttributes{
 				Timestamp: parent.Time + 2,
 				Withdrawals: []*types.Withdrawal{
 					{
@@ -1225,21 +1225,21 @@ func TestNilWithdrawals(t *testing.T) {
 		},
 		// After Shanghai
 		{
-			blockParams: engine.PayloadAttributes{
+			blockParams: engine.RomePayloadAttributes{
 				Timestamp:   parent.Time + 5,
 				Withdrawals: nil,
 			},
 			wantErr: true,
 		},
 		{
-			blockParams: engine.PayloadAttributes{
+			blockParams: engine.RomePayloadAttributes{
 				Timestamp:   parent.Time + 5,
 				Withdrawals: make([]*types.Withdrawal, 0),
 			},
 			wantErr: false,
 		},
 		{
-			blockParams: engine.PayloadAttributes{
+			blockParams: engine.RomePayloadAttributes{
 				Timestamp: parent.Time + 5,
 				Withdrawals: []*types.Withdrawal{
 					{
@@ -1653,7 +1653,7 @@ func TestParentBeaconBlockRoot(t *testing.T) {
 
 	// 11: Build Shanghai block with no withdrawals.
 	parent := ethservice.BlockChain().CurrentHeader()
-	blockParams := engine.PayloadAttributes{
+	blockParams := engine.RomePayloadAttributes{
 		Timestamp:   parent.Time + 5,
 		Withdrawals: make([]*types.Withdrawal, 0),
 		BeaconRoot:  &common.Hash{42},
@@ -1747,7 +1747,7 @@ func TestWitnessCreationAndConsumption(t *testing.T) {
 	txs := blocks[9].Transactions()
 
 	ethservice.TxPool().Add(txs, true, true)
-	blockParams := engine.PayloadAttributes{
+	blockParams := engine.RomePayloadAttributes{
 		Timestamp:   blocks[8].Time() + 5,
 		Withdrawals: make([]*types.Withdrawal, 0),
 		BeaconRoot:  &common.Hash{42},

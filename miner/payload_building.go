@@ -50,6 +50,8 @@ type BuildPayloadArgs struct {
 
 	NoTxPool      bool                 // Optimism addition: option to disable tx pool contents from being included
 	Transactions  []*types.Transaction // Optimism addition: txs forced into the block via engine API
+	GasPrice      []uint64             // The provided gas prices of transactions
+	GasUsed       []uint64             // The provided gas used while executing these transactions
 	GasLimit      *uint64              // Optimism addition: override gas limit of the block to build
 	EIP1559Params []byte               // Optimism addition: encodes Holocene EIP-1559 params
 }
