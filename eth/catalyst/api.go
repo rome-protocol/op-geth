@@ -210,10 +210,6 @@ func (api *ConsensusAPI) verifyPayloadAttributes(attr *engine.RomePayloadAttribu
 	if err := checkAttribute(c.IsShanghai, attr.Withdrawals != nil, c.LondonBlock, attr.Timestamp); err != nil {
 		return fmt.Errorf("invalid withdrawals: %w", err)
 	}
-	// Verify beacon root attribute for Cancun.
-	if err := checkAttribute(c.IsCancun, attr.BeaconRoot != nil, c.LondonBlock, attr.Timestamp); err != nil {
-		return fmt.Errorf("invalid parent beacon block root: %w", err)
-	}
 	return nil
 }
 
@@ -476,9 +472,6 @@ func (api *ConsensusAPI) NewPayloadV2(params engine.RomeExecutableData) (engine.
 		}
 	} else if params.Withdrawals != nil {
 		return engine.PayloadStatusV1{Status: engine.INVALID}, engine.InvalidParams.With(errors.New("non-nil withdrawals pre-shanghai"))
-	}
-	if api.eth.BlockChain().Config().IsCancun(new(big.Int).SetUint64(params.Number), params.Timestamp) {
-		return engine.PayloadStatusV1{Status: engine.INVALID}, engine.InvalidParams.With(errors.New("newPayloadV2 called post-cancun"))
 	}
 	return api.newPayload(params, nil, nil)
 }
