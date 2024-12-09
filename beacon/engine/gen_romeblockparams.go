@@ -102,11 +102,5 @@ func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 	if dec.GasLimit != nil {
 		r.GasLimit = (*uint64)(dec.GasLimit)
 	}
-	if dec.BeaconRoot != nil {
-		r.BeaconRoot = dec.BeaconRoot
-	} else {
-		zeroHash := common.Hash{}
-		r.BeaconRoot = &zeroHash
-	}
 	return nil
 }

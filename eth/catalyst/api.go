@@ -210,10 +210,6 @@ func (api *ConsensusAPI) verifyPayloadAttributes(attr *engine.RomePayloadAttribu
 	if err := checkAttribute(c.IsShanghai, attr.Withdrawals != nil, c.LondonBlock, attr.Timestamp); err != nil {
 		return fmt.Errorf("invalid withdrawals: %w", err)
 	}
-	// Verify beacon root attribute for Cancun.
-	if err := checkAttribute(c.IsCancun, attr.BeaconRoot != nil, c.LondonBlock, attr.Timestamp); err != nil {
-		return fmt.Errorf("invalid parent beacon block root: %w", err)
-	}
 	return nil
 }
 
