@@ -18,12 +18,10 @@ package beacon
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -241,61 +239,6 @@ func (beacon *Beacon) VerifyUncles(chain consensus.ChainReader, block *types.Blo
 // (b) we don't verify if a block is in the future anymore
 // (c) the extradata is limited to 32 bytes
 func (beacon *Beacon) verifyHeader(chain consensus.ChainHeaderReader, header, parent *types.Header) error {
-	// Ensure that the header's extra-data section is of a reasonable size
-	if len(header.Extra) > 32 {
-		return fmt.Errorf("extra-data longer than 32 bytes (%d)", len(header.Extra))
-	}
-	// Verify the seal parts. Ensure the nonce and uncle hash are the expected value.
-	if header.Nonce != beaconNonce {
-		return errInvalidNonce
-	}
-	if header.UncleHash != types.EmptyUncleHash {
-		return errInvalidUncleHash
-	}
-	// Verify the timestamp
-	if header.Time <= parent.Time {
-		return errInvalidTimestamp
-	}
-	// Verify the block's difficulty to ensure it's the default constant
-	if beaconDifficulty.Cmp(header.Difficulty) != 0 {
-		return fmt.Errorf("invalid difficulty: have %v, want %v", header.Difficulty, beaconDifficulty)
-	}
-	// Verify that the gas limit is <= 2^63-1
-	if header.GasLimit > params.MaxGasLimit {
-		return fmt.Errorf("invalid gasLimit: have %v, max %v", header.GasLimit, params.MaxGasLimit)
-	}
-	// Verify that the gasUsed is <= gasLimit
-	if header.GasUsed > header.GasLimit {
-		return fmt.Errorf("invalid gasUsed: have %d, gasLimit %d", header.GasUsed, header.GasLimit)
-	}
-	// Verify that the block number is parent's +1
-	if diff := new(big.Int).Sub(header.Number, parent.Number); diff.Cmp(common.Big1) != 0 {
-		return consensus.ErrInvalidNumber
-	}
-	// Verify the header's EIP-1559 attributes.
-	if err := eip1559.VerifyEIP1559Header(chain.Config(), parent, header); err != nil {
-		return err
-	}
-	// Verify existence / non-existence of withdrawalsHash.
-	shanghai := chain.Config().IsShanghai(header.Number, header.Time)
-	if shanghai && header.WithdrawalsHash == nil {
-		return errors.New("missing withdrawalsHash")
-	}
-	if !shanghai && header.WithdrawalsHash != nil {
-		return fmt.Errorf("invalid withdrawalsHash: have %x, expected nil", header.WithdrawalsHash)
-	}
-	// Verify the existence / non-existence of cancun-specific header fields
-	cancun := chain.Config().IsCancun(header.Number, header.Time)
-	if !cancun {
-		switch {
-		case header.ExcessBlobGas != nil:
-			return fmt.Errorf("invalid excessBlobGas: have %d, expected nil", header.ExcessBlobGas)
-		case header.BlobGasUsed != nil:
-			return fmt.Errorf("invalid blobGasUsed: have %d, expected nil", header.BlobGasUsed)
-		case header.ParentBeaconRoot != nil:
-			return fmt.Errorf("invalid parentBeaconRoot, have %#x, expected nil", header.ParentBeaconRoot)
-		}
-	}
 	return nil
 }
 
