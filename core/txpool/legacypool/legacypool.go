@@ -367,23 +367,20 @@ func (pool *LegacyPool) loop() {
 		case <-report.C:
 			pool.mu.RLock()
 			pending, queued := pool.stats()
-			nprocessable := pool.queue
 			pool.mu.RUnlock()
 			stales := int(pool.priced.stales.Load())
-			log.Info("Transaction pool status report", "executable", pending, "queued", queued, "stales", stales, "nprocessable", nprocessable)
-
 			if pending != prevPending || queued != prevQueued || stales != prevStales {
 				log.Info("Transaction pool status report", "executable", pending, "queued", queued, "stales", stales)
 				prevPending, prevQueued, prevStales = pending, queued, stales
 			}
 
-		// Handle inactive account transaction eviction
 		case <-evict.C:
 			pool.mu.Lock()
 			for addr := range pool.pending {
-				// Skip local transactions from the eviction mechanism
 				log.Info("inside tx pool", "addr", addr)
-				log.Info("crossed locals pool", "Lifetime", pool.config.Lifetime)
+				if pool.locals.contains(addr) {
+					continue
+				}
 				if time.Since(pool.beats[addr]) > pool.config.Lifetime {
 					list := pool.pending[addr].Flatten()
 					for _, tx := range list {
