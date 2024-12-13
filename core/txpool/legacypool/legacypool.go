@@ -369,6 +369,7 @@ func (pool *LegacyPool) loop() {
 			pending, queued := pool.stats()
 			pool.mu.RUnlock()
 			stales := int(pool.priced.stales.Load())
+			log.Info("Transaction pool status report", "executable", pending)
 			if pending != prevPending || queued != prevQueued || stales != prevStales {
 				log.Info("Transaction pool status report", "executable", pending, "queued", queued, "stales", stales)
 				prevPending, prevQueued, prevStales = pending, queued, stales
@@ -378,9 +379,6 @@ func (pool *LegacyPool) loop() {
 			pool.mu.Lock()
 			for addr := range pool.pending {
 				log.Info("inside tx pool", "addr", addr)
-				if pool.locals.contains(addr) {
-					continue
-				}
 				if time.Since(pool.beats[addr]) > pool.config.Lifetime {
 					list := pool.pending[addr].Flatten()
 					for _, tx := range list {
