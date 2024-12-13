@@ -380,17 +380,12 @@ func (pool *LegacyPool) loop() {
 		// Handle inactive account transaction eviction
 		case <-evict.C:
 			pool.mu.Lock()
-			for addr := range pool.queue {
+			for addr := range pool.pending {
 				// Skip local transactions from the eviction mechanism
 				log.Info("inside tx pool", "addr", addr)
-				if pool.locals.contains(addr) {
-					log.Info("inside locals pool", "addr", addr)
-					continue
-				}
-				// Any non-locals old enough should be removed
 				log.Info("crossed locals pool", "Lifetime", pool.config.Lifetime)
 				if time.Since(pool.beats[addr]) > pool.config.Lifetime {
-					list := pool.queue[addr].Flatten()
+					list := pool.pending[addr].Flatten()
 					for _, tx := range list {
 						pool.removeTx(tx.Hash(), true, true)
 						log.Info("removed tx", "hash", tx.Hash())
