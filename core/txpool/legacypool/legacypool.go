@@ -369,9 +369,10 @@ func (pool *LegacyPool) loop() {
 			pending, queued := pool.stats()
 			pool.mu.RUnlock()
 			stales := int(pool.priced.stales.Load())
+			log.Info("Transaction pool status report", "executable", pending, "queued", queued, "stales", stales)
 
 			if pending != prevPending || queued != prevQueued || stales != prevStales {
-				log.Debug("Transaction pool status report", "executable", pending, "queued", queued, "stales", stales)
+				log.Info("Transaction pool status report", "executable", pending, "queued", queued, "stales", stales)
 				prevPending, prevQueued, prevStales = pending, queued, stales
 			}
 
