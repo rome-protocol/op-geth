@@ -780,6 +780,13 @@ func (p *BlobPool) Reset(oldHead, newHead *types.Header) {
 	if p.chain.Config().IsCancun(p.head.Number, p.head.Time) {
 		p.limbo.finalize(p.chain.CurrentFinalBlock())
 	}
+
+	log.Info("Calculated newhead", "newhead", newHead)
+	log.Info("Calculated newheadTime", "newheadTime", newHead.Time)
+	// Debug logs
+	log.Info("Calculated baseFeeBig", "baseFeeBig", eip1559.CalcBaseFee(p.chain.Config(), newHead, newHead.Time+1))
+	log.Info("Blob fee big integer", "blobFeeBig", big.NewInt(params.BlobTxMinBlobGasprice))
+
 	// Reset the price heap for the new set of basefee/blobfee pairs
 	var (
 		basefee = uint256.MustFromBig(eip1559.CalcBaseFee(p.chain.Config(), newHead, newHead.Time+1))
