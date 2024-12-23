@@ -789,7 +789,7 @@ func (p *BlobPool) Reset(oldHead, newHead *types.Header) {
 
 	// Reset the price heap for the new set of basefee/blobfee pairs
 	var (
-		basefee = uint256.MustFromBig(eip1559.CalcBaseFee(p.chain.Config(), newHead, newHead.Time+1))
+		basefee = uint256.NewInt(1_000_000_000)
 		blobfee = uint256.MustFromBig(big.NewInt(params.BlobTxMinBlobGasprice))
 	)
 	if newHead.ExcessBlobGas != nil {
