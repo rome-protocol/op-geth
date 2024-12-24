@@ -256,7 +256,7 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 		return nil, fmt.Errorf("invalid logsBloom length: %v", len(params.LogsBloom))
 	}
 	// Check that baseFeePerGas is not negative or too big
-	if params.BaseFeePerGas != nil && (params.BaseFeePerGas.Sign() == -1 || params.BaseFeePerGas.BitLen() > 256) {
+	if params.BaseFeePerGas != nil && (params.BaseFeePerGas.Sign() == -1) {
 		return nil, fmt.Errorf("invalid baseFeePerGas: %v", params.BaseFeePerGas)
 	}
 	var blobHashes []common.Hash
