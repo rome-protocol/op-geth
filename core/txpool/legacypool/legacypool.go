@@ -1477,7 +1477,7 @@ func (pool *LegacyPool) promoteExecutables(accounts []common.Address) []*types.T
 		}
 		log.Trace("Removed old queued transactions", "count", len(forwards))
 		balance := pool.currentState.GetBalance(addr)
-		log.Trace("Balance beforel1CostFn: ", balance)
+		log.Trace("Balance beforel1CostFn ", "balance:", balance)
 		if !list.Empty() && pool.l1CostFn != nil {
 			// Reduce the cost-cap by L1 rollup cost of the first tx if necessary. Other txs will get filtered out afterwards.
 			el := list.txs.FirstElement()
@@ -1489,7 +1489,7 @@ func (pool *LegacyPool) promoteExecutables(accounts []common.Address) []*types.T
 		drops, _ := list.Filter(balance, gasLimit)
 		for _, tx := range drops {
 			hash := tx.Hash()
-			log.Trace("Removing unpayable queued transactions: ", hash)
+			log.Trace("Removing unpayable queued transactions ", "Transaction hash", hash)
 			pool.all.Remove(hash)
 		}
 		log.Trace("Removed unpayable queued transactions", "count", len(drops), "balance", balance, "gasLimit", gasLimit)
