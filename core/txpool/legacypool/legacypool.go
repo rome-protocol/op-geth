@@ -1486,6 +1486,8 @@ func (pool *LegacyPool) promoteExecutables(accounts []common.Address) []*types.T
 			}
 		}
 		// Drop all transactions that are too costly (low balance or out of gas)
+		log.Trace("In filter function", "l.costcap: ", list.costcap, ";l.gascap: ", list.gascap, ";balance:", balance, ";gasLimit:", gasLimit)
+
 		drops, _ := list.Filter(balance, gasLimit)
 		for _, tx := range drops {
 			hash := tx.Hash()
