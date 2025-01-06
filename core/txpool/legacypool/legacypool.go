@@ -1491,7 +1491,7 @@ func (pool *LegacyPool) promoteExecutables(accounts []common.Address) []*types.T
 		drops, _ := list.Filter(balance, gasLimit)
 		for _, tx := range drops {
 			hash := tx.Hash()
-			log.Trace("Removing unpayable queued transactions ", "Transaction hash", hash)
+			log.Trace("Removing unpayable queued transactions ", "Transaction hash", hash, "balance", balance, "gasLimit", gasLimit, "tx.gas", tx.Gas(), "tx.Cost()", tx.Cost())
 			pool.all.Remove(hash)
 		}
 		log.Trace("Removed unpayable queued transactions", "count", len(drops), "balance", balance, "gasLimit", gasLimit)
