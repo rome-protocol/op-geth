@@ -30,20 +30,13 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// L1 Info Gas Overhead is the amount of gas the the L1 info deposit consumes.
-// It is removed from the tx pool max gas to better indicate that L2 transactions
-// are not able to consume all of the gas in a L2 block as the L1 info deposit is always present.
-const l1InfoGasOverhead = uint64(70_000)
+// Gas Limit Proxy is the amount of gas consumed by all transactions in a block on RomeEVM.
+// Since RomeEVM is the source of truth, we adhere to this value as Effective Gas Limit for a
+// block on Rome OP-Geth.
+const gasLimitProxy = uint64(48000000000000)
 
 func EffectiveGasLimit(chainConfig *params.ChainConfig, gasLimit uint64) uint64 {
-	if chainConfig.Optimism != nil {
-		if l1InfoGasOverhead < gasLimit {
-			gasLimit -= l1InfoGasOverhead
-		} else {
-			gasLimit = 0
-		}
-	}
-	return gasLimit
+	return gasLimitProxy
 }
 
 // ValidationOptions define certain differences between transaction validation
