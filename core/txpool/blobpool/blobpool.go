@@ -81,6 +81,9 @@ const (
 	// limboedTransactionStore is the subfolder containing the currently included
 	// but not yet finalized transaction blobs.
 	limboedTransactionStore = "limbo"
+
+	// baseFeeValue is the base fee allocated per block.
+	baseFeeValue = 1000
 )
 
 // blobTxMeta is the minimal subset of types.BlobTx necessary to validate and
@@ -783,7 +786,7 @@ func (p *BlobPool) Reset(oldHead, newHead *types.Header) {
 
 	// Reset the price heap for the new set of basefee/blobfee pairs
 	var (
-		basefee = uint256.NewInt(1000)
+		basefee = uint256.NewInt(baseFeeValue)
 		blobfee = uint256.MustFromBig(big.NewInt(params.BlobTxMinBlobGasprice))
 	)
 	if newHead.ExcessBlobGas != nil {
