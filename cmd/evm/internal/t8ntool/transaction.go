@@ -26,7 +26,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -131,20 +130,6 @@ func Transaction(ctx *cli.Context) error {
 			continue
 		} else {
 			r.Address = sender
-		}
-		// Check intrinsic gas
-		if gas, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil,
-			chainConfig.IsHomestead(new(big.Int)), chainConfig.IsIstanbul(new(big.Int)), chainConfig.IsShanghai(new(big.Int), 0)); err != nil {
-			r.Error = err
-			results = append(results, r)
-			continue
-		} else {
-			r.IntrinsicGas = gas
-			if tx.Gas() < gas {
-				r.Error = fmt.Errorf("%w: have %d, want %d", core.ErrIntrinsicGas, tx.Gas(), gas)
-				results = append(results, r)
-				continue
-			}
 		}
 		// Validate <256bit fields
 		switch {

@@ -64,11 +64,6 @@ func (result *ExecutionResult) Revert() []byte {
 	return common.CopyBytes(result.ReturnData)
 }
 
-// IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
-func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation bool, isHomestead, isEIP2028 bool, isEIP3860 bool) (uint64, error) {
-	return 0, nil
-}
-
 // A Message contains the data derived from a single transaction that is relevant to state
 // processing.
 type Message struct {
@@ -132,7 +127,7 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.In
 // ApplyMessage returns the bytes returned by any EVM execution (if it took place),
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
-// state and would never be accepted within a block.
+// state and would never be accepted within a block. Uses gas pre computed by Rome EVM.
 func ApplyMessage(evm *vm.EVM, msg *Message, gp *GasPool, romeGasUsed uint64) (*ExecutionResult, error) {
 	return NewStateTransition(evm, msg, gp).TransitionDb(romeGasUsed)
 }
@@ -312,6 +307,7 @@ func (st *StateTransition) TransitionDb(romeGasUsed uint64) (*ExecutionResult, e
 		if st.msg.IsSystemTx && !st.evm.ChainConfig().IsRegolith(st.evm.Context.Time) {
 			gasUsed = 0
 		}
+		// Pass pre-computed gas used from Rome EVM into execution result.
 		result = &ExecutionResult{
 			UsedGas:    gasUsed,
 			Err:        fmt.Errorf("failed deposit: %w", err),
@@ -352,16 +348,6 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		contractCreation = msg.To == nil
 	)
 
-	// Check clauses 4-5, subtract intrinsic gas if everything is correct
-	gas, err := IntrinsicGas(msg.Data, msg.AccessList, contractCreation, rules.IsHomestead, rules.IsIstanbul, rules.IsShanghai)
-	if err != nil {
-		return nil, err
-	}
-	if st.gasRemaining < gas {
-		return nil, fmt.Errorf("%w: have %d, want %d", ErrIntrinsicGas, st.gasRemaining, gas)
-	}
-	st.gasRemaining -= gas
-
 	// Check whether the init code size has been exceeded.
 	if rules.IsShanghai && contractCreation && len(msg.Data) > params.MaxInitCodeSize {
 		return nil, fmt.Errorf("%w: code size %v limit %v", ErrMaxInitCodeSizeExceeded, len(msg.Data), params.MaxInitCodeSize)
@@ -397,6 +383,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	}
 	if st.msg.IsDepositTx && rules.IsOptimismRegolith {
 		// Skip coinbase payments for deposit tx in Regolith
+		// Set gas used pre-computed on Rome EVM.
 		return &ExecutionResult{
 			UsedGas:     romeGasUsed,
 			RefundedGas: 0,
@@ -417,6 +404,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	} else {
 		fee := new(big.Int).SetUint64(romeGasUsed)
 		fee.Mul(fee, effectiveTip)
+		// Commit fee to state only when coinbase address is present.
 		zeroAddress := common.Address{}
 		if st.evm.Context.Coinbase != zeroAddress {
 			st.state.AddBalance(st.evm.Context.Coinbase, fee)
@@ -432,6 +420,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		}
 	}
 
+	// Set gas used pre-computed on Rome EVM.
 	return &ExecutionResult{
 		UsedGas:     romeGasUsed,
 		RefundedGas: 0,
@@ -450,14 +439,12 @@ func (st *StateTransition) refundGas(refundQuotient uint64) uint64 {
 
 	// Return ETH for remaining gas, exchanged at the original rate.
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gasRemaining), st.msg.GasPrice)
+
+	// Commit balance to state only when coinbase address is present.
 	zeroAddress := common.Address{}
 	if st.evm.Context.Coinbase != zeroAddress {
 		st.state.AddBalance(st.msg.From, remaining)
 	}
-
-	// Also return remaining gas to the block gas counter so it is
-	// available for the next transaction.
-	//st.gp.AddGas(st.gasRemaining)
 
 	return refund
 }
