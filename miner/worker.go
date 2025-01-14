@@ -834,6 +834,7 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 		gp   = env.gasPool.Gas()
 	)
 
+	log.Info("Header Gas Used", "GasUsed", env.header.GasUsed, "romegasUsed", romeGasUsed)
 	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed)
 
 	if err != nil {
