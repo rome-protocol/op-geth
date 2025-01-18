@@ -89,7 +89,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		}
 		statedb.SetTxContext(tx.Hash(), i)
 		receipt, err := applyTransaction(msg, p.config, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, romeGasUsed[i])
-		log.Info("state attributes", "usedGas", usedGas, "romeGasUsed", romeGasUsed[i])
+		log.Info("state attributes", "usedGas", usedGas, "romeGasUsed", romeGasUsed[i], "hash", tx.Hash())
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
@@ -130,7 +130,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	} else {
 		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
 	}
-	*usedGas += romeGasUsed
+	*usedGas += result.UsedGas
 
 	// Create a new receipt for the transaction, storing the intermediate root and gas used
 	// by the tx.
