@@ -1364,6 +1364,7 @@ func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, b
 			return 0, rpc.ErrNoHistoricalFallback
 		}
 	}
+	log.Info("Rome: enter Rome EstimateGas")
 
 	return estimateRomeGas(ctx, args)
 }
@@ -1385,6 +1386,7 @@ func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64,
 	if err != nil {
 		return 0, err
 	}
+	log.Info("Rome: computed estimate Gas")
 
 	return estimatedGas, nil
 }
