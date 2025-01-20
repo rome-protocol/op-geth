@@ -1369,27 +1369,65 @@ func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, b
 	return estimateRomeGas(ctx, args)
 }
 
-// Fetch gas estimate from Rome gasometer
 func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64, error) {
 	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
 	if gasometerUrl == "" {
-		return 0, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
+		return 0, fmt.Errorf("ROME_GASOMETER_URL envvar is not set")
 	}
-	client, err := rpc.Dial(gasometerUrl)
-	if err != nil {
-		log.Error("Failed to connect to the Ethereum client: %v", err)
-	}
-	defer client.Close()
+
+	const maxRetries = 5
+	const retryDelay = 2 * time.Second
 
 	var estimatedGas hexutil.Uint64
-	err = client.CallContext(ctx, &estimatedGas, "eth_estimateGas", args)
-	if err != nil {
-		return 0, err
-	}
-	log.Info("Rome: computed estimate Gas")
+	var lastErr error
 
-	return estimatedGas, nil
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		client, err := rpc.Dial(gasometerUrl)
+		if err != nil {
+			log.Error("Failed to connect to the Ethereum client: %v", err)
+			lastErr = err
+		} else {
+			defer client.Close()
+
+			err = client.CallContext(ctx, &estimatedGas, "eth_estimateGas", args)
+			if err == nil {
+				log.Info("Rome: computed estimate Gas on attempt %d", attempt)
+				return estimatedGas, nil
+			}
+			log.Error("Error estimating gas on attempt %d: %v", attempt, err)
+			lastErr = err
+		}
+
+		if attempt < maxRetries {
+			time.Sleep(retryDelay)
+		}
+	}
+
+	log.Error("Failed to estimate gas after multiple attempts")
+	return 0, lastErr
 }
+
+// // Fetch gas estimate from Rome gasometer
+// func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64, error) {
+// 	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
+// 	if gasometerUrl == "" {
+// 		return 0, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
+// 	}
+// 	client, err := rpc.Dial(gasometerUrl)
+// 	if err != nil {
+// 		log.Error("Failed to connect to the Ethereum client: %v", err)
+// 	}
+// 	defer client.Close()
+
+// 	var estimatedGas hexutil.Uint64
+// 	err = client.CallContext(ctx, &estimatedGas, "eth_estimateGas", args)
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	log.Info("Rome: computed estimate Gas")
+
+// 	return estimatedGas, nil
+// }
 
 // RPCMarshalHeader converts the given header to the RPC output .
 func RPCMarshalHeader(head *types.Header) map[string]interface{} {
