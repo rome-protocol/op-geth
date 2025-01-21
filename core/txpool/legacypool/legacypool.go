@@ -380,7 +380,7 @@ func (pool *LegacyPool) loop() {
 			for addr := range pool.pending {
 				log.Info("inside tx pool", "addr", addr)
 				if time.Since(pool.beats[addr]) > pool.config.Lifetime {
-					list := pool.queue[addr].Flatten()
+					list := pool.pending[addr].Flatten()
 					for _, tx := range list {
 						pool.removeTx(tx.Hash(), true, true)
 						log.Info("removed tx", "hash", tx.Hash())
