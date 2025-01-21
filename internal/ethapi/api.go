@@ -1384,7 +1384,7 @@ func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64,
 	var estimatedGas hexutil.Uint64
 	err = client.CallContext(ctx, &estimatedGas, "eth_estimateGas", args)
 	if err != nil {
-		return 1000000, nil
+		return 0, nil
 	}
 	log.Info("Rome: computed estimate Gas")
 
