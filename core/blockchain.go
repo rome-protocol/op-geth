@@ -1813,8 +1813,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, romeGasUsed 
 		pstart := time.Now()
 		receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig, romeGasUsed)
 
-		log.Info("receipts", "insert chain", receipts)
-
 		if err != nil {
 			bc.reportBlock(block, receipts, err)
 			followupInterrupt.Store(true)
