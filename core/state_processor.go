@@ -132,7 +132,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 
 	// Create a new receipt for the transaction, storing the intermediate root and gas used
 	// by the tx.
-	receipt := &types.Receipt{Type: tx.Type(), PostState: root, CumulativeGasUsed: romeGasUsed}
+	receipt := &types.Receipt{Type: tx.Type(), PostState: root, CumulativeGasUsed: *usedGas}
 	if result.Failed() {
 		receipt.Status = types.ReceiptStatusFailed
 	} else {
