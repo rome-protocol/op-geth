@@ -89,7 +89,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		}
 		statedb.SetTxContext(tx.Hash(), i)
 		receipt, err := applyTransaction(msg, p.config, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, romeGasUsed[i])
-		log.Info("state attributes", "usedGas", usedGas, "romeGasUsed", romeGasUsed[i], "hash", tx.Hash())
+		log.Info("state attributes", "usedGas", usedGas, "romeGasUsed", romeGasUsed[i], "hash", tx.Hash().String(), "receipt Gas", receipt.GasUsed)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
