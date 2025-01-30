@@ -985,14 +985,7 @@ func (w *worker) validateParams(genParams *generateParams) (time.Duration, error
 
 	// Sanity check the timestamp correctness
 	blockTime := int64(genParams.timestamp) - int64(parent.Time)
-	if blockTime <= 0 && genParams.forceTime {
-		return 0, fmt.Errorf("invalid timestamp, parent %d given %d", parent.Time, genParams.timestamp)
-	}
 
-	// minimum payload build time of 2s
-	if blockTime < 2 {
-		blockTime = 2
-	}
 	return time.Duration(blockTime) * time.Second, nil
 }
 
