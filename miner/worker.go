@@ -985,14 +985,7 @@ func (w *worker) validateParams(genParams *generateParams) (time.Duration, error
 
 	// Sanity check the timestamp correctness
 	blockTime := int64(genParams.timestamp) - int64(parent.Time)
-	if blockTime <= 0 && genParams.forceTime {
-		return 0, fmt.Errorf("invalid timestamp, parent %d given %d", parent.Time, genParams.timestamp)
-	}
 
-	// minimum payload build time of 2s
-	if blockTime < 2 {
-		blockTime = 2
-	}
 	return time.Duration(blockTime) * time.Second, nil
 }
 
@@ -1012,21 +1005,13 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		}
 		parent = block.Header()
 	}
-	// Sanity check the timestamp correctness, recap the timestamp
-	// to parent+1 if the mutation is allowed.
-	timestamp := genParams.timestamp
-	if parent.Time >= timestamp {
-		if genParams.forceTime {
-			return nil, fmt.Errorf("invalid timestamp, parent %d given %d", parent.Time, timestamp)
-		}
-		timestamp = parent.Time + 1
-	}
+
 	// Construct the sealing block header.
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     new(big.Int).Add(parent.Number, common.Big1),
 		GasLimit:   uint64(48000000000000),
-		Time:       timestamp,
+		Time:       genParams.timestamp,
 		Coinbase:   genParams.coinbase,
 	}
 	// Set the extra field.
