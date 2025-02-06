@@ -1371,6 +1371,10 @@ func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, b
 // Fetch gas estimate from Rome gasometer
 func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64, error) {
 	log.Info("estimateRomeGas", "args", args)
+	if args.Gas == nil {
+		gasValue := hexutil.Uint64(210000)
+		args.Gas = &gasValue
+	}
 	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
 	if gasometerUrl == "" {
 		return 0, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
