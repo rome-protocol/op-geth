@@ -244,12 +244,12 @@ func (st *StateTransition) preCheck() error {
 			return fmt.Errorf("%w: address %v, nonce: %d", ErrNonceMax,
 				msg.From.Hex(), stNonce)
 		}
-		// Make sure the sender is an EOA
-		codeHash := st.state.GetCodeHash(msg.From)
-		if codeHash != (common.Hash{}) && codeHash != types.EmptyCodeHash {
-			return fmt.Errorf("%w: address %v, codehash: %s", ErrSenderNoEOA,
-				msg.From.Hex(), codeHash)
-		}
+		// // Make sure the sender is an EOA
+		// codeHash := st.state.GetCodeHash(msg.From)
+		// if codeHash != (common.Hash{}) && codeHash != types.EmptyCodeHash {
+		// 	return fmt.Errorf("%w: address %v, codehash: %s", ErrSenderNoEOA,
+		// 		msg.From.Hex(), codeHash)
+		// }
 	}
 	// Check the blob version validity
 	if msg.BlobHashes != nil {
