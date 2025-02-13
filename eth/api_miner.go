@@ -22,6 +22,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // MinerAPI provides an API to control the miner.
@@ -59,6 +60,7 @@ func (api *MinerAPI) SetExtra(extra string) (bool, error) {
 
 // SetGasPrice sets the minimum accepted gas price for the miner.
 func (api *MinerAPI) SetGasPrice(gasPrice hexutil.Big) bool {
+	log.Info("Rome: enter EthereumAPI SetGasPrice")
 	api.e.lock.Lock()
 	api.e.gasPrice = (*big.Int)(&gasPrice)
 	api.e.lock.Unlock()
@@ -69,12 +71,14 @@ func (api *MinerAPI) SetGasPrice(gasPrice hexutil.Big) bool {
 
 // SetGasLimit sets the gaslimit to target towards during mining.
 func (api *MinerAPI) SetGasLimit(gasLimit hexutil.Uint64) bool {
+	log.Info("Rome: enter EthereumAPI SetGasLimit")
 	api.e.Miner().SetGasCeil(uint64(gasLimit))
 	return true
 }
 
 // SetEtherbase sets the etherbase of the miner.
 func (api *MinerAPI) SetEtherbase(etherbase common.Address) bool {
+	log.Info("Rome: enter EthereumAPI SetEtherbase")
 	api.e.SetEtherbase(etherbase)
 	return true
 }
