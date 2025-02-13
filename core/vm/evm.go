@@ -182,7 +182,7 @@ func (evm *EVM) Interpreter() *EVMInterpreter {
 	return evm.interpreter
 }
 
-// Returns the gas value used for VM execution
+// ExecutionGas returns maximum gas value used for VM execution
 func (evm *EVM) ExecutionGas() uint64 {
 	return 1_000_000_000
 }
