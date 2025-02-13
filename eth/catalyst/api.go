@@ -378,7 +378,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			BeaconRoot:   payloadAttributes.BeaconRoot,
 			NoTxPool:     payloadAttributes.NoTxPool,
 			Transactions: transactions,
-			GasLimit:     func(v uint64) *uint64 { return &v }(1000000),
+			GasLimit:     func(v uint64) *uint64 { return &v }(1000000000000000),
 			GasUsed:      payloadAttributes.GasUsed,
 		}
 		id := args.Id()
