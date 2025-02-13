@@ -25,6 +25,7 @@ import (
 	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -244,12 +245,12 @@ func (st *StateTransition) preCheck() error {
 			return fmt.Errorf("%w: address %v, nonce: %d", ErrNonceMax,
 				msg.From.Hex(), stNonce)
 		}
-		// // Make sure the sender is an EOA
-		// codeHash := st.state.GetCodeHash(msg.From)
-		// if codeHash != (common.Hash{}) && codeHash != types.EmptyCodeHash {
-		// 	return fmt.Errorf("%w: address %v, codehash: %s", ErrSenderNoEOA,
-		// 		msg.From.Hex(), codeHash)
-		// }
+		// Make sure the sender is an EOA
+		codeHash := st.state.GetCodeHash(msg.From)
+		if codeHash != (common.Hash{}) && codeHash != types.EmptyCodeHash {
+			return fmt.Errorf("%w: address %v, codehash: %s", ErrSenderNoEOA,
+				msg.From.Hex(), codeHash)
+		}
 	}
 	// Check the blob version validity
 	if msg.BlobHashes != nil {
@@ -335,6 +336,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 
 	// Check clauses 1-3, buy gas if everything is correct
 	if err := st.preCheck(); err != nil {
+		log.Info("err pre check", "Err", err)
 		return nil, err
 	}
 
@@ -352,18 +354,23 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		contractCreation = msg.To == nil
 	)
 
+	log.Info("rules", "rules", rules)
+
 	// Check clauses 4-5, subtract intrinsic gas if everything is correct
 	gas, err := IntrinsicGas(msg.Data, msg.AccessList, contractCreation, rules.IsHomestead, rules.IsIstanbul, rules.IsShanghai)
 	if err != nil {
 		return nil, err
 	}
 	if st.gasRemaining < gas {
+		log.Info("error", "rules", rules)
+
 		return nil, fmt.Errorf("%w: have %d, want %d", ErrIntrinsicGas, st.gasRemaining, gas)
 	}
 	st.gasRemaining -= gas
 
 	// Check whether the init code size has been exceeded.
 	if rules.IsShanghai && contractCreation && len(msg.Data) > params.MaxInitCodeSize {
+		log.Info("error", "limit", len(msg.Data), "MaxInitCodeSize", params.MaxInitCodeSize)
 		return nil, fmt.Errorf("%w: code size %v limit %v", ErrMaxInitCodeSizeExceeded, len(msg.Data), params.MaxInitCodeSize)
 	}
 
@@ -383,6 +390,8 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		st.state.SetNonce(msg.From, st.state.GetNonce(sender.Address())+1)
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, msg.Value)
 	}
+
+	log.Info("vmerr", vmerr)
 
 	// if deposit: skip refunds, skip tipping coinbase
 	// Regolith changes this behaviour to report the actual gasUsed instead of always reporting all gas used.
