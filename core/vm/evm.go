@@ -549,8 +549,9 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 		executionGas = evm.ExecutionGas()
 	}
 
-	log.Info("create2", "hash", codeAndHash.Hash().String())
 	contractAddr = crypto.CreateAddress2(caller.Address(), salt.Bytes32(), codeAndHash.Hash().Bytes())
+	log.Info("create2", "hash", codeAndHash.Hash().String(), "contract address", contractAddr.String())
+
 	return evm.create(caller, codeAndHash, executionGas, endowment, contractAddr, CREATE2)
 }
 
