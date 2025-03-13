@@ -17,10 +17,10 @@ var _ = (*executionPayloadEnvelopeMarshaling)(nil)
 func (e ExecutionPayloadEnvelope) MarshalJSON() ([]byte, error) {
 	type ExecutionPayloadEnvelope struct {
 		ExecutionPayload      *RomeExecutableData `json:"executionPayload"  gencodec:"required"`
-		BlockValue            *hexutil.Big    `json:"blockValue"  gencodec:"required"`
-		BlobsBundle           *BlobsBundleV1  `json:"blobsBundle"`
-		Override              bool            `json:"shouldOverrideBuilder"`
-		ParentBeaconBlockRoot *common.Hash    `json:"parentBeaconBlockRoot,omitempty"`
+		BlockValue            *hexutil.Big        `json:"blockValue"  gencodec:"required"`
+		BlobsBundle           *BlobsBundleV1      `json:"blobsBundle"`
+		Override              bool                `json:"shouldOverrideBuilder"`
+		ParentBeaconBlockRoot *common.Hash        `json:"parentBeaconBlockRoot,omitempty"`
 	}
 	var enc ExecutionPayloadEnvelope
 	enc.ExecutionPayload = e.ExecutionPayload
@@ -35,10 +35,10 @@ func (e ExecutionPayloadEnvelope) MarshalJSON() ([]byte, error) {
 func (e *ExecutionPayloadEnvelope) UnmarshalJSON(input []byte) error {
 	type ExecutionPayloadEnvelope struct {
 		ExecutionPayload      *RomeExecutableData `json:"executionPayload"  gencodec:"required"`
-		BlockValue            *hexutil.Big    `json:"blockValue"  gencodec:"required"`
-		BlobsBundle           *BlobsBundleV1  `json:"blobsBundle"`
-		Override              *bool           `json:"shouldOverrideBuilder"`
-		ParentBeaconBlockRoot *common.Hash    `json:"parentBeaconBlockRoot,omitempty"`
+		BlockValue            *hexutil.Big        `json:"blockValue"  gencodec:"required"`
+		BlobsBundle           *BlobsBundleV1      `json:"blobsBundle"`
+		Override              *bool               `json:"shouldOverrideBuilder"`
+		ParentBeaconBlockRoot *common.Hash        `json:"parentBeaconBlockRoot,omitempty"`
 	}
 	var dec ExecutionPayloadEnvelope
 	if err := json.Unmarshal(input, &dec); err != nil {

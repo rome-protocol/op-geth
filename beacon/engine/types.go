@@ -110,7 +110,7 @@ type executableDataMarshaling struct {
 	ExcessBlobGas *hexutil.Uint64
 }
 
-//go:generate go run github.com/fjl/gencodec -type RomeExecutableData -field-override RomeExecutableDataMarshaling -out rome_gen_ed.go
+//go:generate go run github.com/fjl/gencodec -type RomeExecutableData -field-override RomeExecutableDataMarshaling -out gen_rome_ed.go
 
 // RomeExecutableData is the data necessary to execute an EL payload.
 type RomeExecutableData struct {
@@ -138,7 +138,8 @@ type RomeExecutableData struct {
 type RomeExecutableDataMarshaling struct {
 	Number        hexutil.Uint64
 	GasLimit      hexutil.Uint64
-	GasUsed       []hexutil.Uint64
+	GasUsed       hexutil.Uint64
+	RomeGasUsed   []hexutil.Uint64
 	Timestamp     hexutil.Uint64
 	BaseFeePerGas *hexutil.Big
 	ExtraData     hexutil.Bytes
