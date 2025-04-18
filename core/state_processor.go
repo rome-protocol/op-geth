@@ -17,10 +17,8 @@
 package core
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"internal/debug/otel"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -31,8 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -110,16 +106,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 }
 
 func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, romeGasUsed uint64) (*types.Receipt, error) {
-	tracer := otel.GetTracer()
-	_, span := tracer.Start(context.Background(), "applyTransaction",
-		trace.WithAttributes(
-			attribute.String("tx.hash", tx.Hash().Hex()),
-			attribute.String("from", msg.From.Hex()),
-			attribute.Bool("is_deposit", msg.IsDepositTx),
-			attribute.String("block.number", blockNumber.String()),
-		))
-	defer span.End()
-
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
