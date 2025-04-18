@@ -3,6 +3,7 @@ package debug
 import (
 	"context"
 	"log"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -12,9 +13,30 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
+
+var (
+	tracer     trace.Tracer
+	initOnce   sync.Once
+	shutdownFn func()
+)
+
+func GetTracer() trace.Tracer {
+	initOnce.Do(func() {
+		shutdownFn = initTracer()
+		tracer = otel.Tracer("op-geth")
+	})
+	return tracer
+}
+
+func ShutdownTracer() {
+	if shutdownFn != nil {
+		shutdownFn()
+	}
+}
 
 func initTracer() func() {
 
@@ -37,6 +59,7 @@ func initTracer() func() {
 	otel.SetTracerProvider(tracerProvider)
 
 	return func() {
+		// Shutdown will flush any remaining spans and shut down the exporter.
 		reportErr(tracerProvider.Shutdown(ctx), "failed to shutdown TracerProvider")
 		cancel()
 	}

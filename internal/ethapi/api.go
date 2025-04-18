@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"internal/debug/otel"
 	"math/big"
 	"os"
 	"strings"
@@ -28,6 +29,8 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/tyler-smith/go-bip39"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -1370,6 +1373,14 @@ func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, b
 
 // Fetch gas estimate from Rome gasometer
 func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64, error) {
+	tracer := otel.GetTracer()
+	_, span := tracer.Start(ctx, "estimateRomeGas",
+		trace.WithAttributes(
+			attribute.String("args.hash", args.toTransaction().Hash().Hex()),
+			attribute.String("from", args.From.Hex()),
+		))
+	defer span.End()
+
 	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
 	if gasometerUrl == "" {
 		return 0, fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
