@@ -18,6 +18,7 @@
 package catalyst
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/big"
@@ -35,6 +36,8 @@ import (
 	"github.com/ethereum/go-ethereum/miner"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Register adds the engine API to the full node.
@@ -362,12 +365,19 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			return engine.STATUS_INVALID, engine.InvalidPayloadAttributes.With(errors.New("gasLimit parameter is required"))
 		}
 		transactions := make(types.Transactions, 0, len(payloadAttributes.Transactions))
+		tracer := log.GetTracer()
 		for i, otx := range payloadAttributes.Transactions {
 			var tx types.Transaction
 			if err := tx.UnmarshalBinary(otx); err != nil {
 				return engine.STATUS_INVALID, fmt.Errorf("transaction %d is not valid: %v", i, err)
 			}
+			_, span := tracer.Start(context.Background(), "forkchoiceUpdated",
+				trace.WithAttributes(
+					attribute.String("tx_hash", tx.Hash().Hex()),
+					attribute.String("timestamp", time.Now().Format(time.RFC3339Nano)),
+				))
 			transactions = append(transactions, &tx)
+			span.End()
 		}
 		args := &miner.BuildPayloadArgs{
 			Parent:       update.HeadBlockHash,
