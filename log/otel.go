@@ -81,7 +81,7 @@ func newExporter(ctx context.Context, conn *grpc.ClientConn) (*otlptrace.Exporte
 func newResource(ctx context.Context) (*resource.Resource, error) {
 	return resource.New(ctx,
 		resource.WithAttributes(
-			semconv.ServiceNameKey.String("op-geth.service"),
+			semconv.ServiceNameKey.String("op-geth"),
 			attribute.String("op-geth", "otel-tracing"),
 		),
 	)
