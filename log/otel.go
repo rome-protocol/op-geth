@@ -45,7 +45,7 @@ func initTracer() func() {
 	res, err := newResource(ctx)
 	reportErr(err, "failed to create res")
 
-	conn, err := grpc.DialContext(ctx, "localhost:4317", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	conn, err := grpc.DialContext(ctx, "otc:4317", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
 	reportErr(err, "failed to create gRPC connection to collector")
 
 	// Set up a trace exporter
