@@ -1373,7 +1373,7 @@ func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, b
 // Fetch gas estimate from Rome gasometer
 func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64, error) {
 	tracer := log.GetTracer()
-	_, span := tracer.Start(context.Background(), "estimateRomeGas",
+	_, span := tracer.Start(ctx, "estimateRomeGas",
 		trace.WithAttributes(
 			attribute.String("tx_hash", args.toTransaction().Hash().Hex()),
 			attribute.String("timestamp", time.Now().Format(time.RFC3339Nano)),
