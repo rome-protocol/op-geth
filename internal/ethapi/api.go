@@ -2029,6 +2029,14 @@ func (s *TransactionAPI) sign(addr common.Address, tx *types.Transaction) (*type
 
 // SubmitTransaction is a helper function that submits tx to txPool and logs a message.
 func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (common.Hash, error) {
+	tracer := log.GetTracer()
+	_, span := tracer.Start(ctx, "SubmitTransaction",
+		trace.WithAttributes(
+			attribute.String("tx_hash", tx.Hash().Hex()),
+			attribute.String("timestamp", time.Now().Format(time.RFC3339Nano)),
+		))
+	defer span.End()
+
 	// If the transaction fee cap is already specified, ensure the
 	// fee of the given transaction is _reasonable_.
 	if err := checkTxFee(tx.GasPrice(), tx.Gas(), b.RPCTxFeeCap()); err != nil {
