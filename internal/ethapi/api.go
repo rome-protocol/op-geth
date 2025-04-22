@@ -1376,7 +1376,6 @@ func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64,
 	_, span := tracer.Start(ctx, "estimateRomeGas",
 		trace.WithAttributes(
 			attribute.String("from", args.from().Hex()),
-			attribute.String("nonce ", args.Nonce.String()),
 			attribute.String("timestamp", time.Now().Format(time.RFC3339Nano)),
 		))
 	defer span.End()
