@@ -3,7 +3,6 @@ package log
 import (
 	"context"
 	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -46,8 +45,7 @@ func initTracer() func() {
 	res, err := newResource(ctx)
 	reportErr(err, "failed to create res")
 
-	otcUrl := os.Getenv("OTLP_RECEIVER_URL")
-	conn, err := grpc.DialContext(ctx, otcUrl, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	conn, err := grpc.DialContext(ctx, "otc:4317", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
 	reportErr(err, "failed to create gRPC connection to collector")
 
 	// Set up a trace exporter
