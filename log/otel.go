@@ -40,9 +40,10 @@ func ShutdownTracer() {
 }
 
 func initTracer() func() {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	res, err := newResource(ctx)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+	res, err := newResource(ctx)
 	reportErr(err, "failed to create res")
 
 	otcUrl := os.Getenv("OTLP_RECEIVER_URL")
