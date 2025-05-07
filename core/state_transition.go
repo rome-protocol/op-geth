@@ -28,6 +28,12 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+var scale = big.NewInt(1_000_000_000) // 10⁹
+
+func fromRomeGasPrice(x *big.Int) *big.Int {
+	return new(big.Int).Div(x, scale)
+}
+
 // ExecutionResult includes all output after executing given evm
 // message no matter the execution itself is successful or not.
 type ExecutionResult struct {
@@ -98,10 +104,12 @@ type Message struct {
 
 // TransactionToMessage converts a transaction into a Message.
 func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.Int) (*Message, error) {
+	rawGasPrice := new(big.Int).Set(tx.GasPrice())
+
 	msg := &Message{
 		Nonce:          tx.Nonce(),
 		GasLimit:       tx.Gas(),
-		GasPrice:       new(big.Int).Set(tx.GasPrice()),
+		GasPrice:       fromRomeGasPrice(rawGasPrice),
 		GasFeeCap:      new(big.Int).Set(tx.GasFeeCap()),
 		GasTipCap:      new(big.Int).Set(tx.GasTipCap()),
 		To:             tx.To(),
