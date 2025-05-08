@@ -186,34 +186,29 @@ func (st *StateTransition) to() common.Address {
 	return *st.msg.To
 }
 
-func (st *StateTransition) buyGas() error {
+func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 	zeroAddress := common.Address{}
 	if st.evm.Context.Coinbase == zeroAddress {
 		return nil
 	}
 
-	mgval := new(big.Int).SetUint64(st.msg.GasLimit)
-	if st.msg.GasFeeCap != nil {
-		mgval = mgval.Mul(mgval, st.msg.GasTipCap)
-	} else {
-		mgval = mgval.Mul(mgval, st.msg.GasPrice)
-	}
+	mgval := new(big.Int).SetUint64(romeGasUsed)
 	balanceCheck := new(big.Int).Set(mgval)
 	if have, want := st.state.GetBalance(st.msg.From), balanceCheck; have.Cmp(want) < 0 {
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
 	}
-	if err := st.gp.SubGas(st.msg.GasLimit); err != nil {
+	if err := st.gp.SubGas(romeGasUsed); err != nil {
 		return err
 	}
-	st.gasRemaining += st.msg.GasLimit
+	st.gasRemaining += romeGasUsed
 
-	st.initialGas = st.msg.GasLimit
+	st.initialGas = romeGasUsed
 	st.state.SubBalance(st.msg.From, mgval)
 
 	return nil
 }
 
-func (st *StateTransition) preCheck() error {
+func (st *StateTransition) preCheck(romeGasUsed uint64) error {
 	if st.msg.IsDepositTx {
 		// No fee fields to check, no nonce to check, and no need to check if EOA (L1 already verified it for us)
 		// Gas is free, but no refunds!
@@ -278,7 +273,7 @@ func (st *StateTransition) preCheck() error {
 			}
 		}
 	}
-	return st.buyGas()
+	return st.buyGas(romeGasUsed)
 }
 
 // TransitionDb will transition the state by applying the current message and
@@ -334,7 +329,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	// 6. caller has enough balance to cover asset transfer for **topmost** call
 
 	// Check clauses 1-3, buy gas if everything is correct
-	if err := st.preCheck(); err != nil {
+	if err := st.preCheck(romeGasUsed); err != nil {
 		return nil, err
 	}
 
@@ -400,18 +395,12 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		}, nil
 	}
 
-	effectiveTip := msg.GasPrice
-	if rules.IsLondon {
-		effectiveTip = msg.GasTipCap
-	}
-
 	if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
 		// Skip fee payment when NoBaseFee is set and the fee fields
 		// are 0. This avoids a negative effectiveTip being applied to
 		// the coinbase when simulating calls.
 	} else {
 		fee := new(big.Int).SetUint64(romeGasUsed)
-		fee.Mul(fee, effectiveTip)
 		zeroAddress := common.Address{}
 		if st.evm.Context.Coinbase != zeroAddress {
 			st.state.AddBalance(st.evm.Context.Coinbase, fee)
