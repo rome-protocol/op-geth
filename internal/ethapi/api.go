@@ -2123,6 +2123,58 @@ func (s *TransactionAPI) SendRawTransaction(ctx context.Context, input hexutil.B
 		return common.Hash{}, err
 	}
 
+	signer := types.LatestSignerForChainID(tx.ChainId())
+	fromAddr, err := types.Sender(signer, tx)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("could not recover sender: %w", err)
+	}
+	from := &fromAddr
+
+	var to *common.Address
+	if tx.To() != nil {
+		addr := *tx.To()
+		to = &addr
+	}
+
+	data := hexutil.Bytes(tx.Data())
+	gas := hexutil.Uint64(tx.Gas())
+	nonce := hexutil.Uint64(tx.Nonce())
+	chainID := (*hexutil.Big)(tx.ChainId())
+
+	var (
+		gasPrice             *hexutil.Big
+		maxFeePerGas         *hexutil.Big
+		maxPriorityFeePerGas *hexutil.Big
+	)
+	if tx.Type() == types.LegacyTxType {
+		gasPrice = (*hexutil.Big)(tx.GasPrice())
+	} else {
+		maxFeePerGas = (*hexutil.Big)(tx.GasFeeCap())
+		maxPriorityFeePerGas = (*hexutil.Big)(tx.GasTipCap())
+	}
+
+	accessList := tx.AccessList()
+
+	gasArgs := TransactionArgs{
+		From:                 from,
+		To:                   to,
+		Gas:                  &gas,
+		GasPrice:             gasPrice,
+		MaxFeePerGas:         maxFeePerGas,
+		MaxPriorityFeePerGas: maxPriorityFeePerGas,
+		Value:                (*hexutil.Big)(tx.Value()),
+		Nonce:                &nonce,
+		Data:                 &data,
+		AccessList:           &accessList,
+		ChainID:              chainID,
+	}
+
+	estGas, err := estimateRomeGas(ctx, gasArgs)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("rome gas estimate failed: %w", err)
+	}
+	log.Info("Rome gas estimate:", "gas", uint64(estGas))
+
 	return SubmitTransaction(ctx, s.b, tx)
 }
 
