@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -27,10 +28,23 @@ var (
 
 func GetTracer() trace.Tracer {
 	initOnce.Do(func() {
-		shutdownFn = initTracer()
-		tracer = otel.Tracer("op-geth")
+		if isOtelEnabled() {
+			shutdownFn = initTracer()
+			tracer = otel.Tracer("op-geth")
+		} else {
+			tracer = trace.NewNoopTracerProvider().Tracer("nop")
+		}
 	})
 	return tracer
+}
+
+func isOtelEnabled() bool {
+	raw := os.Getenv("ENABLE_OTEL_TRACING")
+	enabled, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false
+	}
+	return enabled
 }
 
 func ShutdownTracer() {
@@ -40,46 +54,54 @@ func ShutdownTracer() {
 }
 
 func initTracer() func() {
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
 	res, err := newResource(ctx)
-	reportErr(err, "failed to create res")
+	reportErr(err, "failed to create resource")
 
-	otcUrl := os.Getenv("OTLP_RECEIVER_URL")
-	conn, err := grpc.DialContext(ctx, otcUrl, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
-	reportErr(err, "failed to create gRPC connection to collector")
+	otcURL := os.Getenv("OTLP_RECEIVER_URL")
+	conn, err := grpc.DialContext(
+		ctx,
+		otcURL,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+	)
+	reportErr(err, "failed to dial OTLP collector")
 
-	// Set up a trace exporter
-	traceExporter, err := newExporter(ctx, conn)
+	exporter, err := newExporter(ctx, conn)
 	reportErr(err, "failed to create trace exporter")
 
-	// Register the trace exporter with a TracerProvider, using a batch
-	// span processor to aggregate spans before export.
-	batchSpanProcessor := sdktrace.NewBatchSpanProcessor(traceExporter)
-	tracerProvider := newTraceProvider(res, batchSpanProcessor)
-	otel.SetTracerProvider(tracerProvider)
+	bsp := sdktrace.NewBatchSpanProcessor(
+		exporter,
+		sdktrace.WithMaxQueueSize(16000),
+		sdktrace.WithMaxExportBatchSize(1024),
+		sdktrace.WithBatchTimeout(2*time.Second),
+	)
+
+	tp := newTraceProvider(res, bsp)
+	otel.SetTracerProvider(tp)
 
 	return func() {
-		// Shutdown will flush any remaining spans and shut down the exporter.
-		reportErr(tracerProvider.Shutdown(ctx), "failed to shutdown TracerProvider")
+		reportErr(tp.Shutdown(ctx), "failed to shutdown tracer provider")
 		cancel()
 	}
 }
 
+// newTraceProvider constructs a TracerProvider given resource and span processor.
 func newTraceProvider(res *resource.Resource, bsp sdktrace.SpanProcessor) *sdktrace.TracerProvider {
-	tracerProvider := sdktrace.NewTracerProvider(
+	return sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 		sdktrace.WithResource(res),
 		sdktrace.WithSpanProcessor(bsp),
 	)
-	return tracerProvider
 }
 
+// newExporter creates an OTLP gRPC trace exporter over the given connection.
 func newExporter(ctx context.Context, conn *grpc.ClientConn) (*otlptrace.Exporter, error) {
 	return otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
 }
 
+// newResource defines service resource attributes for traces.
 func newResource(ctx context.Context) (*resource.Resource, error) {
 	return resource.New(ctx,
 		resource.WithAttributes(
@@ -89,6 +111,7 @@ func newResource(ctx context.Context) (*resource.Resource, error) {
 	)
 }
 
+// reportErr logs any initialization or shutdown errors.
 func reportErr(err error, message string) {
 	if err != nil {
 		log.Printf("%s: %v", message, err)
