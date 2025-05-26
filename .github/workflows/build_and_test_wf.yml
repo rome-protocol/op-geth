@@ -12,7 +12,7 @@ on:
   
 jobs:
   prepare_env:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-8core-32gb-300
     env:
       OP_GETH_REF_NAME: "${{github.ref_name}}" 
       ROLLUP_CLIENT_REF_NAME: ${{github.rollup_client_ref_name || 'main'}} 
@@ -56,3 +56,18 @@ jobs:
           docker tag romeprotocol/rollup-op-geth:${{env.OP_GETH_REF_NAME}} romeprotocol/rollup-op-geth:latest
           docker push romeprotocol/rollup-op-geth:latest
     
+  reusable-wf-tests:
+    name: 'Trigger tests via reusable workflow'
+    uses: rome-protocol/tests/.github/workflows/reusable_wf_tests.yml@master
+    secrets: inherit
+    with:
+      docker_image_tags: >-
+        {
+          "evm": "latest",
+          "apps": "latest",
+          "relayer": "latest",
+          "geth": "${{ github.ref_name }}",
+          "tests": "latest",
+          "uniswap": "latest"
+        }
+      tests_list: 'evm,spl,state_comparison,uniswap_proxy,uniswap_op_geth'
