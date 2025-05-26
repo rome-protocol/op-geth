@@ -60,7 +60,6 @@ jobs:
     name: 'Trigger tests via reusable workflow'
     needs: prepare_env
     uses: rome-protocol/tests/.github/workflows/reusable_wf_tests.yml@master
-    secrets: inherit
     with:
       docker_image_tags: >-
         {
@@ -72,3 +71,4 @@ jobs:
           "uniswap": "latest"
         }
       tests_list: 'evm,spl,state_comparison,uniswap_proxy,uniswap_op_geth'
+    secrets: inherit
