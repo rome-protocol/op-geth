@@ -58,6 +58,7 @@ jobs:
     
   reusable-wf-tests:
     name: 'Trigger tests via reusable workflow'
+    needs: prepare_env
     uses: rome-protocol/tests/.github/workflows/reusable_wf_tests.yml@master
     secrets: inherit
     with:
