@@ -192,7 +192,7 @@ func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 		return nil
 	}
 
-	mgval := new(big.Int).SetUint64(romeGasUsed)
+	mgval := new(big.Int).Mul(new(big.Int).SetUint64(romeGasUsed), st.msg.GasPrice)
 	balanceCheck := new(big.Int).Set(mgval)
 	if have, want := st.state.GetBalance(st.msg.From), balanceCheck; have.Cmp(want) < 0 {
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
@@ -400,7 +400,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		// are 0. This avoids a negative effectiveTip being applied to
 		// the coinbase when simulating calls.
 	} else {
-		fee := new(big.Int).SetUint64(romeGasUsed)
+		fee := new(big.Int).Mul(new(big.Int).SetUint64(romeGasUsed), st.msg.GasPrice)
 		zeroAddress := common.Address{}
 		if st.evm.Context.Coinbase != zeroAddress {
 			st.state.AddBalance(st.evm.Context.Coinbase, fee)
