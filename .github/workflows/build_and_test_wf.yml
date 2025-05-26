@@ -71,4 +71,4 @@ jobs:
           "uniswap": "latest"
         }
       tests_list: 'evm,spl,state_comparison,uniswap_proxy,uniswap_op_geth'
-    secrets: inherit
+  
