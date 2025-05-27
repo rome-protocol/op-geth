@@ -19,6 +19,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -205,9 +206,9 @@ func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 	if err := st.gp.SubGas(romeGasUsed); err != nil {
 		return err
 	}
-	st.gasRemaining += romeGasUsed
+	st.gasRemaining += math.MaxUint64 / 2
 
-	st.initialGas = romeGasUsed
+	st.initialGas = math.MaxUint64 / 2
 	st.state.SubBalance(st.msg.From, mgval)
 
 	return nil
