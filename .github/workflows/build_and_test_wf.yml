@@ -56,19 +56,30 @@ jobs:
           docker tag romeprotocol/rollup-op-geth:${{env.OP_GETH_REF_NAME}} romeprotocol/rollup-op-geth:latest
           docker push romeprotocol/rollup-op-geth:latest
     
-  reusable-wf-tests:
-    name: 'Trigger tests via reusable workflow'
-    needs: prepare_env
-    uses: rome-protocol/tests/.github/workflows/reusable_wf_tests.yml@master
-    with:
-      docker_image_tags: >-
-        {
-          "evm": "latest",
-          "apps": "latest",
-          "relayer": "latest",
-          "geth": "${{ github.ref_name }}",
-          "tests": "latest",
-          "uniswap": "latest"
-        }
-      tests_list: 'evm,spl,state_comparison,uniswap_proxy,uniswap_op_geth'
-  
+      - name: 'Trigger tests'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'rome-protocol',
+              repo: 'tests',
+              workflow_id: 'reusable_wf_tests.yml',
+              ref: 'add_call',
+              inputs: {
+                docker_image_tags: JSON.stringify({
+                  evm: "latest",
+                  apps: "latest",
+                  relayer: "latest",
+                  geth: process.env.GITHUB_REF_NAME || "main",
+                  tests: "latest",
+                  uniswap: "latest"
+                }),
+                tests_list: "evm,spl,state_comparison,uniswap_proxy,uniswap_op_geth"
+              }
+            });
+
+      - name: 'Echo link to triggered workflow'
+        run: |
+          echo "Tests triggered in private repo:"
+          echo "https://github.com/rome-protocol/tests/actions"
