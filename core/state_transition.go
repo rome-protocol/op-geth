@@ -19,6 +19,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -193,6 +194,11 @@ func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 	}
 
 	mgval := new(big.Int).SetUint64(romeGasUsed)
+	if st.msg.GasTipCap != nil {
+		mgval = mgval.Mul(mgval, st.msg.GasTipCap)
+	} else {
+		mgval = mgval.Mul(mgval, st.msg.GasPrice)
+	}
 	balanceCheck := new(big.Int).Set(mgval)
 	if have, want := st.state.GetBalance(st.msg.From), balanceCheck; have.Cmp(want) < 0 {
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
@@ -200,9 +206,9 @@ func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 	if err := st.gp.SubGas(romeGasUsed); err != nil {
 		return err
 	}
-	st.gasRemaining += romeGasUsed
+	st.gasRemaining += math.MaxUint64 / 2
 
-	st.initialGas = romeGasUsed
+	st.initialGas = math.MaxUint64 / 2
 	st.state.SubBalance(st.msg.From, mgval)
 
 	return nil
@@ -395,12 +401,18 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		}, nil
 	}
 
+	effectiveTip := msg.GasPrice
+	if msg.GasTipCap != nil {
+		effectiveTip = msg.GasTipCap
+	}
+
 	if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
 		// Skip fee payment when NoBaseFee is set and the fee fields
 		// are 0. This avoids a negative effectiveTip being applied to
 		// the coinbase when simulating calls.
 	} else {
 		fee := new(big.Int).SetUint64(romeGasUsed)
+		fee.Mul(fee, effectiveTip)
 		zeroAddress := common.Address{}
 		if st.evm.Context.Coinbase != zeroAddress {
 			st.state.AddBalance(st.evm.Context.Coinbase, fee)
