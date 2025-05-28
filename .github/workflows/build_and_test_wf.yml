@@ -75,7 +75,7 @@ jobs:
                   tests: "latest",
                   uniswap: "latest"
                 }),
-                tests_list: "evm,spl,state_comparison,uniswap_proxy,uniswap_op_geth"
+                tests_list: "evm,spl,state_comparison,state_comparison_2,uniswap_proxy,uniswap_op_geth"
               }
             });
 
