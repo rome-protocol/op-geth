@@ -65,7 +65,7 @@ jobs:
               owner: 'rome-protocol',
               repo: 'tests',
               workflow_id: 'reusable_wf_tests.yml',
-              ref: 'add_call',
+              ref: 'master',
               inputs: {
                 docker_image_tags: JSON.stringify({
                   evm: "master",
@@ -107,7 +107,7 @@ jobs:
               });
 
               const latestRun = runs.data.workflow_runs.find(run =>
-                run.head_branch === 'add_call' &&
+                run.head_branch === 'master' &&
                 run.event === 'workflow_dispatch' &&
                 run.status !== 'completed'
               );
