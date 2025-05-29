@@ -2173,6 +2173,13 @@ func (s *TransactionAPI) SendRawTransaction(ctx context.Context, input hexutil.B
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("rome gas estimate failed: %w", err)
 	}
+	if estGas > gas {
+		return common.Hash{}, fmt.Errorf(
+			"insufficient gas: provided %d but estimated %d is required",
+			gas,
+			estGas,
+		)
+	}
 	log.Info("Rome gas estimate:", "gas", uint64(estGas))
 
 	return SubmitTransaction(ctx, s.b, tx)
