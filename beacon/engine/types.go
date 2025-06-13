@@ -63,6 +63,8 @@ type RomePayloadAttributes struct {
 	NoTxPool bool `json:"noTxPool,omitempty" gencodec:"optional"`
 	// GasLimit is a field for rollups: if set, this sets the exact gas limit the block produced with.
 	GasLimit *uint64 `json:"gasLimit,omitempty" gencodec:"optional"`
+	// TxFootprint is a field which allows Rome indexer to push hash of rome-evm state for comparison with evm.
+	TxFootprint []*common.Hash `json:"txFootprint,omitempty" gencodec:"optional"`
 }
 
 // JSON type overrides for PayloadAttributes.
