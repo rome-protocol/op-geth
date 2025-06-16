@@ -133,6 +133,9 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 		return nil, err
 	}
 
+	// Calculate the state footprint after VM execution
+	statedb.CalculateTxFootPrint()
+
 	// Update the state with pending changes.
 	var root []byte
 	if config.IsByzantium(blockNumber) {
