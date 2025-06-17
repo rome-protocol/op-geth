@@ -2153,7 +2153,7 @@ func (s *TransactionAPI) SendRawTransaction(ctx context.Context, input hexutil.B
 	err := emulateRomeTx(ctx, input)
 
 	if err != nil {
-		return common.Hash{}, fmt.Errorf("rome gas estimate failed: %w", err)
+		return common.Hash{}, fmt.Errorf("rome emulate tx failed: %w", err)
 	}
 
 	return SubmitTransaction(ctx, s.b, tx)
