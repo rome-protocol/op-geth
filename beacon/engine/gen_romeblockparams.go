@@ -60,7 +60,7 @@ func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 		Transactions          []hexutil.Bytes     `json:"transactions,omitempty"  gencodec:"optional"`
 		NoTxPool              *bool               `json:"noTxPool,omitempty" gencodec:"optional"`
 		GasLimit              *hexutil.Uint64     `json:"gasLimit,omitempty" gencodec:"optional"`
-		TxFootprint           []*common.Hash      `json:"txFootprint,omitempty" gencodec:"optional"`
+		TxFootprints          []string            `json:"txFootprints,omitempty" gencodec:"optional"`
 	}
 	var dec RomePayloadAttributes
 	if err := json.Unmarshal(input, &dec); err != nil {
@@ -104,8 +104,8 @@ func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 	if dec.GasLimit != nil {
 		r.GasLimit = (*uint64)(dec.GasLimit)
 	}
-	if dec.TxFootprint != nil {
-		r.TxFootprint = make([]*common.Hash, len(dec.Transactions))
+	if dec.TxFootprints != nil {
+		r.TxFootprints = make([]string, len(dec.TxFootprints))
 	}
 	return nil
 }
