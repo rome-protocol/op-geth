@@ -230,7 +230,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	api.forkchoiceLock.Lock()
 	defer api.forkchoiceLock.Unlock()
 
-	log.Trace("Engine API request received", "method", "ForkchoiceUpdated", "head", update.HeadBlockHash, "finalized", update.FinalizedBlockHash, "safe", update.SafeBlockHash, "txfootprints", payloadAttributes.TxFootprints)
+	log.Trace("Engine API request received", "method", "ForkchoiceUpdated", "head", update.HeadBlockHash, "finalized", update.FinalizedBlockHash, "safe", update.SafeBlockHash, "payloadAttributes", payloadAttributes)
 	if update.HeadBlockHash == (common.Hash{}) {
 		return engine.STATUS_INVALID, nil // TODO(karalabe): Why does someone send us this?
 	}
