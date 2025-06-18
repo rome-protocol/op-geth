@@ -26,7 +26,7 @@ func (r RomePayloadAttributes) MarshalJSON() ([]byte, error) {
 		Transactions          []hexutil.Bytes     `json:"transactions,omitempty"  gencodec:"optional"`
 		NoTxPool              bool                `json:"noTxPool,omitempty" gencodec:"optional"`
 		GasLimit              *hexutil.Uint64     `json:"gasLimit,omitempty" gencodec:"optional"`
-		TxFootprint           []*common.Hash      `json:"txFootprint,omitempty" gencodec:"optional"`
+		TxFootprints          []string           `json:"txFootprints,omitempty" gencodec:"optional"`
 	}
 	var enc RomePayloadAttributes
 	enc.Timestamp = hexutil.Uint64(r.Timestamp)
