@@ -133,10 +133,12 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 		return nil, err
 	}
 
-	// Calculate the state footprint after VM execution
-	vmState := statedb.CalculateTxFootPrint().String()
+	expected := common.HexToHash(footPrint)
 
-	if footPrint != "" && footPrint != "0x0" && vmState != footPrint {
+	// Calculate the state footprint after VM execution
+	vmState := statedb.CalculateTxFootPrint()
+
+	if footPrint != "" && footPrint != "0x0" && vmState != expected {
 		panic(fmt.Sprintf("state footprint mismatch: expected %s, got %s", footPrint, vmState))
 	}
 
