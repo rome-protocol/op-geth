@@ -1417,87 +1417,84 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 	return copied
 }
 
-// CalculateTxFootPrint calculates the hash of accounts and their storage that were modified
-// during the current transaction.
 func (s *StateDB) CalculateTxFootPrint() common.Hash {
-	hasher := crypto.NewKeccakState()
+	// Step 1: Find modified accounts
+	modifiedAccounts := make(map[common.Address]*stateObject)
+	addresses := make([]common.Address, 0)
 
-	// Pre-allocate with known size from journal dirties
-	modifiedAccounts := make(map[common.Address]struct{}, len(s.journal.dirties))
-	addresses := make([]common.Address, 0, len(s.journal.dirties))
+	processed := make(map[common.Address]struct{})
 
-	// Single pass through journal entries to find modified accounts
-	// Use a map to track which accounts we've already processed
-	processed := make(map[common.Address]struct{}, len(s.journal.dirties))
-
-	// Iterate journal entries in reverse to get most recent changes first
 	for i := len(s.journal.entries) - 1; i >= 0; i-- {
 		entry := s.journal.entries[i]
 		if addr := entry.dirtied(); addr != nil {
 			if _, seen := processed[*addr]; !seen {
 				processed[*addr] = struct{}{}
 				if obj := s.stateObjects[*addr]; obj != nil {
-					modifiedAccounts[*addr] = struct{}{}
+					modifiedAccounts[*addr] = obj
 					addresses = append(addresses, *addr)
 				}
 			}
 		}
 	}
 
-	// Sort addresses once
+	// Step 2: Sort addresses
 	sort.Slice(addresses, func(i, j int) bool {
 		return bytes.Compare(addresses[i].Bytes(), addresses[j].Bytes()) < 0
 	})
 
-	// Pre-allocate buffer for nonce bytes
-	nonceBytes := make([]byte, 8)
-
-	// Process each modified account
+	// Step 3: Compute individual account hashes
+	var accountHashes [][]byte
 	for _, addr := range addresses {
-		obj := s.stateObjects[addr]
+		obj := modifiedAccounts[addr]
+		accountHasher := crypto.NewKeccakState()
 
-		// Hash account address
-		hasher.Write(addr.Bytes())
+		// Address (20 bytes)
+		accountHasher.Write(addr.Bytes())
 
-		// Hash account state using proper methods
-		hasher.Write(obj.Balance().Bytes())
-		binary.BigEndian.PutUint64(nonceBytes, obj.Nonce())
-		hasher.Write(nonceBytes)
+		// Nonce (8 bytes, little endian)
+		nonceBytes := make([]byte, 8)
+		binary.LittleEndian.PutUint64(nonceBytes, obj.Nonce())
+		accountHasher.Write(nonceBytes)
 
-		// Get and hash the actual contract code
+		// Balance (32 bytes, big endian, padded)
+		balance := obj.Balance().Bytes()
+		balancePadded := make([]byte, 32)
+		copy(balancePadded[32-len(balance):], balance)
+		accountHasher.Write(balancePadded)
+
+		// Code
 		if code := obj.Code(); code != nil {
-			hasher.Write(code)
+			accountHasher.Write(code)
 		}
 
-		// Get storage changes from the current transaction
-		storage := make(map[common.Hash]common.Hash, len(obj.dirtyStorage))
-
-		// Only include storage slots modified in this transaction
-		for key, value := range obj.dirtyStorage {
-			storage[key] = value
+		// Slots
+		storage := obj.dirtyStorage
+		slotKeys := make([]common.Hash, 0, len(storage))
+		for k := range storage {
+			slotKeys = append(slotKeys, k)
 		}
-
-		// Pre-allocate storage keys slice
-		keys := make([]common.Hash, 0, len(storage))
-		for key := range storage {
-			keys = append(keys, key)
-		}
-
-		// Sort storage keys
-		sort.Slice(keys, func(i, j int) bool {
-			return bytes.Compare(keys[i].Bytes(), keys[j].Bytes()) < 0
+		sort.Slice(slotKeys, func(i, j int) bool {
+			return bytes.Compare(slotKeys[i].Bytes(), slotKeys[j].Bytes()) < 0
 		})
-
-		// Hash storage slots
-		for _, key := range keys {
-			value := storage[key]
-			hasher.Write(key.Bytes())
-			hasher.Write(value.Bytes())
+		for _, key := range slotKeys {
+			value := storage[key].Bytes()
+			valuePadded := make([]byte, 32)
+			copy(valuePadded[32-len(value):], value)
+			accountHasher.Write(valuePadded)
 		}
+
+		// Finalize hash_i
+		var hash [32]byte
+		accountHasher.Read(hash[:])
+		accountHashes = append(accountHashes, hash[:])
 	}
 
-	// Get final hash
-	var hash common.Hash
-	hasher.Read(hash[:])
-	return hash
+	// Step 4: keccak(all hash_i concatenated)
+	finalHasher := crypto.NewKeccakState()
+	for _, h := range accountHashes {
+		finalHasher.Write(h)
+	}
+	var finalHash common.Hash
+	finalHasher.Read(finalHash[:])
+	return finalHash
 }
