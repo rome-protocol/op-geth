@@ -230,7 +230,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	api.forkchoiceLock.Lock()
 	defer api.forkchoiceLock.Unlock()
 
-	log.Info("Engine API request received", "method", "ForkchoiceUpdated", "head", update.HeadBlockHash, "finalized", update.FinalizedBlockHash, "safe", update.SafeBlockHash, "payloadAttributes", payloadAttributes)
+	log.Info("Engine API request received", "method", "ForkchoiceUpdated", "head", update.HeadBlockHash, "finalized", update.FinalizedBlockHash, "safe", update.SafeBlockHash)
 	if update.HeadBlockHash == (common.Hash{}) {
 		return engine.STATUS_INVALID, nil // TODO(karalabe): Why does someone send us this?
 	}
@@ -390,6 +390,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			Transactions: transactions,
 			GasLimit:     payloadAttributes.GasLimit,
 			GasUsed:      payloadAttributes.GasUsed,
+			Footprints:   payloadAttributes.TxFootprints,
 		}
 		id := args.Id()
 		// If we already are busy generating this work, then we do not need
