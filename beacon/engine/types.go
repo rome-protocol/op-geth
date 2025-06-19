@@ -134,6 +134,7 @@ type RomeExecutableData struct {
 	Withdrawals   []*types.Withdrawal `json:"withdrawals"`
 	BlobGasUsed   *uint64             `json:"blobGasUsed"`
 	ExcessBlobGas *uint64             `json:"excessBlobGas"`
+	TxFootprints  []string            `json:"txFootprints,omitempty" gencodec:"optional"`
 }
 
 // JSON type overrides for RomeExecutableData.
