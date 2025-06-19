@@ -104,8 +104,6 @@ func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 	if dec.GasLimit != nil {
 		r.GasLimit = (*uint64)(dec.GasLimit)
 	}
-	if dec.TxFootprints != nil {
-		r.TxFootprints = make([]string, len(dec.TxFootprints))
-	}
+	
 	return nil
 }
