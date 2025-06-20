@@ -1442,14 +1442,14 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		hash  [32]byte
 	}
 
-	numWorkers := 4 // can tune based on CPU
+	numWorkers := 4
 	inputCh := make(chan int, len(addresses))
 	outputCh := make(chan result, len(addresses))
 
 	var wg sync.WaitGroup
 	wg.Add(numWorkers)
 
-	// Step 3: Start workers
+	// Step 3: Workers
 	for w := 0; w < numWorkers; w++ {
 		go func() {
 			defer wg.Done()
@@ -1481,21 +1481,19 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 					h.Write(code)
 				}
 
-				// Storage
-				if len(obj.dirtyStorage) > 0 {
-					keys := make([]common.Hash, 0, len(obj.dirtyStorage))
-					for k := range obj.dirtyStorage {
-						keys = append(keys, k)
-					}
-					sort.Slice(keys, func(i, j int) bool {
-						return bytes.Compare(keys[i][:], keys[j][:]) < 0
-					})
-					for _, k := range keys {
-						val := obj.dirtyStorage[k].Bytes()
-						var valBytes [32]byte
-						copy(valBytes[32-len(val):], val)
-						h.Write(valBytes[:])
-					}
+				// Use pendingStorage (post-transaction updates)
+				keys := make([]common.Hash, 0, len(obj.pendingStorage))
+				for k := range obj.pendingStorage {
+					keys = append(keys, k)
+				}
+				sort.Slice(keys, func(i, j int) bool {
+					return bytes.Compare(keys[i][:], keys[j][:]) < 0
+				})
+				for _, k := range keys {
+					val := obj.pendingStorage[k].Bytes()
+					var valBytes [32]byte
+					copy(valBytes[32-len(val):], val)
+					h.Write(valBytes[:])
 				}
 
 				var outHash [32]byte
@@ -1505,13 +1503,12 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		}()
 	}
 
-	// Step 4: Feed inputs
+	// Step 4: Feed tasks
 	for i := range addresses {
 		inputCh <- i
 	}
 	close(inputCh)
 
-	// Step 5: Collect all outputs
 	go func() {
 		wg.Wait()
 		close(outputCh)
@@ -1522,7 +1519,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		hashes[res.index] = append([]byte{}, res.hash[:]...)
 	}
 
-	// Step 6: Final hash = keccak(hash_1 || hash_2 || ...)
+	// Step 5: Final keccak(all account hashes)
 	finalHasher := crypto.NewKeccakState()
 	for _, h := range hashes {
 		finalHasher.Write(h)
