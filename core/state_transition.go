@@ -320,6 +320,7 @@ func (st *StateTransition) TransitionDb(romeGasUsed uint64) (*ExecutionResult, e
 		}
 		err = nil
 	}
+
 	return result, err
 }
 

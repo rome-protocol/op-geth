@@ -133,6 +133,13 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 		return nil, err
 	}
 
+	// Calculate the state footprint after VM execution
+	vmState := statedb.CalculateTxFootPrint()
+
+	if footPrint != "" && footPrint != "0x0" && vmState != common.HexToHash(footPrint) {
+		panic(fmt.Sprintf("state footprint mismatch: expected %s, got %s", footPrint, vmState))
+	}
+
 	// Update the state with pending changes.
 	var root []byte
 	if config.IsByzantium(blockNumber) {
@@ -180,13 +187,6 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	receipt.BlockHash = blockHash
 	receipt.BlockNumber = blockNumber
 	receipt.TransactionIndex = uint(statedb.TxIndex())
-
-	// Calculate the state footprint after VM execution
-	vmState := statedb.CalculateTxFootPrint()
-
-	if footPrint != "" && footPrint != "0x0" && vmState != common.HexToHash(footPrint) {
-		panic(fmt.Sprintf("state footprint mismatch: expected %s, got %s", footPrint, vmState))
-	}
 
 	return receipt, err
 }
