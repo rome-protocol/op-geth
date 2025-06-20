@@ -20,9 +20,11 @@ package state
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -1438,8 +1440,9 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	})
 
 	type result struct {
-		index int
-		hash  [32]byte
+		index     int
+		hash      [32]byte
+		logOutput string
 	}
 
 	numWorkers := 4
@@ -1449,37 +1452,43 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	var wg sync.WaitGroup
 	wg.Add(numWorkers)
 
-	// Step 3: Parallel worker hashing using only StateDB
+	// Step 3: Parallel hashing with summary log capture
 	for w := 0; w < numWorkers; w++ {
 		go func() {
 			defer wg.Done()
 			for i := range inputCh {
 				addr := addresses[i]
+				var logBuilder strings.Builder
 
 				h := crypto.NewKeccakState()
 
-				// Address (20 bytes)
+				// Address
 				h.Write(addr[:])
+				logBuilder.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
 
-				// Nonce (8 bytes, little-endian)
+				// Nonce
+				nonce := s.GetNonce(addr)
 				var nonceBytes [8]byte
-				binary.LittleEndian.PutUint64(nonceBytes[:], s.GetNonce(addr))
+				binary.LittleEndian.PutUint64(nonceBytes[:], nonce)
 				h.Write(nonceBytes[:])
+				logBuilder.WriteString(fmt.Sprintf("  Nonce: %d\n", nonce))
 
-				// Balance (32 bytes, big-endian padded)
+				// Balance
 				balance := s.GetBalance(addr).Bytes()
 				var balanceBytes [32]byte
 				copy(balanceBytes[32-len(balance):], balance)
 				h.Write(balanceBytes[:])
+				logBuilder.WriteString(fmt.Sprintf("  Balance: %s\n", new(big.Int).SetBytes(balance).String()))
 
 				// Code
-				h.Write(s.GetCode(addr))
+				code := s.GetCode(addr)
+				h.Write(code)
+				logBuilder.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
-				// Discover slot keys from obj if exists (safe for key discovery)
+				// Storage keys from stateObject (not for value)
 				obj := s.stateObjects[addr]
 				var keys []common.Hash
 				if obj != nil {
-					keys = make([]common.Hash, 0, len(obj.dirtyStorage))
 					for k := range obj.dirtyStorage {
 						keys = append(keys, k)
 					}
@@ -1488,44 +1497,60 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 					})
 				}
 
-				// Read storage values from StateDB for each key
+				// Slot values
+				logBuilder.WriteString(fmt.Sprintf("  Storage Slots (%d):\n", len(keys)))
 				for _, k := range keys {
 					val := s.GetState(addr, k).Bytes()
 					var valBytes [32]byte
 					copy(valBytes[32-len(val):], val)
 					h.Write(valBytes[:])
+					logBuilder.WriteString(fmt.Sprintf("    %s: %s\n", k.Hex(), hex.EncodeToString(valBytes[:])))
 				}
 
+				// Per-account hash
 				var outHash [32]byte
 				h.Read(outHash[:])
-				outputCh <- result{index: i, hash: outHash}
+				logBuilder.WriteString(fmt.Sprintf("  Account Hash: %s\n", hex.EncodeToString(outHash[:])))
+
+				outputCh <- result{index: i, hash: outHash, logOutput: logBuilder.String()}
 			}
 		}()
 	}
 
-	// Step 4: Feed addresses
+	// Step 4: Feed input
 	for i := range addresses {
 		inputCh <- i
 	}
 	close(inputCh)
 
-	// Step 5: Collect results
 	go func() {
 		wg.Wait()
 		close(outputCh)
 	}()
 
+	// Step 5: Collect results and logs
 	hashes := make([][]byte, len(addresses))
+	logs := make([]string, len(addresses))
 	for res := range outputCh {
 		hashes[res.index] = append([]byte{}, res.hash[:]...)
+		logs[res.index] = res.logOutput
 	}
 
-	// Step 6: Final keccak of all per-account hashes
+	// Step 6: Final hash
 	finalHasher := crypto.NewKeccakState()
 	for _, h := range hashes {
 		finalHasher.Write(h)
 	}
 	var finalHash [32]byte
 	finalHasher.Read(finalHash[:])
-	return common.BytesToHash(finalHash[:])
+	final := common.BytesToHash(finalHash[:])
+
+	// Final consolidated log
+	log.Info("State Footprint Summary")
+	for _, entry := range logs {
+		fmt.Println(entry)
+	}
+	log.Info("Final Footprint Hash", "hash", final.Hex())
+
+	return final
 }
