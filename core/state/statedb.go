@@ -22,6 +22,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/big"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -1432,7 +1433,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		}
 	}
 
-	// Step 2: Sort addresses
+	// Step 2: Sort addresses in ascending order
 	sort.Slice(addresses, func(i, j int) bool {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
@@ -1442,7 +1443,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		hash  [32]byte
 	}
 
-	numWorkers := 4
+	numWorkers := runtime.NumCPU()
 	inputCh := make(chan int, len(addresses))
 	outputCh := make(chan result, len(addresses))
 
@@ -1455,41 +1456,54 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 			defer wg.Done()
 			for i := range inputCh {
 				addr := addresses[i]
-				obj := s.stateObjects[addr]
+				obj := s.GetOrNewStateObject(addr)
 				if obj == nil {
+					log.Warn("State object not found for address", "addr", addr.Hex())
 					continue
 				}
 
 				h := crypto.NewKeccakState()
 
-				// Address
+				// Address (20 bytes)
 				h.Write(addr[:])
 
-				// Nonce (8 bytes LE)
+				// Nonce (8 bytes, little-endian)
 				var nonceBytes [8]byte
 				binary.LittleEndian.PutUint64(nonceBytes[:], obj.Nonce())
 				h.Write(nonceBytes[:])
 
-				// Balance (32 bytes BE padded)
-				balance := obj.Balance().Bytes()
+				// Balance (32 bytes, big-endian, padded)
+				balance := obj.Balance()
 				var balanceBytes [32]byte
-				copy(balanceBytes[32-len(balance):], balance)
+				if balance != nil {
+					balanceRaw := balance.Bytes()
+					copy(balanceBytes[32-len(balanceRaw):], balanceRaw)
+				}
 				h.Write(balanceBytes[:])
 
 				// Code
-				h.Write(obj.Code())
+				code := obj.Code()
+				if code == nil {
+					code = []byte{}
+				}
+				h.Write(code)
 
+				// Storage slots (sorted by key, 32 bytes, big-endian)
 				keys := make([]common.Hash, 0, len(obj.dirtyStorage))
 				for k := range obj.dirtyStorage {
 					keys = append(keys, k)
 				}
+				// Sort storage keys in ascending order
 				sort.Slice(keys, func(i, j int) bool {
 					return bytes.Compare(keys[i][:], keys[j][:]) < 0
 				})
 				for _, k := range keys {
-					val := obj.GetState(k).Bytes()
+					val := obj.GetState(k)
 					var valBytes [32]byte
-					copy(valBytes[32-len(val):], val)
+					if val != (common.Hash{}) {
+						valRaw := val.Bytes()
+						copy(valBytes[32-len(valRaw):], valRaw)
+					} // Else: zero-filled for zero value
 					h.Write(valBytes[:])
 				}
 
@@ -1500,12 +1514,13 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		}()
 	}
 
-	// Step 4: Feed addresses
+	// Step 4: Feed addresses to workers
 	for i := range addresses {
 		inputCh <- i
 	}
 	close(inputCh)
 
+	// Step 5: Collect results
 	go func() {
 		wg.Wait()
 		close(outputCh)
@@ -1516,7 +1531,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		hashes[res.index] = append([]byte{}, res.hash[:]...)
 	}
 
-	// Step 5: Final keccak of all per-account hashes
+	// Step 6: Final Keccak hash of all per-account hashes
 	finalHasher := crypto.NewKeccakState()
 	for _, h := range hashes {
 		finalHasher.Write(h)
