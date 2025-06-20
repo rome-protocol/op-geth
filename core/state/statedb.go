@@ -1449,45 +1449,48 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	var wg sync.WaitGroup
 	wg.Add(numWorkers)
 
-	// Step 3: Parallel worker hashing
+	// Step 3: Parallel worker hashing using only StateDB
 	for w := 0; w < numWorkers; w++ {
 		go func() {
 			defer wg.Done()
 			for i := range inputCh {
 				addr := addresses[i]
-				obj := s.stateObjects[addr]
-				if obj == nil {
-					continue
-				}
 
 				h := crypto.NewKeccakState()
 
-				// Address
+				// Address (20 bytes)
 				h.Write(addr[:])
 
-				// Nonce (8 bytes LE)
+				// Nonce (8 bytes, little-endian)
 				var nonceBytes [8]byte
-				binary.LittleEndian.PutUint64(nonceBytes[:], obj.Nonce())
+				binary.LittleEndian.PutUint64(nonceBytes[:], s.GetNonce(addr))
 				h.Write(nonceBytes[:])
 
-				// Balance (32 bytes BE padded)
-				balance := obj.Balance().Bytes()
+				// Balance (32 bytes, big-endian padded)
+				balance := s.GetBalance(addr).Bytes()
 				var balanceBytes [32]byte
 				copy(balanceBytes[32-len(balance):], balance)
 				h.Write(balanceBytes[:])
 
 				// Code
-				h.Write(obj.Code())
+				h.Write(s.GetCode(addr))
 
-				keys := make([]common.Hash, 0, len(obj.dirtyStorage))
-				for k := range obj.dirtyStorage {
-					keys = append(keys, k)
+				// Discover slot keys from obj if exists (safe for key discovery)
+				obj := s.stateObjects[addr]
+				var keys []common.Hash
+				if obj != nil {
+					keys = make([]common.Hash, 0, len(obj.dirtyStorage))
+					for k := range obj.dirtyStorage {
+						keys = append(keys, k)
+					}
+					sort.Slice(keys, func(i, j int) bool {
+						return bytes.Compare(keys[i][:], keys[j][:]) < 0
+					})
 				}
-				sort.Slice(keys, func(i, j int) bool {
-					return bytes.Compare(keys[i][:], keys[j][:]) < 0
-				})
+
+				// Read storage values from StateDB for each key
 				for _, k := range keys {
-					val := obj.GetState(k).Bytes()
+					val := s.GetState(addr, k).Bytes()
 					var valBytes [32]byte
 					copy(valBytes[32-len(val):], val)
 					h.Write(valBytes[:])
@@ -1506,6 +1509,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	}
 	close(inputCh)
 
+	// Step 5: Collect results
 	go func() {
 		wg.Wait()
 		close(outputCh)
@@ -1516,7 +1520,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		hashes[res.index] = append([]byte{}, res.hash[:]...)
 	}
 
-	// Step 5: Final keccak of all per-account hashes
+	// Step 6: Final keccak of all per-account hashes
 	finalHasher := crypto.NewKeccakState()
 	for _, h := range hashes {
 		finalHasher.Write(h)
