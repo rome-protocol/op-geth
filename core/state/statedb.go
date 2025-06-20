@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"math/big"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -1418,83 +1419,115 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 }
 
 func (s *StateDB) CalculateTxFootPrint() common.Hash {
-	// Step 1: Find modified accounts
-	modifiedAccounts := make(map[common.Address]*stateObject)
-	addresses := make([]common.Address, 0)
+	modified := make(map[common.Address]struct{})
+	addresses := make([]common.Address, 0, len(s.journal.entries))
 
-	processed := make(map[common.Address]struct{})
-
+	// Step 1: Collect unique modified addresses
 	for i := len(s.journal.entries) - 1; i >= 0; i-- {
-		entry := s.journal.entries[i]
-		if addr := entry.dirtied(); addr != nil {
-			if _, seen := processed[*addr]; !seen {
-				processed[*addr] = struct{}{}
-				if obj := s.stateObjects[*addr]; obj != nil {
-					modifiedAccounts[*addr] = obj
-					addresses = append(addresses, *addr)
-				}
+		if addr := s.journal.entries[i].dirtied(); addr != nil {
+			if _, seen := modified[*addr]; !seen {
+				modified[*addr] = struct{}{}
+				addresses = append(addresses, *addr)
 			}
 		}
 	}
 
 	// Step 2: Sort addresses
 	sort.Slice(addresses, func(i, j int) bool {
-		return bytes.Compare(addresses[i].Bytes(), addresses[j].Bytes()) < 0
+		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
 
-	// Step 3: Compute individual account hashes
-	var accountHashes [][]byte
-	for _, addr := range addresses {
-		obj := modifiedAccounts[addr]
-		accountHasher := crypto.NewKeccakState()
-
-		// Address (20 bytes)
-		accountHasher.Write(addr.Bytes())
-
-		// Nonce (8 bytes, little endian)
-		nonceBytes := make([]byte, 8)
-		binary.LittleEndian.PutUint64(nonceBytes, obj.Nonce())
-		accountHasher.Write(nonceBytes)
-
-		// Balance (32 bytes, big endian, padded)
-		balance := obj.Balance().Bytes()
-		balancePadded := make([]byte, 32)
-		copy(balancePadded[32-len(balance):], balance)
-		accountHasher.Write(balancePadded)
-
-		// Code
-		if code := obj.Code(); code != nil {
-			accountHasher.Write(code)
-		}
-
-		// Slots
-		storage := obj.dirtyStorage
-		slotKeys := make([]common.Hash, 0, len(storage))
-		for k := range storage {
-			slotKeys = append(slotKeys, k)
-		}
-		sort.Slice(slotKeys, func(i, j int) bool {
-			return bytes.Compare(slotKeys[i].Bytes(), slotKeys[j].Bytes()) < 0
-		})
-		for _, key := range slotKeys {
-			value := storage[key].Bytes()
-			valuePadded := make([]byte, 32)
-			copy(valuePadded[32-len(value):], value)
-			accountHasher.Write(valuePadded)
-		}
-
-		// Finalize hash_i
-		var hash [32]byte
-		accountHasher.Read(hash[:])
-		accountHashes = append(accountHashes, hash[:])
+	type result struct {
+		index int
+		hash  [32]byte
 	}
 
-	// Step 4: keccak(all hash_i concatenated)
+	numWorkers := 4 // can tune based on CPU
+	inputCh := make(chan int, len(addresses))
+	outputCh := make(chan result, len(addresses))
+
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+
+	// Step 3: Start workers
+	for w := 0; w < numWorkers; w++ {
+		go func() {
+			defer wg.Done()
+			for i := range inputCh {
+				addr := addresses[i]
+				obj := s.stateObjects[addr]
+				if obj == nil {
+					continue
+				}
+
+				h := crypto.NewKeccakState()
+
+				// Address
+				h.Write(addr[:])
+
+				// Nonce (8 bytes LE)
+				var nonceBytes [8]byte
+				binary.LittleEndian.PutUint64(nonceBytes[:], obj.Nonce())
+				h.Write(nonceBytes[:])
+
+				// Balance (32 bytes BE padded)
+				balance := obj.Balance().Bytes()
+				var balanceBytes [32]byte
+				copy(balanceBytes[32-len(balance):], balance)
+				h.Write(balanceBytes[:])
+
+				// Code
+				if code := obj.Code(); len(code) > 0 {
+					h.Write(code)
+				}
+
+				// Storage
+				if len(obj.dirtyStorage) > 0 {
+					keys := make([]common.Hash, 0, len(obj.dirtyStorage))
+					for k := range obj.dirtyStorage {
+						keys = append(keys, k)
+					}
+					sort.Slice(keys, func(i, j int) bool {
+						return bytes.Compare(keys[i][:], keys[j][:]) < 0
+					})
+					for _, k := range keys {
+						val := obj.dirtyStorage[k].Bytes()
+						var valBytes [32]byte
+						copy(valBytes[32-len(val):], val)
+						h.Write(valBytes[:])
+					}
+				}
+
+				var outHash [32]byte
+				h.Read(outHash[:])
+				outputCh <- result{index: i, hash: outHash}
+			}
+		}()
+	}
+
+	// Step 4: Feed inputs
+	for i := range addresses {
+		inputCh <- i
+	}
+	close(inputCh)
+
+	// Step 5: Collect all outputs
+	go func() {
+		wg.Wait()
+		close(outputCh)
+	}()
+
+	hashes := make([][]byte, len(addresses))
+	for res := range outputCh {
+		hashes[res.index] = append([]byte{}, res.hash[:]...)
+	}
+
+	// Step 6: Final hash = keccak(hash_1 || hash_2 || ...)
 	finalHasher := crypto.NewKeccakState()
-	for _, h := range accountHashes {
+	for _, h := range hashes {
 		finalHasher.Write(h)
 	}
-	var finalHash common.Hash
+	var finalHash [32]byte
 	finalHasher.Read(finalHash[:])
-	return finalHash
+	return common.BytesToHash(finalHash[:])
 }
