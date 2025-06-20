@@ -1481,21 +1481,19 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 					h.Write(code)
 				}
 
-				// Storage
-				if len(obj.dirtyStorage) > 0 {
-					keys := make([]common.Hash, 0, len(obj.dirtyStorage))
-					for k := range obj.dirtyStorage {
-						keys = append(keys, k)
-					}
-					sort.Slice(keys, func(i, j int) bool {
-						return bytes.Compare(keys[i][:], keys[j][:]) < 0
-					})
-					for _, k := range keys {
-						val := obj.dirtyStorage[k].Bytes()
-						var valBytes [32]byte
-						copy(valBytes[32-len(val):], val)
-						h.Write(valBytes[:])
-					}
+				// Use dirtyStorage keys but fetch committed value
+				keys := make([]common.Hash, 0, len(obj.dirtyStorage))
+				for k := range obj.dirtyStorage {
+					keys = append(keys, k)
+				}
+				sort.Slice(keys, func(i, j int) bool {
+					return bytes.Compare(keys[i][:], keys[j][:]) < 0
+				})
+				for _, k := range keys {
+					val := obj.GetCommittedState(k).Bytes()
+					var valBytes [32]byte
+					copy(valBytes[32-len(val):], val)
+					h.Write(valBytes[:])
 				}
 
 				var outHash [32]byte
