@@ -1432,7 +1432,7 @@ func (s *StateDB) CaptureTouchedAccounts() []common.Address {
 			if _, seen := modified[*addr]; !seen {
 				modified[*addr] = struct{}{}
 				addresses = append(addresses, *addr)
-				log.Debug("Captured address from journal", "addr", addr.Hex())
+				log.Info("Captured address from journal", "addr", addr.Hex())
 			}
 		}
 	}
@@ -1443,7 +1443,7 @@ func (s *StateDB) CaptureTouchedAccounts() []common.Address {
 			if _, seen := modified[addr]; !seen {
 				modified[addr] = struct{}{}
 				addresses = append(addresses, addr)
-				log.Debug("Captured address from dirty storage", "addr", addr.Hex(), "storage_count", len(obj.dirtyStorage))
+				log.Info("Captured address from dirty storage", "addr", addr.Hex(), "storage_count", len(obj.dirtyStorage))
 			}
 		}
 	}
@@ -1453,7 +1453,7 @@ func (s *StateDB) CaptureTouchedAccounts() []common.Address {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
 
-	log.Debug("Total captured addresses", "count", len(addresses), "addresses", addresses)
+	log.Info("Total captured addresses", "count", len(addresses), "addresses", addresses)
 	return addresses
 }
 
@@ -1485,7 +1485,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 					log.Warn("State object not found for address", "addr", addr.Hex())
 					continue
 				}
-				log.Debug("Processing address", "addr", addr.Hex(), "nonce", obj.Nonce(), "balance", obj.Balance())
+				log.Info("Processing address", "addr", addr.Hex(), "nonce", obj.Nonce(), "balance", obj.Balance())
 
 				h := crypto.NewKeccakState()
 
@@ -1505,7 +1505,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 					copy(balanceBytes[32-len(balanceRaw):], balanceRaw)
 				}
 				h.Write(balanceBytes[:])
-				log.Debug("Balance bytes", "addr", addr.Hex(), "bytes", hex.EncodeToString(balanceBytes[:]))
+				log.Info("Balance bytes", "addr", addr.Hex(), "bytes", hex.EncodeToString(balanceBytes[:]))
 
 				// Code (variable length, empty for non-contracts)
 				code := obj.Code()
@@ -1513,7 +1513,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 					code = []byte{}
 				}
 				h.Write(code)
-				log.Debug("Code length", "addr", addr.Hex(), "length", len(code))
+				log.Info("Code length", "addr", addr.Hex(), "length", len(code))
 
 				// Storage slots (sorted by key, 32 bytes, big-endian)
 				keys := make([]common.Hash, 0, len(obj.dirtyStorage))
@@ -1523,7 +1523,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 				sort.Slice(keys, func(i, j int) bool {
 					return bytes.Compare(keys[i][:], keys[j][:]) < 0
 				})
-				log.Debug("Dirty storage slots", "addr", addr.Hex(), "count", len(keys))
+				log.Info("Dirty storage slots", "addr", addr.Hex(), "count", len(keys))
 				for _, k := range keys {
 					val := obj.GetState(k)
 					var valBytes [32]byte
@@ -1532,12 +1532,12 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 						copy(valBytes[32-len(valRaw):], valRaw)
 					}
 					h.Write(valBytes[:])
-					log.Debug("Storage slot", "addr", addr.Hex(), "key", k.Hex(), "value", hex.EncodeToString(valBytes[:]))
+					log.Info("Storage slot", "addr", addr.Hex(), "key", k.Hex(), "value", hex.EncodeToString(valBytes[:]))
 				}
 
 				var outHash [32]byte
 				h.Read(outHash[:])
-				log.Debug("Per-account hash", "addr", addr.Hex(), "hash", hex.EncodeToString(outHash[:]))
+				log.Info("Per-account hash", "addr", addr.Hex(), "hash", hex.EncodeToString(outHash[:]))
 				outputCh <- result{index: i, hash: outHash}
 			}
 		}()
@@ -1558,7 +1558,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	hashes := make([][]byte, len(addresses))
 	for res := range outputCh {
 		hashes[res.index] = append([]byte{}, res.hash[:]...)
-		log.Debug("Collected hash", "index", res.index, "hash", hex.EncodeToString(res.hash[:]))
+		log.Info("Collected hash", "index", res.index, "hash", hex.EncodeToString(res.hash[:]))
 	}
 
 	// Step 6: Final Keccak hash
