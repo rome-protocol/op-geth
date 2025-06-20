@@ -1477,9 +1477,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 				h.Write(balanceBytes[:])
 
 				// Code
-				if code := obj.Code(); len(code) > 0 {
-					h.Write(code)
-				}
+				h.Write(obj.Code())
 
 				keys := make([]common.Hash, 0, len(obj.dirtyStorage))
 				for k := range obj.dirtyStorage {
