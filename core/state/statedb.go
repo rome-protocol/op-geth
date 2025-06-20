@@ -20,6 +20,7 @@ package state
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"runtime"
@@ -1419,25 +1420,48 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 	return copied
 }
 
-func (s *StateDB) CalculateTxFootPrint() common.Hash {
+// CaptureTouchedAccounts returns a sorted list of all addresses modified by the transaction.
+// It checks both the journal (for balance, nonce, code changes) and state objects (for storage changes).
+func (s *StateDB) CaptureTouchedAccounts() []common.Address {
 	modified := make(map[common.Address]struct{})
-	addresses := make([]common.Address, 0, len(s.journal.entries))
+	addresses := make([]common.Address, 0, len(s.journal.entries)+len(s.stateObjects))
 
-	// Step 1: Collect unique modified addresses
+	// Step 1: Collect addresses from journal entries (balance, nonce, code changes)
 	for i := len(s.journal.entries) - 1; i >= 0; i-- {
 		if addr := s.journal.entries[i].dirtied(); addr != nil {
 			if _, seen := modified[*addr]; !seen {
 				modified[*addr] = struct{}{}
 				addresses = append(addresses, *addr)
+				log.Debug("Captured address from journal", "addr", addr.Hex())
 			}
 		}
 	}
 
-	// Step 2: Sort addresses in ascending order
+	// Step 2: Collect addresses with modified storage from state objects
+	for addr, obj := range s.stateObjects {
+		if len(obj.dirtyStorage) > 0 {
+			if _, seen := modified[addr]; !seen {
+				modified[addr] = struct{}{}
+				addresses = append(addresses, addr)
+				log.Debug("Captured address from dirty storage", "addr", addr.Hex(), "storage_count", len(obj.dirtyStorage))
+			}
+		}
+	}
+
+	// Step 3: Sort addresses in ascending order
 	sort.Slice(addresses, func(i, j int) bool {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
 
+	log.Debug("Total captured addresses", "count", len(addresses), "addresses", addresses)
+	return addresses
+}
+
+func (s *StateDB) CalculateTxFootPrint() common.Hash {
+	// Step 1: Capture all touched accounts
+	addresses := s.CaptureTouchedAccounts()
+
+	// Step 2: Process accounts in parallel
 	type result struct {
 		index int
 		hash  [32]byte
@@ -1461,6 +1485,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 					log.Warn("State object not found for address", "addr", addr.Hex())
 					continue
 				}
+				log.Debug("Processing address", "addr", addr.Hex(), "nonce", obj.Nonce(), "balance", obj.Balance())
 
 				h := crypto.NewKeccakState()
 
@@ -1480,35 +1505,39 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 					copy(balanceBytes[32-len(balanceRaw):], balanceRaw)
 				}
 				h.Write(balanceBytes[:])
+				log.Debug("Balance bytes", "addr", addr.Hex(), "bytes", hex.EncodeToString(balanceBytes[:]))
 
-				// Code
+				// Code (variable length, empty for non-contracts)
 				code := obj.Code()
 				if code == nil {
 					code = []byte{}
 				}
 				h.Write(code)
+				log.Debug("Code length", "addr", addr.Hex(), "length", len(code))
 
 				// Storage slots (sorted by key, 32 bytes, big-endian)
 				keys := make([]common.Hash, 0, len(obj.dirtyStorage))
 				for k := range obj.dirtyStorage {
 					keys = append(keys, k)
 				}
-				// Sort storage keys in ascending order
 				sort.Slice(keys, func(i, j int) bool {
 					return bytes.Compare(keys[i][:], keys[j][:]) < 0
 				})
+				log.Debug("Dirty storage slots", "addr", addr.Hex(), "count", len(keys))
 				for _, k := range keys {
 					val := obj.GetState(k)
 					var valBytes [32]byte
 					if val != (common.Hash{}) {
 						valRaw := val.Bytes()
 						copy(valBytes[32-len(valRaw):], valRaw)
-					} // Else: zero-filled for zero value
+					}
 					h.Write(valBytes[:])
+					log.Debug("Storage slot", "addr", addr.Hex(), "key", k.Hex(), "value", hex.EncodeToString(valBytes[:]))
 				}
 
 				var outHash [32]byte
 				h.Read(outHash[:])
+				log.Debug("Per-account hash", "addr", addr.Hex(), "hash", hex.EncodeToString(outHash[:]))
 				outputCh <- result{index: i, hash: outHash}
 			}
 		}()
@@ -1529,9 +1558,10 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	hashes := make([][]byte, len(addresses))
 	for res := range outputCh {
 		hashes[res.index] = append([]byte{}, res.hash[:]...)
+		log.Debug("Collected hash", "index", res.index, "hash", hex.EncodeToString(res.hash[:]))
 	}
 
-	// Step 6: Final Keccak hash of all per-account hashes
+	// Step 6: Final Keccak hash
 	finalHasher := crypto.NewKeccakState()
 	for _, h := range hashes {
 		finalHasher.Write(h)
