@@ -86,6 +86,7 @@ type StateDB struct {
 	stateObjectsPending  map[common.Address]struct{}            // State objects finalized but not yet written to the trie
 	stateObjectsDirty    map[common.Address]struct{}            // State objects modified in the current execution
 	stateObjectsDestruct map[common.Address]*types.StateAccount // State objects destructed in the block along with its previous value
+	capturedStorage      map[common.Address][]common.Hash
 
 	// DB error.
 	// State objects are used by the consensus core and VM which are
@@ -1301,6 +1302,19 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 	return root, nil
 }
 
+func (s *StateDB) CaptureDirtyStorage() {
+	s.capturedStorage = make(map[common.Address][]common.Hash)
+	for addr, obj := range s.stateObjects {
+		if len(obj.dirtyStorage) > 0 {
+			keys := make([]common.Hash, 0, len(obj.dirtyStorage))
+			for k := range obj.dirtyStorage {
+				keys = append(keys, k)
+			}
+			s.capturedStorage[addr] = keys
+		}
+	}
+}
+
 // Prepare handles the preparatory steps for executing a state transition with.
 // This method must be invoked before state transition.
 //
@@ -1465,24 +1479,24 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 				// Address
 				h.Write(addr[:])
 
-				// Nonce (8 bytes LE)
+				// Nonce (8 bytes little-endian)
 				var nonceBytes [8]byte
 				binary.LittleEndian.PutUint64(nonceBytes[:], obj.Nonce())
 				h.Write(nonceBytes[:])
 
-				// Balance (32 bytes BE padded)
+				// Balance (32 bytes big-endian padded)
 				balance := obj.Balance().Bytes()
 				var balanceBytes [32]byte
 				copy(balanceBytes[32-len(balance):], balance)
 				h.Write(balanceBytes[:])
 
 				// Code
-				h.Write(obj.Code())
-
-				keys := make([]common.Hash, 0, len(obj.dirtyStorage))
-				for k := range obj.dirtyStorage {
-					keys = append(keys, k)
+				if code := obj.Code(); len(code) > 0 {
+					h.Write(code)
 				}
+
+				// Storage: Use capturedStorage
+				keys := s.capturedStorage[addr]
 				sort.Slice(keys, func(i, j int) bool {
 					return bytes.Compare(keys[i][:], keys[j][:]) < 0
 				})
@@ -1516,7 +1530,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		hashes[res.index] = append([]byte{}, res.hash[:]...)
 	}
 
-	// Step 5: Final keccak of all per-account hashes
+	// Step 5: Final keccak256 of all account hashes
 	finalHasher := crypto.NewKeccakState()
 	for _, h := range hashes {
 		finalHasher.Write(h)
