@@ -1420,13 +1420,11 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 	return copied
 }
 
-// CaptureTouchedAccounts returns a sorted list of all addresses modified by the transaction.
-// It checks both the journal (for balance, nonce, code changes) and state objects (for storage changes).
 func (s *StateDB) CaptureTouchedAccounts() []common.Address {
 	modified := make(map[common.Address]struct{})
 	addresses := make([]common.Address, 0, len(s.journal.entries)+len(s.stateObjects))
 
-	// Step 1: Collect addresses from journal entries (balance, nonce, code changes)
+	// Step 1: Collect addresses from journal (nonce, balance, code dirtied)
 	for i := len(s.journal.entries) - 1; i >= 0; i-- {
 		if addr := s.journal.entries[i].dirtied(); addr != nil {
 			if _, seen := modified[*addr]; !seen {
@@ -1437,23 +1435,34 @@ func (s *StateDB) CaptureTouchedAccounts() []common.Address {
 		}
 	}
 
-	// Step 2: Collect addresses with modified storage from state objects
+	// Step 2: Add accounts with dirty storage or non-empty code
 	for addr, obj := range s.stateObjects {
+		// Include if dirtyStorage exists
 		if len(obj.dirtyStorage) > 0 {
 			if _, seen := modified[addr]; !seen {
 				modified[addr] = struct{}{}
 				addresses = append(addresses, addr)
 				log.Info("Captured address from dirty storage", "addr", addr.Hex(), "storage_count", len(obj.dirtyStorage))
 			}
+			continue
+		}
+
+		// Include if contract code is non-empty (e.g., new B())
+		if code := obj.Code(); len(code) > 0 {
+			if _, seen := modified[addr]; !seen {
+				modified[addr] = struct{}{}
+				addresses = append(addresses, addr)
+				log.Info("Captured address from non-empty code", "addr", addr.Hex(), "code_len", len(code))
+			}
 		}
 	}
 
-	// Step 3: Sort addresses in ascending order
+	// Step 3: Sort addresses (ascending)
 	sort.Slice(addresses, func(i, j int) bool {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
 
-	log.Info("Total captured addresses", "count", len(addresses), "addresses", addresses)
+	log.Info("Total captured addresses", "count", len(addresses))
 	return addresses
 }
 
