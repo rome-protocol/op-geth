@@ -1424,38 +1424,40 @@ func (s *StateDB) CaptureTouchedAccounts() []common.Address {
 	modified := make(map[common.Address]struct{})
 	addresses := make([]common.Address, 0, len(s.journal.entries)+len(s.stateObjects))
 
-	// Step 1: Collect addresses from journal (balance, nonce, code changes)
+	// Step 1: Collect addresses from journal (nonce, balance, code dirtied)
 	for i := len(s.journal.entries) - 1; i >= 0; i-- {
 		if addr := s.journal.entries[i].dirtied(); addr != nil {
 			if _, seen := modified[*addr]; !seen {
 				modified[*addr] = struct{}{}
 				addresses = append(addresses, *addr)
-				log.Info("Captured from journal", "addr", addr.Hex())
+				log.Info("Captured address from journal", "addr", addr.Hex())
 			}
 		}
 	}
 
-	// Step 2: Scan stateObjects for internal CREATEs and storage changes
+	// Step 2: Add accounts with dirty storage or non-empty code
 	for addr, obj := range s.stateObjects {
-		// Skip if already included
-		if _, seen := modified[addr]; seen {
+		// Include if dirtyStorage exists
+		if len(obj.dirtyStorage) > 0 {
+			if _, seen := modified[addr]; !seen {
+				modified[addr] = struct{}{}
+				addresses = append(addresses, addr)
+				log.Info("Captured address from dirty storage", "addr", addr.Hex(), "storage_count", len(obj.dirtyStorage))
+			}
 			continue
 		}
 
-		switch {
-		case len(obj.dirtyStorage) > 0:
-			modified[addr] = struct{}{}
-			addresses = append(addresses, addr)
-			log.Info("Captured from dirty storage", "addr", addr.Hex(), "slots", len(obj.dirtyStorage))
-
-		case obj.Nonce() > 0 || (obj.Code() != nil && len(obj.Code()) > 0):
-			modified[addr] = struct{}{}
-			addresses = append(addresses, addr)
-			log.Info("Captured from nonce/code", "addr", addr.Hex(), "nonce", obj.Nonce(), "code_len", len(obj.Code()))
+		// Include if contract code is non-empty (e.g., new B())
+		if code := obj.Code(); len(code) > 0 {
+			if _, seen := modified[addr]; !seen {
+				modified[addr] = struct{}{}
+				addresses = append(addresses, addr)
+				log.Info("Captured address from non-empty code", "addr", addr.Hex(), "code_len", len(code))
+			}
 		}
 	}
 
-	// Step 3: Sort the addresses
+	// Step 3: Sort addresses (ascending)
 	sort.Slice(addresses, func(i, j int) bool {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
