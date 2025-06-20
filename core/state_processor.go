@@ -133,7 +133,6 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 		return nil, err
 	}
 
-	statedb.CaptureDirtyStorage()
 	// Calculate the state footprint after VM execution
 	vmState := statedb.CalculateTxFootPrint()
 
