@@ -1491,13 +1491,17 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 
 				obj := s.stateObjects[addr]
 				var keys []common.Hash
-				if obj != nil {
-					for k := range obj.dirtyStorage {
-						keys = append(keys, k)
+				if obj != nil && obj.trie != nil {
+					it, err := obj.trie.NodeIterator(nil)
+					if err == nil {
+						for it.Next(true); it.Leaf(); it.Next(true) {
+							k := common.BytesToHash(it.LeafKey())
+							keys = append(keys, k)
+						}
+						sort.Slice(keys, func(i, j int) bool {
+							return bytes.Compare(keys[i][:], keys[j][:]) < 0
+						})
 					}
-					sort.Slice(keys, func(i, j int) bool {
-						return bytes.Compare(keys[i][:], keys[j][:]) < 0
-					})
 				}
 
 				logBuilder.WriteString(fmt.Sprintf("  Storage Slots (%d):\n", len(keys)))
