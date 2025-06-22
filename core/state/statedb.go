@@ -1421,16 +1421,9 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 }
 
 func (s *StateDB) CalculateTxFootPrint() common.Hash {
-	modified := make(map[common.Address]struct{})
-	addresses := make([]common.Address, 0, len(s.journal.entries))
-
-	for i := len(s.journal.entries) - 1; i >= 0; i-- {
-		if addr := s.journal.entries[i].dirtied(); addr != nil {
-			if _, seen := modified[*addr]; !seen {
-				modified[*addr] = struct{}{}
-				addresses = append(addresses, *addr)
-			}
-		}
+	addresses := make([]common.Address, 0, len(s.stateObjectsPending))
+	for addr := range s.stateObjectsPending {
+		addresses = append(addresses, addr)
 	}
 
 	sort.Slice(addresses, func(i, j int) bool {
@@ -1463,10 +1456,12 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 				preimage = append(preimage, addr[:]...)
 
 				nonce := s.GetNonce(addr)
-				nonceBytes := make([]byte, 32) // 32-byte buffer
-				binary.LittleEndian.PutUint64(nonceBytes, nonce)
-				preimage = append(preimage, nonceBytes...)
-				logBuilder.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nonceBytes))
+				var nonceBytes [8]byte
+				binary.LittleEndian.PutUint64(nonceBytes[:], nonce)
+				paddedNonce := make([]byte, 32)
+				copy(paddedNonce, nonceBytes[:])
+				preimage = append(preimage, paddedNonce...)
+				logBuilder.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, paddedNonce))
 
 				balance := s.GetBalance(addr).Bytes()
 				var balanceBytes [32]byte
