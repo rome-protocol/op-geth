@@ -1421,24 +1421,49 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 }
 
 func (s *StateDB) CalculateTxFootPrint() common.Hash {
-	modified := make(map[common.Address]struct{})
-	addresses := make([]common.Address, 0, len(s.journal.entries))
+	// Step 1: Collect journaled accounts (similar to Rust journal.journaled_accs())
+	journaledAccounts := make(map[common.Address]struct{})
+	journaledSlots := make(map[common.Address]map[common.Hash]struct{})
 
-	// Step 1: Collect unique modified addresses
+	// Traverse journal entries to collect accounts and their modified slots
 	for i := len(s.journal.entries) - 1; i >= 0; i-- {
-		if addr := s.journal.entries[i].dirtied(); addr != nil {
-			if _, seen := modified[*addr]; !seen {
-				modified[*addr] = struct{}{}
-				addresses = append(addresses, *addr)
+		entry := s.journal.entries[i]
+
+		if addr := entry.dirtied(); addr != nil {
+			journaledAccounts[*addr] = struct{}{}
+
+			// Initialize slots map for this address if not exists
+			if _, exists := journaledSlots[*addr]; !exists {
+				journaledSlots[*addr] = make(map[common.Hash]struct{})
+			}
+
+			// Collect slots based on entry type
+			switch e := entry.(type) {
+			case *storageChange:
+				journaledSlots[*addr][e.key] = struct{}{}
 			}
 		}
 	}
 
-	// Step 2: Sort addresses
+	// Step 3: Ensure ALL accounts have slot entries (even empty ones)
+	for addr := range journaledAccounts {
+		if _, exists := journaledSlots[addr]; !exists {
+			journaledSlots[addr] = make(map[common.Hash]struct{})
+		}
+	}
+
+	// Step 4: Convert to sorted slice for deterministic processing
+	addresses := make([]common.Address, 0, len(journaledAccounts))
+	for addr := range journaledAccounts {
+		addresses = append(addresses, addr)
+	}
+
+	// Sort addresses (BTreeMap ordering in Rust is lexicographic)
 	sort.Slice(addresses, func(i, j int) bool {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
 
+	// Step 5: Process each account (keeping the parallel processing from Go version)
 	type result struct {
 		index     int
 		hash      [32]byte
@@ -1453,7 +1478,6 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	var wg sync.WaitGroup
 	wg.Add(numWorkers)
 
-	// Step 3: Hash each account
 	for w := 0; w < numWorkers; w++ {
 		go func() {
 			defer wg.Done()
@@ -1464,39 +1488,40 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 
 				logBuilder.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
 
-				// Address
+				// Address (20 bytes)
 				preimage = append(preimage, addr[:]...)
 
-				// Nonce: LE
+				// Nonce: LE (8 bytes)
 				nonce := s.GetNonce(addr)
 				var nonceBytes [8]byte
 				binary.LittleEndian.PutUint64(nonceBytes[:], nonce)
 				preimage = append(preimage, nonceBytes[:]...)
 				logBuilder.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nonceBytes))
 
-				// Balance: BE padded to 32
+				// Balance: BE padded to 32 bytes
 				balance := s.GetBalance(addr).Bytes()
 				var balanceBytes [32]byte
 				copy(balanceBytes[32-len(balance):], balance)
 				preimage = append(preimage, balanceBytes[:]...)
 				logBuilder.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(balance).String(), balanceBytes))
 
-				// Code
+				// Code (variable length)
 				code := s.GetCode(addr)
 				preimage = append(preimage, code...)
 				logBuilder.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
-				// Storage slots (get from obj keys, values from StateDB)
-				obj := s.stateObjects[addr]
+				// Storage slots - use journaled slots instead of dirtyStorage
 				var keys []common.Hash
-				if obj != nil {
-					for k := range obj.dirtyStorage {
+				if slotsMap, exists := journaledSlots[addr]; exists {
+					for k := range slotsMap {
 						keys = append(keys, k)
 					}
-					sort.Slice(keys, func(i, j int) bool {
-						return bytes.Compare(keys[i][:], keys[j][:]) < 0
-					})
 				}
+
+				// Sort keys for deterministic ordering (BTreeSet in Rust is sorted)
+				sort.Slice(keys, func(i, j int) bool {
+					return bytes.Compare(keys[i][:], keys[j][:]) < 0
+				})
 
 				logBuilder.WriteString(fmt.Sprintf("  Storage Slots (%d):\n", len(keys)))
 				for _, k := range keys {
@@ -1528,7 +1553,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		close(outputCh)
 	}()
 
-	// Step 4: Gather results
+	// Step 6: Gather results in order
 	hashes := make([][]byte, len(addresses))
 	logs := make([]string, len(addresses))
 	for res := range outputCh {
@@ -1536,7 +1561,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		logs[res.index] = res.logOutput
 	}
 
-	// Step 5: Final hash = keccak(hash_1 || hash_2 || ...)
+	// Step 7: Final hash = keccak(hash_1 || hash_2 || ...)
 	finalHasher := crypto.NewKeccakState()
 	for _, h := range hashes {
 		finalHasher.Write(h)
@@ -1545,7 +1570,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	finalHasher.Read(finalHash[:])
 	final := common.BytesToHash(finalHash[:])
 
-	// Full log output for diffing
+	// Logging
 	log.Info("State Footprint Summary")
 	for _, entry := range logs {
 		fmt.Println(entry)
