@@ -20,11 +20,9 @@ package state
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -1421,136 +1419,102 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 }
 
 func (s *StateDB) CalculateTxFootPrint() common.Hash {
-	modified := make(map[common.Address]struct{})
-	addresses := make([]common.Address, 0, len(s.journal.entries))
+	mod := make(map[common.Address]struct{})
+	addrs := make([]common.Address, 0, len(s.journal.entries))
 
-	// Step 1: Collect unique modified addresses
-	for i := len(s.journal.entries) - 1; i >= 0; i-- {
-		if addr := s.journal.entries[i].dirtied(); addr != nil {
-			if _, seen := modified[*addr]; !seen {
-				modified[*addr] = struct{}{}
-				addresses = append(addresses, *addr)
-			}
+	push := func(a *common.Address) {
+		if a == nil {
+			return
+		}
+		if _, ok := mod[*a]; !ok {
+			mod[*a] = struct{}{}
+			addrs = append(addrs, *a)
 		}
 	}
 
-	// Step 2: Sort addresses
-	sort.Slice(addresses, func(i, j int) bool {
-		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
-	})
-
-	type result struct {
-		index     int
-		hash      [32]byte
-		preimage  []byte
-		logOutput string
+	for i := len(s.journal.entries) - 1; i >= 0; i-- {
+		switch ev := s.journal.entries[i].(type) {
+		case *createObjectChange:
+			push(ev.account)
+		case *resetObjectChange:
+			push(ev.account)
+		case *selfDestructChange:
+			push(ev.account)
+		case *touchChange:
+			push(ev.account)
+		default:
+			push(ev.dirtied())
+		}
 	}
 
-	numWorkers := 4
-	inputCh := make(chan int, len(addresses))
-	outputCh := make(chan result, len(addresses))
+	sort.Slice(addrs, func(i, j int) bool { return bytes.Compare(addrs[i][:], addrs[j][:]) < 0 })
+
+	type r struct {
+		i int
+		h [32]byte
+	}
+	in := make(chan int, len(addrs))
+	out := make(chan r, len(addrs))
 
 	var wg sync.WaitGroup
-	wg.Add(numWorkers)
-
-	// Step 3: Hash each account
-	for w := 0; w < numWorkers; w++ {
+	wg.Add(4)
+	for w := 0; w < 4; w++ {
 		go func() {
 			defer wg.Done()
-			for i := range inputCh {
-				addr := addresses[i]
-				var logBuilder strings.Builder
-				var preimage []byte
+			for idx := range in {
+				a := addrs[idx]
+				p := append([]byte{}, a[:]...)
 
-				logBuilder.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
+				nonce := s.GetNonce(a)
+				nb := make([]byte, 32)
+				binary.LittleEndian.PutUint64(nb, nonce)
+				p = append(p, nb...)
 
-				// Address
-				preimage = append(preimage, addr[:]...)
+				bal := s.GetBalance(a).Bytes()
+				bb := make([]byte, 32)
+				copy(bb[32-len(bal):], bal)
+				p = append(p, bb...)
 
-				// Nonce: LE
-				nonce := s.GetNonce(addr)
-				var nonceBytes [8]byte
-				binary.LittleEndian.PutUint64(nonceBytes[:], nonce)
-				preimage = append(preimage, nonceBytes[:]...)
-				logBuilder.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nonceBytes))
+				p = append(p, s.GetCode(a)...)
 
-				// Balance: BE padded to 32
-				balance := s.GetBalance(addr).Bytes()
-				var balanceBytes [32]byte
-				copy(balanceBytes[32-len(balance):], balance)
-				preimage = append(preimage, balanceBytes[:]...)
-				logBuilder.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(balance).String(), balanceBytes))
-
-				// Code
-				code := s.GetCode(addr)
-				preimage = append(preimage, code...)
-				logBuilder.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
-
-				// Storage slots (get from obj keys, values from StateDB)
-				obj := s.stateObjects[addr]
-				var keys []common.Hash
-				if obj != nil {
-					for k := range obj.dirtyStorage {
+				if o := s.stateObjects[a]; o != nil && len(o.dirtyStorage) > 0 {
+					keys := make([]common.Hash, 0, len(o.dirtyStorage))
+					for k := range o.dirtyStorage {
 						keys = append(keys, k)
 					}
-					sort.Slice(keys, func(i, j int) bool {
-						return bytes.Compare(keys[i][:], keys[j][:]) < 0
-					})
+					sort.Slice(keys, func(i, j int) bool { return bytes.Compare(keys[i][:], keys[j][:]) < 0 })
+					for _, k := range keys {
+						v := s.GetState(a, k).Bytes()
+						vb := make([]byte, 32)
+						copy(vb[32-len(v):], v)
+						p = append(p, vb...)
+					}
 				}
 
-				logBuilder.WriteString(fmt.Sprintf("  Storage Slots (%d):\n", len(keys)))
-				for _, k := range keys {
-					val := s.GetState(addr, k).Bytes()
-					var valBytes [32]byte
-					copy(valBytes[32-len(val):], val)
-					preimage = append(preimage, valBytes[:]...)
-					logBuilder.WriteString(fmt.Sprintf("    %s: %s\n", k.Hex(), hex.EncodeToString(valBytes[:])))
-				}
-
-				hash := crypto.Keccak256(preimage)
-				logBuilder.WriteString(fmt.Sprintf("  Account Hash: %s\n", hex.EncodeToString(hash)))
-
-				var outHash [32]byte
-				copy(outHash[:], hash)
-
-				outputCh <- result{index: i, hash: outHash, preimage: preimage, logOutput: logBuilder.String()}
+				h := crypto.Keccak256(p)
+				var h32 [32]byte
+				copy(h32[:], h)
+				out <- r{i: idx, h: h32}
 			}
 		}()
 	}
 
-	for i := range addresses {
-		inputCh <- i
+	for i := range addrs {
+		in <- i
 	}
-	close(inputCh)
+	close(in)
+	go func() { wg.Wait(); close(out) }()
 
-	go func() {
-		wg.Wait()
-		close(outputCh)
-	}()
-
-	// Step 4: Gather results
-	hashes := make([][]byte, len(addresses))
-	logs := make([]string, len(addresses))
-	for res := range outputCh {
-		hashes[res.index] = res.hash[:]
-		logs[res.index] = res.logOutput
+	hs := make([][]byte, len(addrs))
+	for x := range out {
+		hs[x.i] = x.h[:]
 	}
 
-	// Step 5: Final hash = keccak(hash_1 || hash_2 || ...)
-	finalHasher := crypto.NewKeccakState()
-	for _, h := range hashes {
-		finalHasher.Write(h)
+	st := crypto.NewKeccakState()
+	for _, h := range hs {
+		st.Write(h)
 	}
-	var finalHash [32]byte
-	finalHasher.Read(finalHash[:])
-	final := common.BytesToHash(finalHash[:])
-
-	// Full log output for diffing
-	log.Info("State Footprint Summary")
-	for _, entry := range logs {
-		fmt.Println(entry)
-	}
-	log.Info("Final Footprint Hash", "hash", final.Hex())
-
-	return final
+	var f [32]byte
+	st.Read(f[:])
+	return common.BytesToHash(f[:])
 }
