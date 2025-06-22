@@ -1492,7 +1492,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 				obj := s.stateObjects[addr]
 				var keys []common.Hash
 				if obj != nil {
-					for k := range obj.pendingStorage {
+					for k := range obj.dirtyStorage {
 						keys = append(keys, k)
 					}
 					sort.Slice(keys, func(i, j int) bool {
