@@ -1424,7 +1424,6 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	modified := make(map[common.Address]struct{})
 	addresses := make([]common.Address, 0, len(s.journal.entries))
 
-	// Step 1: Collect unique modified addresses
 	for i := len(s.journal.entries) - 1; i >= 0; i-- {
 		if addr := s.journal.entries[i].dirtied(); addr != nil {
 			if _, seen := modified[*addr]; !seen {
@@ -1434,7 +1433,15 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		}
 	}
 
-	// Step 2: Sort addresses
+	for addr, obj := range s.stateObjects {
+		if obj.created {
+			if _, seen := modified[addr]; !seen {
+				modified[addr] = struct{}{}
+				addresses = append(addresses, addr)
+			}
+		}
+	}
+
 	sort.Slice(addresses, func(i, j int) bool {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
@@ -1453,7 +1460,6 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	var wg sync.WaitGroup
 	wg.Add(numWorkers)
 
-	// Step 3: Hash each account
 	for w := 0; w < numWorkers; w++ {
 		go func() {
 			defer wg.Done()
@@ -1463,30 +1469,26 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 				var preimage []byte
 
 				logBuilder.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
-
-				// Address
 				preimage = append(preimage, addr[:]...)
 
-				// Nonce: LE
 				nonce := s.GetNonce(addr)
 				var nonceBytes [8]byte
 				binary.LittleEndian.PutUint64(nonceBytes[:], nonce)
 				preimage = append(preimage, nonceBytes[:]...)
 				logBuilder.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nonceBytes))
 
-				// Balance: BE padded to 32
 				balance := s.GetBalance(addr).Bytes()
 				var balanceBytes [32]byte
 				copy(balanceBytes[32-len(balance):], balance)
 				preimage = append(preimage, balanceBytes[:]...)
 				logBuilder.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(balance).String(), balanceBytes))
 
-				// Code
 				code := s.GetCode(addr)
-				preimage = append(preimage, code...)
+				if len(code) > 0 {
+					preimage = append(preimage, code...)
+				}
 				logBuilder.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
-				// Storage slots (get from obj keys, values from StateDB)
 				obj := s.stateObjects[addr]
 				var keys []common.Hash
 				if obj != nil {
@@ -1528,7 +1530,6 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		close(outputCh)
 	}()
 
-	// Step 4: Gather results
 	hashes := make([][]byte, len(addresses))
 	logs := make([]string, len(addresses))
 	for res := range outputCh {
@@ -1536,7 +1537,6 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		logs[res.index] = res.logOutput
 	}
 
-	// Step 5: Final hash = keccak(hash_1 || hash_2 || ...)
 	finalHasher := crypto.NewKeccakState()
 	for _, h := range hashes {
 		finalHasher.Write(h)
@@ -1545,7 +1545,6 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	finalHasher.Read(finalHash[:])
 	final := common.BytesToHash(finalHash[:])
 
-	// Full log output for diffing
 	log.Info("State Footprint Summary")
 	for _, entry := range logs {
 		fmt.Println(entry)
