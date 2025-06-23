@@ -1312,7 +1312,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 // - Add precompiles to access list (2929)
 // - Add the contents of the optional tx access list (2930)
 //
-// Potential EIPs:
+// Potential EIPs:https://github.com/rome-protocol/op-geth
 // - Reset access list (Berlin)
 // - Add coinbase to access list (EIP-3651)
 // - Reset transient storage (EIP-1153)
@@ -1425,7 +1425,6 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	addresses := make([]common.Address, 0, len(s.journal.entries))
 	slots := make(map[common.Address]map[common.Hash]struct{})
 
-	// Step 1: Collect unique modified addresses
 	for i := len(s.journal.entries) - 1; i >= 0; i-- {
 		if addr := s.journal.entries[i].dirtied(); addr != nil {
 			if _, seen := modified[*addr]; !seen {
@@ -1433,28 +1432,26 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 				addresses = append(addresses, *addr)
 			}
 		}
+		if change, ok := s.journal.entries[i].(storageChange); ok && change.account != nil {
+			addr := *change.account
+			if slots[addr] == nil {
+				slots[addr] = make(map[common.Hash]struct{})
+			}
+			slots[addr][change.key] = struct{}{}
+		}
 	}
 
-	// Step 2: For each modified contract account, collect all seen slot keys
-	for addr := range modified {
-		if obj := s.stateObjects[addr]; obj != nil && len(obj.code) > 0 {
-			keyMap := make(map[common.Hash]struct{})
-			for k := range obj.originStorage {
-				keyMap[k] = struct{}{}
+	for addr, obj := range s.stateObjects {
+		if obj.created {
+			if _, seen := modified[addr]; !seen {
+				modified[addr] = struct{}{}
+				addresses = append(addresses, addr)
 			}
-			for k := range obj.pendingStorage {
-				keyMap[k] = struct{}{}
+			if slots[addr] == nil {
+				slots[addr] = make(map[common.Hash]struct{})
 			}
 			for k := range obj.dirtyStorage {
-				keyMap[k] = struct{}{}
-			}
-			if len(keyMap) > 0 {
-				if slots[addr] == nil {
-					slots[addr] = make(map[common.Hash]struct{})
-				}
-				for k := range keyMap {
-					slots[addr][k] = struct{}{}
-				}
+				slots[addr][k] = struct{}{}
 			}
 		}
 	}
@@ -1505,14 +1502,12 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 				logBuilder.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
 				var keys []common.Hash
-				if len(code) > 0 {
-					for k := range slots[addr] {
-						keys = append(keys, k)
-					}
-					sort.Slice(keys, func(i, j int) bool {
-						return bytes.Compare(keys[i][:], keys[j][:]) < 0
-					})
+				for k := range slots[addr] {
+					keys = append(keys, k)
 				}
+				sort.Slice(keys, func(i, j int) bool {
+					return bytes.Compare(keys[i][:], keys[j][:]) < 0
+				})
 
 				logBuilder.WriteString(fmt.Sprintf("  Storage Slots (%d):\n", len(keys)))
 				for _, k := range keys {
