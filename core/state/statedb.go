@@ -1423,6 +1423,7 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	modified := make(map[common.Address]struct{})
 	addresses := make([]common.Address, 0, len(s.journal.entries))
+	slots := make(map[common.Address]map[common.Hash]struct{})
 
 	for i := len(s.journal.entries) - 1; i >= 0; i-- {
 		if addr := s.journal.entries[i].dirtied(); addr != nil {
@@ -1431,6 +1432,13 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 				addresses = append(addresses, *addr)
 			}
 		}
+		if change, ok := s.journal.entries[i].(storageChange); ok && change.account != nil {
+			addr := *change.account
+			if slots[addr] == nil {
+				slots[addr] = make(map[common.Hash]struct{})
+			}
+			slots[addr][change.key] = struct{}{}
+		}
 	}
 
 	for addr, obj := range s.stateObjects {
@@ -1438,6 +1446,12 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 			if _, seen := modified[addr]; !seen {
 				modified[addr] = struct{}{}
 				addresses = append(addresses, addr)
+			}
+			if slots[addr] == nil {
+				slots[addr] = make(map[common.Hash]struct{})
+			}
+			for k := range obj.dirtyStorage {
+				slots[addr][k] = struct{}{}
 			}
 		}
 	}
@@ -1484,25 +1498,16 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 				logBuilder.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(balance).String(), balanceBytes))
 
 				code := s.GetCode(addr)
-				if len(code) > 0 {
-					preimage = append(preimage, code...)
-				}
+				preimage = append(preimage, code...)
 				logBuilder.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
-				obj := s.stateObjects[addr]
 				var keys []common.Hash
-				if obj != nil && obj.trie != nil {
-					it, err := obj.trie.NodeIterator(nil)
-					if err == nil {
-						for it.Next(true); it.Leaf(); it.Next(true) {
-							k := common.BytesToHash(it.LeafKey())
-							keys = append(keys, k)
-						}
-						sort.Slice(keys, func(i, j int) bool {
-							return bytes.Compare(keys[i][:], keys[j][:]) < 0
-						})
-					}
+				for k := range slots[addr] {
+					keys = append(keys, k)
 				}
+				sort.Slice(keys, func(i, j int) bool {
+					return bytes.Compare(keys[i][:], keys[j][:]) < 0
+				})
 
 				logBuilder.WriteString(fmt.Sprintf("  Storage Slots (%d):\n", len(keys)))
 				for _, k := range keys {
