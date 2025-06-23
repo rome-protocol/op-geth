@@ -1441,15 +1441,11 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		}
 	}
 
-	for addr, obj := range s.stateObjects {
-		if obj.created {
-			if _, seen := modified[addr]; !seen {
-				modified[addr] = struct{}{}
-				addresses = append(addresses, addr)
-			}
-			if slots[addr] == nil {
-				slots[addr] = make(map[common.Hash]struct{})
-			}
+	for addr := range modified {
+		if slots[addr] == nil {
+			slots[addr] = make(map[common.Hash]struct{})
+		}
+		if obj := s.stateObjects[addr]; obj != nil {
 			for k := range obj.dirtyStorage {
 				slots[addr][k] = struct{}{}
 			}
