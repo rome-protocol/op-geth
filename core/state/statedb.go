@@ -23,6 +23,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -1423,8 +1424,8 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	modified := make(map[common.Address]struct{})
 	addresses := make([]common.Address, 0, len(s.journal.entries))
-	slots := make(map[common.Address]map[common.Hash]struct{})
 
+	// Step 1: Collect unique modified addresses
 	for i := len(s.journal.entries) - 1; i >= 0; i-- {
 		if addr := s.journal.entries[i].dirtied(); addr != nil {
 			if _, seen := modified[*addr]; !seen {
@@ -1434,29 +1435,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		}
 	}
 
-	for addr := range modified {
-		if obj := s.stateObjects[addr]; obj != nil {
-			keyMap := make(map[common.Hash]struct{})
-			for k := range obj.originStorage {
-				keyMap[k] = struct{}{}
-			}
-			for k := range obj.pendingStorage {
-				keyMap[k] = struct{}{}
-			}
-			for k := range obj.dirtyStorage {
-				keyMap[k] = struct{}{}
-			}
-			if len(keyMap) > 0 {
-				if slots[addr] == nil {
-					slots[addr] = make(map[common.Hash]struct{})
-				}
-				for k := range keyMap {
-					slots[addr][k] = struct{}{}
-				}
-			}
-		}
-	}
-
+	// Step 2: Sort addresses
 	sort.Slice(addresses, func(i, j int) bool {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
@@ -1475,6 +1454,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	var wg sync.WaitGroup
 	wg.Add(numWorkers)
 
+	// Step 3: Hash each account
 	for w := 0; w < numWorkers; w++ {
 		go func() {
 			defer wg.Done()
@@ -1484,27 +1464,33 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 				var preimage []byte
 
 				logBuilder.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
+
+				// Address
 				preimage = append(preimage, addr[:]...)
 
+				// Nonce: LE
 				nonce := s.GetNonce(addr)
 				var nonceBytes [8]byte
 				binary.LittleEndian.PutUint64(nonceBytes[:], nonce)
 				preimage = append(preimage, nonceBytes[:]...)
 				logBuilder.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nonceBytes))
 
+				// Balance: BE padded to 32
 				balance := s.GetBalance(addr).Bytes()
 				var balanceBytes [32]byte
 				copy(balanceBytes[32-len(balance):], balance)
 				preimage = append(preimage, balanceBytes[:]...)
 				logBuilder.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(balance).String(), balanceBytes))
 
+				// Code
 				code := s.GetCode(addr)
 				preimage = append(preimage, code...)
 				logBuilder.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
+				obj := s.stateObjects[addr]
 				var keys []common.Hash
-				if len(code) > 0 {
-					for k := range slots[addr] {
+				if obj != nil {
+					for k := range obj.dirtyStorage {
 						keys = append(keys, k)
 					}
 					sort.Slice(keys, func(i, j int) bool {
@@ -1542,6 +1528,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		close(outputCh)
 	}()
 
+	// Step 4: Gather results
 	hashes := make([][]byte, len(addresses))
 	logs := make([]string, len(addresses))
 	for res := range outputCh {
@@ -1549,6 +1536,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		logs[res.index] = res.logOutput
 	}
 
+	// Step 5: Final hash = keccak(hash_1 || hash_2 || ...)
 	finalHasher := crypto.NewKeccakState()
 	for _, h := range hashes {
 		finalHasher.Write(h)
@@ -1557,10 +1545,19 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	finalHasher.Read(finalHash[:])
 	final := common.BytesToHash(finalHash[:])
 
-	log.Info("State Footprint Summary")
-	for _, entry := range logs {
-		fmt.Println(entry)
+	logFile, err := os.OpenFile("tx_footprint.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
+	if err != nil {
+		log.Error("Failed to open log file", "error", err)
+	} else {
+		defer logFile.Close()
+		logFile.WriteString("==== State Footprint Summary ====\n")
+		for _, entry := range logs {
+			logFile.WriteString(entry + "\n")
+		}
+		logFile.WriteString(fmt.Sprintf("==== Final Footprint Hash: %s ====\n\n", final.Hex()))
 	}
+
 	log.Info("Final Footprint Hash", "hash", final.Hex())
 
 	return final
