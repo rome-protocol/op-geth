@@ -1420,16 +1420,31 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 	return copied
 }
 
-func (s *StateDB) CalculateTxFootPrint() common.Hash {
+func (s *StateDB) CalculateTxFootPrint() (common.Hash, error) {
 	modified := make(map[common.Address]struct{})
+	modifiedAccounts := make(map[common.Address]struct{}) // Tracks accounts with explicit modifications
 	addresses := make([]common.Address, 0, len(s.journal.entries))
 	slots := make(map[common.Address]map[common.Hash]struct{})
 
 	// Step 1: Collect unique modified addresses
 	for i := len(s.journal.entries) - 1; i >= 0; i-- {
 		if addr := s.journal.entries[i].dirtied(); addr != nil {
-			if _, seen := modified[*addr]; !seen {
+			if isPrecompiled(*addr) {
+				switch s.journal.entries[i].(type) {
+				case createObjectChange, resetObjectChange, selfDestructChange, balanceChange, nonceChange, storageChange, codeChange:
+					modified[*addr] = struct{}{}
+					modifiedAccounts[*addr] = struct{}{}
+				case touchChange:
+					if _, explicitlyModified := modifiedAccounts[*addr]; explicitlyModified {
+						modified[*addr] = struct{}{}
+					}
+					continue
+				}
+			} else {
 				modified[*addr] = struct{}{}
+				modifiedAccounts[*addr] = struct{}{}
+			}
+			if _, seen := modified[*addr]; !seen {
 				addresses = append(addresses, *addr)
 			}
 		}
@@ -1456,14 +1471,15 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		}
 	}
 
+	// Step 3: Sort addresses
 	sort.Slice(addresses, func(i, j int) bool {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
 
+	// Step 4: Compute hashes for each account in parallel
 	type result struct {
 		index     int
 		hash      [32]byte
-		preimage  []byte
 		logOutput string
 	}
 
@@ -1526,21 +1542,24 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 				var outHash [32]byte
 				copy(outHash[:], hash)
 
-				outputCh <- result{index: i, hash: outHash, preimage: preimage, logOutput: logBuilder.String()}
+				outputCh <- result{index: i, hash: outHash, logOutput: logBuilder.String()}
 			}
 		}()
 	}
 
+	// Step 5: Send indices to workers
 	for i := range addresses {
 		inputCh <- i
 	}
 	close(inputCh)
 
+	// Step 6: Close output channel after workers finish
 	go func() {
 		wg.Wait()
 		close(outputCh)
 	}()
 
+	// Step 7: Collect results
 	hashes := make([][]byte, len(addresses))
 	logs := make([]string, len(addresses))
 	for res := range outputCh {
@@ -1548,6 +1567,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 		logs[res.index] = res.logOutput
 	}
 
+	// Step 8: Compute final hash
 	finalHasher := crypto.NewKeccakState()
 	for _, h := range hashes {
 		finalHasher.Write(h)
@@ -1556,11 +1576,27 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	finalHasher.Read(finalHash[:])
 	final := common.BytesToHash(finalHash[:])
 
+	// Step 9: Log summary
 	log.Info("State Footprint Summary")
 	for _, entry := range logs {
-		fmt.Println(entry)
+		log.Info("Account Details", "details", entry)
 	}
 	log.Info("Final Footprint Hash", "hash", final.Hex())
 
-	return final
+	return final, nil
+}
+
+// isPrecompiled checks if the address is a precompiled contract (0x1 to 0x9).
+func isPrecompiled(addr common.Address) bool {
+	addrBytes := addr.Bytes()
+	if len(addrBytes) < 20 {
+		return false
+	}
+	// Check if address is 0x000...0001 to 0x000...0009
+	for i := 0; i < 19; i++ {
+		if addrBytes[i] != 0 {
+			return false
+		}
+	}
+	return addrBytes[19] >= 1 && addrBytes[19] <= 9
 }
