@@ -1421,11 +1421,11 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 }
 
 func (s *StateDB) CalculateTxFootPrint() common.Hash {
-	addresses := make([]common.Address, 0, len(s.journal.dirties))
+	addresses := make([]common.Address, 0, len(s.stateObjectsDirty))
 	slots := make(map[common.Address]map[common.Hash]struct{})
 
-	// Step 1: Collect unique modified addresses
-	for addr := range s.journal.dirties {
+	// Step 1: Collect all addresses with modified state objects
+	for addr := range s.stateObjectsDirty {
 		addresses = append(addresses, addr)
 	}
 
@@ -1490,7 +1490,7 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 				preimage = append(preimage, code...)
 				logBuilder.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
-				// Sorted storage keys (if code exists)
+				// Sorted storage keys (if contract)
 				var keys []common.Hash
 				if len(code) > 0 {
 					for k := range slots[addr] {
