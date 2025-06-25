@@ -20,9 +20,12 @@ package state
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -1417,108 +1420,147 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 	return copied
 }
 
-func (s *StateDB) CalculateTxFootPrint() (common.Hash, error) {
-	accounts := make(map[common.Address]struct{})
+func (s *StateDB) CalculateTxFootPrint() common.Hash {
+	modified := make(map[common.Address]struct{})
+	addresses := make([]common.Address, 0, len(s.journal.entries))
 	slots := make(map[common.Address]map[common.Hash]struct{})
 
-	for _, entry := range s.journal.entries {
-		switch e := entry.(type) {
-		case createObjectChange:
-			accounts[*e.account] = struct{}{}
-		case resetObjectChange:
-			accounts[*e.account] = struct{}{}
-		case selfDestructChange:
-			accounts[*e.account] = struct{}{}
-		case balanceChange:
-			accounts[*e.account] = struct{}{}
-		case nonceChange:
-			accounts[*e.account] = struct{}{}
-		case storageChange:
-			accounts[*e.account] = struct{}{}
-			if _, ok := slots[*e.account]; !ok {
-				slots[*e.account] = make(map[common.Hash]struct{})
+	// Step 1: Collect unique modified addresses
+	for i := len(s.journal.entries) - 1; i >= 0; i-- {
+		if addr := s.journal.entries[i].dirtied(); addr != nil {
+			if _, seen := modified[*addr]; !seen {
+				modified[*addr] = struct{}{}
+				addresses = append(addresses, *addr)
 			}
-			slots[*e.account][e.key] = struct{}{}
-		case codeChange:
-			accounts[*e.account] = struct{}{}
 		}
 	}
 
-	// Sort accounts by address
-	var addrs []common.Address
-	for addr := range accounts {
-		addrs = append(addrs, addr)
+	// Step 2: For each modified contract account, collect all seen slot keys
+	for addr := range modified {
+		if obj := s.stateObjects[addr]; obj != nil && len(obj.code) > 0 {
+			keyMap := make(map[common.Hash]struct{})
+			for k := range obj.pendingStorage {
+				keyMap[k] = struct{}{}
+			}
+			for k := range obj.dirtyStorage {
+				keyMap[k] = struct{}{}
+			}
+			if len(keyMap) > 0 {
+				if slots[addr] == nil {
+					slots[addr] = make(map[common.Hash]struct{})
+				}
+				for k := range keyMap {
+					slots[addr][k] = struct{}{}
+				}
+			}
+		}
 	}
-	sort.Slice(addrs, func(i, j int) bool {
-		return bytes.Compare(addrs[i][:], addrs[j][:]) < 0
+
+	sort.Slice(addresses, func(i, j int) bool {
+		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
 
-	// Compute hash for each account
-	var accountHashes []common.Hash
-	for _, addr := range addrs {
-		// Retrieve state object
-		obj := s.getStateObject(addr)
-		var nonce uint64
-		var balance [32]byte
-		var code []byte
-		if obj != nil {
-			nonce = obj.Nonce()
-			balanceBig := obj.Balance()
-			balanceBig.FillBytes(balance[:])
-			code = obj.Code()
-			if code == nil {
-				code = []byte{}
-			}
-		} else {
-			// Handle self-destructed accounts
-			nonce = 0
-			balance = [32]byte{}
-			code = []byte{}
-		}
-
-		// Convert nonce to little-endian
-		nonceBytes := make([]byte, 8)
-		binary.LittleEndian.PutUint64(nonceBytes, nonce)
-
-		// Get sorted slots
-		var slotKeys []common.Hash
-		if slotMap, ok := slots[addr]; ok {
-			for slot := range slotMap {
-				slotKeys = append(slotKeys, slot)
-			}
-		}
-		sort.Slice(slotKeys, func(i, j int) bool {
-			return bytes.Compare(slotKeys[i][:], slotKeys[j][:]) < 0
-		})
-
-		// Get slot values in big-endian
-		var slotValues [][]byte
-		for _, slot := range slotKeys {
-			var value [32]byte
-			if obj != nil {
-				copy(value[:], obj.GetState(slot).Bytes())
-			}
-			slotValues = append(slotValues, value[:])
-		}
-
-		// Prepare data for hashing
-		data := [][]byte{
-			addr[:],
-			nonceBytes,
-			balance[:],
-			code,
-		}
-		data = append(data, slotValues...)
-
-		// Compute account hash
-		accountHash := crypto.Keccak256Hash(data...)
-		accountHashes = append(accountHashes, accountHash)
+	type result struct {
+		index     int
+		hash      [32]byte
+		preimage  []byte
+		logOutput string
 	}
 
-	// Compute final hash
-	var hashData [][]byte
-	for _, h := range accountHashes {
-		hashData = append(hashData, h[:])
+	numWorkers := 4
+	inputCh := make(chan int, len(addresses))
+	outputCh := make(chan result, len(addresses))
+
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+
+	for w := 0; w < numWorkers; w++ {
+		go func() {
+			defer wg.Done()
+			for i := range inputCh {
+				addr := addresses[i]
+				var logBuilder strings.Builder
+				var preimage []byte
+
+				logBuilder.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
+				preimage = append(preimage, addr[:]...)
+
+				nonce := s.GetNonce(addr)
+				var nonceBytes [8]byte
+				binary.LittleEndian.PutUint64(nonceBytes[:], nonce)
+				preimage = append(preimage, nonceBytes[:]...)
+				logBuilder.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nonceBytes))
+
+				balance := s.GetBalance(addr).Bytes()
+				var balanceBytes [32]byte
+				copy(balanceBytes[32-len(balance):], balance)
+				preimage = append(preimage, balanceBytes[:]...)
+				logBuilder.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(balance).String(), balanceBytes))
+
+				code := s.GetCode(addr)
+				preimage = append(preimage, code...)
+				logBuilder.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
+
+				var keys []common.Hash
+				if len(code) > 0 {
+					for k := range slots[addr] {
+						keys = append(keys, k)
+					}
+					sort.Slice(keys, func(i, j int) bool {
+						return bytes.Compare(keys[i][:], keys[j][:]) < 0
+					})
+				}
+
+				logBuilder.WriteString(fmt.Sprintf("  Storage Slots (%d):\n", len(keys)))
+				for _, k := range keys {
+					val := s.GetState(addr, k).Bytes()
+					var valBytes [32]byte
+					copy(valBytes[32-len(val):], val)
+					preimage = append(preimage, valBytes[:]...)
+					logBuilder.WriteString(fmt.Sprintf("    %s: %s\n", k.Hex(), hex.EncodeToString(valBytes[:])))
+				}
+
+				hash := crypto.Keccak256(preimage)
+				logBuilder.WriteString(fmt.Sprintf("  Account Hash: %s\n", hex.EncodeToString(hash)))
+
+				var outHash [32]byte
+				copy(outHash[:], hash)
+
+				outputCh <- result{index: i, hash: outHash, preimage: preimage, logOutput: logBuilder.String()}
+			}
+		}()
 	}
-	return crypto.Keccak256Hash(hashData...), nil
+
+	for i := range addresses {
+		inputCh <- i
+	}
+	close(inputCh)
+
+	go func() {
+		wg.Wait()
+		close(outputCh)
+	}()
+
+	hashes := make([][]byte, len(addresses))
+	logs := make([]string, len(addresses))
+	for res := range outputCh {
+		hashes[res.index] = res.hash[:]
+		logs[res.index] = res.logOutput
+	}
+
+	finalHasher := crypto.NewKeccakState()
+	for _, h := range hashes {
+		finalHasher.Write(h)
+	}
+	var finalHash [32]byte
+	finalHasher.Read(finalHash[:])
+	final := common.BytesToHash(finalHash[:])
+
+	log.Info("State Footprint Summary")
+	for _, entry := range logs {
+		fmt.Println(entry)
+	}
+	log.Info("Final Footprint Hash", "hash", final.Hex())
+
+	return final
 }
