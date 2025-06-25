@@ -1439,9 +1439,6 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	for addr := range modified {
 		if obj := s.stateObjects[addr]; obj != nil && len(obj.code) > 0 {
 			keyMap := make(map[common.Hash]struct{})
-			for k := range obj.pendingStorage {
-				keyMap[k] = struct{}{}
-			}
 			for k := range obj.dirtyStorage {
 				keyMap[k] = struct{}{}
 			}
