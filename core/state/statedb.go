@@ -1441,7 +1441,7 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	// 1) build the list of touched addresses from accountState
 	addresses := make([]common.Address, 0, len(s.accountState))
-	for addr := range s.accountState {
+	for addr := range s.stateObjectsDirty {
 		addresses = append(addresses, addr)
 	}
 
