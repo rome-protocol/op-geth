@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -1442,6 +1443,9 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	// 1) build the list of touched addresses from accountState
 	addresses := make([]common.Address, 0, len(s.journal.dirties))
 	for addr := range s.journal.dirties {
+		if isPrecompile(addr) {
+			continue
+		}
 		addresses = append(addresses, addr)
 	}
 
@@ -1573,4 +1577,9 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	s.touchedSlots = make(map[common.Address]map[common.Hash]struct{})
 
 	return final
+}
+
+func isPrecompile(addr common.Address) bool {
+	_, ok := vm.PrecompiledContractsBerlin[addr]
+	return ok
 }
