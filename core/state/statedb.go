@@ -18,15 +18,21 @@
 package state
 
 import (
+	"bytes"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -116,6 +122,7 @@ type StateDB struct {
 	journal        *journal
 	validRevisions []revision
 	nextRevisionId int
+	touchedSlots   map[common.Address]map[common.Hash]struct{}
 
 	// Measurements gathered during execution for debugging purposes
 	AccountReads         time.Duration
@@ -161,6 +168,7 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 		stateObjectsDestruct: make(map[common.Address]*types.StateAccount),
 		logs:                 make(map[common.Hash][]*types.Log),
 		preimages:            make(map[common.Hash][]byte),
+		touchedSlots:         make(map[common.Address]map[common.Hash]struct{}),
 		journal:              newJournal(),
 		accessList:           newAccessList(),
 		transientStorage:     newTransientStorage(),
@@ -388,6 +396,7 @@ func (s *StateDB) SubBalance(addr common.Address, amount *big.Int) {
 	}
 }
 
+// SetBalance sets the balance of the account.
 func (s *StateDB) SetBalance(addr common.Address, amount *big.Int) {
 	stateObject := s.GetOrNewStateObject(addr)
 	if stateObject != nil {
@@ -395,6 +404,7 @@ func (s *StateDB) SetBalance(addr common.Address, amount *big.Int) {
 	}
 }
 
+// SetNonce sets the nonce of the account.
 func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
 	stateObject := s.GetOrNewStateObject(addr)
 	if stateObject != nil {
@@ -402,6 +412,7 @@ func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
 	}
 }
 
+// SetCode sets the contract code for the account.
 func (s *StateDB) SetCode(addr common.Address, code []byte) {
 	stateObject := s.GetOrNewStateObject(addr)
 	if stateObject != nil {
@@ -409,39 +420,38 @@ func (s *StateDB) SetCode(addr common.Address, code []byte) {
 	}
 }
 
+// SetState writes a single storage slot for the account.
 func (s *StateDB) SetState(addr common.Address, key, value common.Hash) {
 	stateObject := s.GetOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetState(key, value)
+
+		// record this slot
+		if s.touchedSlots[addr] == nil {
+			s.touchedSlots[addr] = make(map[common.Hash]struct{})
+		}
+		s.touchedSlots[addr][key] = struct{}{}
 	}
 }
 
-// SetStorage replaces the entire storage for the specified account with given
-// storage. This function should only be used for debugging and the mutations
-// must be discarded afterwards.
+// SetStorage replaces the entire storage for debugging.
 func (s *StateDB) SetStorage(addr common.Address, storage map[common.Hash]common.Hash) {
-	// SetStorage needs to wipe existing storage. We achieve this by pretending
-	// that the account self-destructed earlier in this block, by flagging
-	// it in stateObjectsDestruct. The effect of doing so is that storage lookups
-	// will not hit disk, since it is assumed that the disk-data is belonging
-	// to a previous incarnation of the object.
-	//
-	// TODO(rjl493456442) this function should only be supported by 'unwritable'
-	// state and all mutations made should all be discarded afterwards.
 	if _, ok := s.stateObjectsDestruct[addr]; !ok {
 		s.stateObjectsDestruct[addr] = nil
 	}
 	stateObject := s.GetOrNewStateObject(addr)
 	for k, v := range storage {
 		stateObject.SetState(k, v)
+
+		// record each slot
+		if s.touchedSlots[addr] == nil {
+			s.touchedSlots[addr] = make(map[common.Hash]struct{})
+		}
+		s.touchedSlots[addr][k] = struct{}{}
 	}
 }
 
-// SelfDestruct marks the given account as selfdestructed.
-// This clears the account balance.
-//
-// The account's state object is still available until the state is committed,
-// getStateObject will return a non-nil account after SelfDestruct.
+// SelfDestruct marks the account as selfdestructed and clears its balance.
 func (s *StateDB) SelfDestruct(addr common.Address) {
 	stateObject := s.getStateObject(addr)
 	if stateObject == nil {
@@ -456,20 +466,18 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 	stateObject.data.Balance = new(big.Int)
 }
 
+// Selfdestruct6780 conditionally selfdestructs if the object was newly created.
 func (s *StateDB) Selfdestruct6780(addr common.Address) {
 	stateObject := s.getStateObject(addr)
 	if stateObject == nil {
 		return
 	}
-
 	if stateObject.created {
 		s.SelfDestruct(addr)
 	}
 }
 
-// SetTransientState sets transient storage for a given account. It
-// adds the change to the journal so that it can be rolled back
-// to its previous value if there is a revert.
+// SetTransientState sets a transient storage slot (rolled back on revert).
 func (s *StateDB) SetTransientState(addr common.Address, key, value common.Hash) {
 	prev := s.GetTransientState(addr, key)
 	if prev == value {
@@ -481,6 +489,11 @@ func (s *StateDB) SetTransientState(addr common.Address, key, value common.Hash)
 		prevalue: prev,
 	})
 	s.setTransientState(addr, key, value)
+	// (optionally) record as touched slot:
+	if s.touchedSlots[addr] == nil {
+		s.touchedSlots[addr] = make(map[common.Hash]struct{})
+	}
+	s.touchedSlots[addr][key] = struct{}{}
 }
 
 // setTransientState is a lower level setter for transient storage. It
@@ -1413,4 +1426,149 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 		}
 	}
 	return copied
+}
+
+// CalculateTxFootPrint calculates the footprint of the current transaction.
+func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
+	// 1) build the list of touched addresses from accountState
+	addresses := make([]common.Address, 0, len(s.journal.dirties))
+	for addr := range s.journal.dirties {
+		if isPrecompile(addr) {
+			continue
+		}
+		addresses = append(addresses, addr)
+	}
+
+	// 2) pull slot-sets from s.touchedSlots (may be nil if none)
+	slots := s.touchedSlots
+
+	// 3) sort addresses bytes-lexicographically
+	sort.Slice(addresses, func(i, j int) bool {
+		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
+	})
+
+	type result struct {
+		index     int
+		hash      [32]byte
+		preimage  []byte
+		logOutput string
+	}
+
+	const numWorkers = 4
+	inputCh := make(chan int, len(addresses))
+	outputCh := make(chan result, len(addresses))
+
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+
+	for w := 0; w < numWorkers; w++ {
+		go func() {
+			defer wg.Done()
+			for i := range inputCh {
+				addr := addresses[i]
+				var logBuilder strings.Builder
+				var preimage []byte
+
+				logBuilder.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
+				preimage = append(preimage, addr.Bytes()...)
+
+				// Nonce (LE 8 bytes)
+				nonce := s.GetNonce(addr)
+				var nonceBytes [8]byte
+				binary.LittleEndian.PutUint64(nonceBytes[:], nonce)
+				preimage = append(preimage, nonceBytes[:]...)
+				logBuilder.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nonceBytes))
+
+				// Balance (BE 32 bytes)
+				balance := s.GetBalance(addr).Bytes()
+				var balanceBytes [32]byte
+				copy(balanceBytes[32-len(balance):], balance)
+				preimage = append(preimage, balanceBytes[:]...)
+				logBuilder.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(balance).String(), balanceBytes))
+
+				// Code
+				code := s.GetCode(addr)
+				preimage = append(preimage, code...)
+				logBuilder.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
+
+				// Sorted storage keys
+				var keys []common.Hash
+				if slotMap, ok := slots[addr]; ok && len(slotMap) > 0 {
+					for k := range slotMap {
+						keys = append(keys, k)
+					}
+					sort.Slice(keys, func(i, j int) bool {
+						return bytes.Compare(keys[i][:], keys[j][:]) < 0
+					})
+				}
+				logBuilder.WriteString(fmt.Sprintf("  Storage Slots (%d):\n", len(keys)))
+				for _, k := range keys {
+					val := s.GetState(addr, k).Bytes()
+					var valBytes [32]byte
+					copy(valBytes[32-len(val):], val)
+					preimage = append(preimage, valBytes[:]...)
+					logBuilder.WriteString(fmt.Sprintf("    %s: %s\n", k.Hex(), hex.EncodeToString(valBytes[:])))
+				}
+
+				// per-account keccak256
+				hash := crypto.Keccak256(preimage)
+				logBuilder.WriteString(fmt.Sprintf("  Account Hash: %s\n", hex.EncodeToString(hash)))
+				var outHash [32]byte
+				copy(outHash[:], hash)
+
+				outputCh <- result{
+					index:     i,
+					hash:      outHash,
+					preimage:  preimage,
+					logOutput: logBuilder.String(),
+				}
+			}
+		}()
+	}
+
+	// feed work
+	for i := range addresses {
+		inputCh <- i
+	}
+	close(inputCh)
+
+	// when done, close outputCh
+	go func() {
+		wg.Wait()
+		close(outputCh)
+	}()
+
+	// collect
+	hashes := make([][]byte, len(addresses))
+	logs := make([]string, len(addresses))
+	for res := range outputCh {
+		hashes[res.index] = res.hash[:]
+		logs[res.index] = res.logOutput
+	}
+
+	// final fold
+	finalHasher := crypto.NewKeccakState()
+	for _, h := range hashes {
+		finalHasher.Write(h)
+	}
+	var finalHash [32]byte
+	finalHasher.Read(finalHash[:])
+	final := common.BytesToHash(finalHash[:])
+
+	// summary
+	log.Info("State Footprint Summary")
+	for _, entry := range logs {
+		log.Info(entry)
+	}
+	log.Info("Final Footprint Hash", "hash", final.Hex())
+
+	// 4) flush tracked state
+	s.touchedSlots = make(map[common.Address]map[common.Hash]struct{})
+
+	return final, logs
+}
+
+func isPrecompile(addr common.Address) bool {
+	_, ok := vm.PrecompiledContractsBerlin[addr]
+	return ok
 }

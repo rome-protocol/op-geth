@@ -49,6 +49,7 @@ type BuildPayloadArgs struct {
 	GasPrice     []uint64             // The provided gas prices of transactions
 	GasUsed      []uint64             // The provided gas used while executing these transactions
 	GasLimit     *uint64              // Optimism addition: override gas limit of the block to build
+	Footprints   []string             // Tx footprints for state comparison
 }
 
 // Id computes an 8-byte identifier by hashing the components of the payload arguments.
@@ -273,6 +274,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 			txs:         args.Transactions,
 			gasLimit:    args.GasLimit,
 			gasUsed:     args.GasUsed,
+			footPrints:  args.Footprints,
 		}
 		empty := w.getSealingBlock(emptyParams)
 		if empty.err != nil {
@@ -298,6 +300,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 		txs:         args.Transactions,
 		gasLimit:    args.GasLimit,
 		gasUsed:     args.GasUsed,
+		footPrints:  args.Footprints,
 	}
 
 	// Since we skip building the empty block when using the tx pool, we need to explicitly
