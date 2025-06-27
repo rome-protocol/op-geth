@@ -11,7 +11,7 @@ on:
         default: 'main'
 
 env:
-  ROLLUP_CLIENT_REF_NAME: ${{ github.event.inputs.rollup_client_ref_name || github.ref_name || 'main' }}
+  ROLLUP_CLIENT_REF_NAME: ${{ github.event.inputs.rollup_client_ref_name || 'main' }}
   OP_GETH_REF_NAME: ${{ github.ref_name }}
 
 jobs:
