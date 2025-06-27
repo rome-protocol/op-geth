@@ -122,7 +122,6 @@ type StateDB struct {
 	journal        *journal
 	validRevisions []revision
 	nextRevisionId int
-	accountState   map[common.Address]int
 	touchedSlots   map[common.Address]map[common.Hash]struct{}
 
 	// Measurements gathered during execution for debugging purposes
@@ -169,7 +168,6 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 		stateObjectsDestruct: make(map[common.Address]*types.StateAccount),
 		logs:                 make(map[common.Hash][]*types.Log),
 		preimages:            make(map[common.Hash][]byte),
-		accountState:         make(map[common.Address]int),
 		touchedSlots:         make(map[common.Address]map[common.Hash]struct{}),
 		journal:              newJournal(),
 		accessList:           newAccessList(),
@@ -387,7 +385,6 @@ func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
 	stateObject := s.GetOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.AddBalance(amount)
-		s.accountState[addr]++
 	}
 }
 
@@ -396,7 +393,6 @@ func (s *StateDB) SubBalance(addr common.Address, amount *big.Int) {
 	stateObject := s.GetOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SubBalance(amount)
-		s.accountState[addr]++
 	}
 }
 
@@ -405,7 +401,6 @@ func (s *StateDB) SetBalance(addr common.Address, amount *big.Int) {
 	stateObject := s.GetOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetBalance(amount)
-		s.accountState[addr]++
 	}
 }
 
@@ -414,7 +409,6 @@ func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
 	stateObject := s.GetOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetNonce(nonce)
-		s.accountState[addr]++
 	}
 }
 
@@ -423,7 +417,6 @@ func (s *StateDB) SetCode(addr common.Address, code []byte) {
 	stateObject := s.GetOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetCode(crypto.Keccak256Hash(code), code)
-		s.accountState[addr]++
 	}
 }
 
@@ -432,7 +425,6 @@ func (s *StateDB) SetState(addr common.Address, key, value common.Hash) {
 	stateObject := s.GetOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetState(key, value)
-		s.accountState[addr]++
 
 		// record this slot
 		if s.touchedSlots[addr] == nil {
@@ -450,7 +442,6 @@ func (s *StateDB) SetStorage(addr common.Address, storage map[common.Hash]common
 	stateObject := s.GetOrNewStateObject(addr)
 	for k, v := range storage {
 		stateObject.SetState(k, v)
-		s.accountState[addr]++
 
 		// record each slot
 		if s.touchedSlots[addr] == nil {
@@ -473,7 +464,6 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 	})
 	stateObject.markSelfdestructed()
 	stateObject.data.Balance = new(big.Int)
-	s.accountState[addr]++
 }
 
 // Selfdestruct6780 conditionally selfdestructs if the object was newly created.
@@ -499,7 +489,6 @@ func (s *StateDB) SetTransientState(addr common.Address, key, value common.Hash)
 		prevalue: prev,
 	})
 	s.setTransientState(addr, key, value)
-	s.accountState[addr]++
 	// (optionally) record as touched slot:
 	if s.touchedSlots[addr] == nil {
 		s.touchedSlots[addr] = make(map[common.Hash]struct{})
@@ -1439,7 +1428,8 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 	return copied
 }
 
-func (s *StateDB) CalculateTxFootPrint() common.Hash {
+// CalculateTxFootPrint calculates the footprint of the current transaction.
+func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	// 1) build the list of touched addresses from accountState
 	addresses := make([]common.Address, 0, len(s.journal.dirties))
 	for addr := range s.journal.dirties {
@@ -1568,15 +1558,14 @@ func (s *StateDB) CalculateTxFootPrint() common.Hash {
 	// summary
 	log.Info("State Footprint Summary")
 	for _, entry := range logs {
-		fmt.Println(entry)
+		log.Info(entry)
 	}
 	log.Info("Final Footprint Hash", "hash", final.Hex())
 
 	// 4) flush tracked state
-	s.accountState = make(map[common.Address]int)
 	s.touchedSlots = make(map[common.Address]map[common.Hash]struct{})
 
-	return final
+	return final, logs
 }
 
 func isPrecompile(addr common.Address) bool {

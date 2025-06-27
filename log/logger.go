@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -214,4 +215,32 @@ func (l *logger) Error(msg string, ctx ...interface{}) {
 func (l *logger) Crit(msg string, ctx ...interface{}) {
 	l.Write(LevelCrit, msg, ctx...)
 	os.Exit(1)
+}
+
+func FlushLogs(logs []string) error {
+	logPath := os.Getenv("FOOTPRINT_LOG_FILE")
+	if logPath == "" {
+		logPath = "/var/log/op_geth/footprint.log"
+	}
+
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
+		return err
+	}
+
+	f, err := os.OpenFile(logPath,
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+		0o644,
+	)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	for _, line := range logs {
+		if _, err := f.WriteString(line + "\n"); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
