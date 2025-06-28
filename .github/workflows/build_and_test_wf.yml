@@ -9,54 +9,126 @@ on:
         description: 'rollup_client branch name to use for building the image'
         required: false
         default: 'main'
-  
+
+env:
+  ROLLUP_CLIENT_REF_NAME: ${{ github.event.inputs.rollup_client_ref_name || 'main' }}
+  OP_GETH_REF_NAME: ${{ github.ref_name }}
+
 jobs:
-  prepare_env:
+  build-amd64:
     runs-on: ubuntu-22.04-8core-32gb-300
-    env:
-      OP_GETH_REF_NAME: "${{github.ref_name}}" 
-      ROLLUP_CLIENT_REF_NAME: ${{github.rollup_client_ref_name || 'main'}} 
-      
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
     steps:
-      - name: 'Checkout rome-rollup-clients repository'
-        uses: actions/checkout@main
+      - name: Checkout rome-rollup-clients
+        uses: actions/checkout@v4
         with:
           repository: rome-protocol/rome-rollup-clients
           path: rome-rollup-clients
-          ref: ${{env.ROLLUP_CLIENT_REF_NAME}}
+          ref: ${{ env.ROLLUP_CLIENT_REF_NAME }}
           token: ${{ secrets.GIT_ROLLUP_TOKEN }}
-    
-      - name: 'Checkout op-geth reposotory'
-        uses: actions/checkout@master
+
+      - name: Checkout op-geth
+        uses: actions/checkout@v4
         with:
-          path: op-geth
           repository: rome-protocol/op-geth
-          ref: ${{env.OP_GETH_REF_NAME}}
-          token: ${{secrets.GIT_ROLLUP_TOKEN}}
-      
-      - name: 'Login to Docker Hub'
+          path: op-geth
+          ref: ${{ env.OP_GETH_REF_NAME }}
+          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      - name: 'Build op-geth image'
-        uses: docker/build-push-action@v4.0.0
+      - name: Build and push amd64 image
+        id: push
+        uses: docker/build-push-action@v4
         with:
           context: .
-          push: true
           file: rome-rollup-clients/op-geth/Dockerfile
-          tags: romeprotocol/rollup-op-geth:${{env.OP_GETH_REF_NAME}}
-          labels: romeprotocol/rollup-op-geth:${{env.OP_GETH_REF_NAME}}
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: romeprotocol/rollup-op-geth:${{ env.OP_GETH_REF_NAME }}
 
-      - name: 'Set latest tag'
-        if: ${{env.ROLLUP_CLIENT_REF_NAME == 'main' && env.OP_GETH_REF_NAME == 'main'}}
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - name: Checkout rome-rollup-clients
+        uses: actions/checkout@v4
+        with:
+          repository: rome-protocol/rome-rollup-clients
+          path: rome-rollup-clients
+          ref: ${{ env.ROLLUP_CLIENT_REF_NAME }}
+          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+
+      - name: Checkout op-geth
+        uses: actions/checkout@v4
+        with:
+          repository: rome-protocol/op-geth
+          path: op-geth
+          ref: ${{ env.OP_GETH_REF_NAME }}
+          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Build and push arm64 image
+        id: push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: rome-rollup-clients/op-geth/Dockerfile
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          tags: romeprotocol/rollup-op-geth:${{ env.OP_GETH_REF_NAME }}
+
+  create-manifest:
+    runs-on: ubuntu-latest
+    needs: [build-amd64, build-arm64]
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Create and push multi-arch manifest
         run: |
-          docker pull romeprotocol/rollup-op-geth:${{env.OP_GETH_REF_NAME}}
-          docker tag romeprotocol/rollup-op-geth:${{env.OP_GETH_REF_NAME}} romeprotocol/rollup-op-geth:latest
-          docker push romeprotocol/rollup-op-geth:latest
-    
-      - name: 'Trigger tests'
+          docker manifest create romeprotocol/rollup-op-geth:${{ env.OP_GETH_REF_NAME }} \
+            --amend romeprotocol/rollup-op-geth@${{ needs.build-amd64.outputs.digest }} \
+            --amend romeprotocol/rollup-op-geth@${{ needs.build-arm64.outputs.digest }}
+
+          docker manifest push romeprotocol/rollup-op-geth:${{ env.OP_GETH_REF_NAME }}
+
+      - name: Tag and push :latest
+        if: ${{ env.OP_GETH_REF_NAME == 'main' && env.ROLLUP_CLIENT_REF_NAME == 'main' }}
+        run: |
+          docker manifest create romeprotocol/rollup-op-geth:latest \
+            --amend romeprotocol/rollup-op-geth@${{ needs.build-amd64.outputs.digest }} \
+            --amend romeprotocol/rollup-op-geth@${{ needs.build-arm64.outputs.digest }}
+
+          docker manifest push romeprotocol/rollup-op-geth:latest
+
+  run-tests:
+    runs-on: ubuntu-latest
+    needs: [create-manifest]
+    steps:
+      - name: Trigger tests
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GIT_ROLLUP_TOKEN }}
@@ -79,11 +151,11 @@ jobs:
               }
             });
 
-      - name: 'Echo link to triggered workflow'
+      - name: Echo link to triggered workflow
         run: |
           echo "Tests triggered in private repo:"
           echo "https://github.com/rome-protocol/tests/actions"
-      
+
       - name: Wait for tests to finish
         uses: actions/github-script@v6
         with:
