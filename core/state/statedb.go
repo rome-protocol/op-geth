@@ -1454,7 +1454,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		logOutput string
 	}
 
-	const numWorkers = 10
+	const numWorkers = 5
 	inputCh := make(chan int, len(addresses))
 	outputCh := make(chan result, len(addresses))
 
