@@ -1555,6 +1555,12 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	finalHasher.Read(finalHash[:])
 	final := common.BytesToHash(finalHash[:])
 
+	log.Info("State Footprint Summary")
+	for _, entry := range logs {
+		log.Info(entry)
+	}
+	log.Info("Final Footprint Hash", "hash", final.Hex())
+
 	// 4) flush tracked state
 	s.touchedSlots = make(map[common.Address]map[common.Hash]struct{})
 
