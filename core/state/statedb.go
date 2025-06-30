@@ -1430,7 +1430,6 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 
 // CalculateTxFootPrint calculates the footprint of the current transaction.
 func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
-	// 1) collect & sort addresses
 	addrs := make([]common.Address, 0, len(s.journal.dirties))
 	for addr := range s.journal.dirties {
 		if isPrecompile(addr) {
@@ -1448,7 +1447,6 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		log  string
 	}
 
-	// 2) set up a worker pool
 	workers := runtime.GOMAXPROCS(0)
 	addrCh := make(chan int, len(addrs))
 	resCh := make(chan result, len(addrs))
@@ -1458,7 +1456,6 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	for w := 0; w < workers; w++ {
 		go func() {
 			defer wg.Done()
-			// fixed-size buffers reused per account
 			var (
 				nonceBuf   [8]byte
 				balanceBuf [32]byte
