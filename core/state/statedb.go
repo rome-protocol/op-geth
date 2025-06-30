@@ -20,9 +20,9 @@ package state
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"math/big"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -1430,125 +1430,141 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 
 // CalculateTxFootPrint calculates the footprint of the current transaction.
 func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
-	addrs := make([]common.Address, 0, len(s.journal.dirties))
+	// 1) build the list of touched addresses from accountState
+	addresses := make([]common.Address, 0, len(s.journal.dirties))
 	for addr := range s.journal.dirties {
 		if isPrecompile(addr) {
 			continue
 		}
-		addrs = append(addrs, addr)
+		addresses = append(addresses, addr)
 	}
-	sort.Slice(addrs, func(i, j int) bool {
-		return bytes.Compare(addrs[i][:], addrs[j][:]) < 0
+
+	// 2) pull slot-sets from s.touchedSlots (may be nil if none)
+	slots := s.touchedSlots
+
+	// 3) sort addresses bytes-lexicographically
+	sort.Slice(addresses, func(i, j int) bool {
+		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
 
 	type result struct {
-		idx  int
-		hash [32]byte
-		log  string
+		index     int
+		hash      [32]byte
+		preimage  []byte
+		logOutput string
 	}
 
-	workers := runtime.GOMAXPROCS(0)
-	addrCh := make(chan int, len(addrs))
-	resCh := make(chan result, len(addrs))
+	const numWorkers = 4
+	inputCh := make(chan int, len(addresses))
+	outputCh := make(chan result, len(addresses))
 
 	var wg sync.WaitGroup
-	wg.Add(workers)
-	for w := 0; w < workers; w++ {
+	wg.Add(numWorkers)
+
+	for w := 0; w < numWorkers; w++ {
 		go func() {
 			defer wg.Done()
-			var (
-				nonceBuf   [8]byte
-				balanceBuf [32]byte
-				slotValBuf [32]byte
-			)
-			for i := range addrCh {
-				addr := addrs[i]
-				var b strings.Builder
-				hasher := crypto.NewKeccakState()
+			for i := range inputCh {
+				addr := addresses[i]
+				var logBuilder strings.Builder
+				var preimage []byte
 
-				// Address
-				b.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
-				hasher.Write(addr.Bytes())
+				logBuilder.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
+				preimage = append(preimage, addr.Bytes()...)
 
-				// Nonce
-				n := s.GetNonce(addr)
-				binary.LittleEndian.PutUint64(nonceBuf[:], n)
-				hasher.Write(nonceBuf[:])
-				b.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", n, nonceBuf))
+				// Nonce (LE 8 bytes)
+				nonce := s.GetNonce(addr)
+				var nonceBytes [8]byte
+				binary.LittleEndian.PutUint64(nonceBytes[:], nonce)
+				preimage = append(preimage, nonceBytes[:]...)
+				logBuilder.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nonceBytes))
 
-				// Balance
-				bal := s.GetBalance(addr).Bytes()
-				copy(balanceBuf[32-len(bal):], bal)
-				hasher.Write(balanceBuf[:])
-				b.WriteString(fmt.Sprintf("  Balance: %s => %x\n",
-					new(big.Int).SetBytes(balanceBuf[:]).String(), balanceBuf))
+				// Balance (BE 32 bytes)
+				balance := s.GetBalance(addr).Bytes()
+				var balanceBytes [32]byte
+				copy(balanceBytes[32-len(balance):], balance)
+				preimage = append(preimage, balanceBytes[:]...)
+				logBuilder.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(balance).String(), balanceBytes))
 
 				// Code
 				code := s.GetCode(addr)
-				hasher.Write(code)
-				b.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
+				preimage = append(preimage, code...)
+				logBuilder.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
-				// Slots
-				slotMap := s.touchedSlots[addr]
-				// gather & sort keys
-				keys := make([]common.Hash, 0, len(slotMap))
-				for k := range slotMap {
-					keys = append(keys, k)
+				// Sorted storage keys
+				var keys []common.Hash
+				if slotMap, ok := slots[addr]; ok && len(slotMap) > 0 {
+					for k := range slotMap {
+						keys = append(keys, k)
+					}
+					sort.Slice(keys, func(i, j int) bool {
+						return bytes.Compare(keys[i][:], keys[j][:]) < 0
+					})
 				}
-				sort.Slice(keys, func(i, j int) bool {
-					return bytes.Compare(keys[i][:], keys[j][:]) < 0
-				})
-				b.WriteString(fmt.Sprintf("  Storage Slots (%d):\n", len(keys)))
+				logBuilder.WriteString(fmt.Sprintf("  Storage Slots (%d):\n", len(keys)))
 				for _, k := range keys {
-					v := s.GetState(addr, k).Bytes()
-					copy(slotValBuf[32-len(v):], v)
-					hasher.Write(slotValBuf[:])
-					b.WriteString(fmt.Sprintf("    %s: %x\n", k.Hex(), slotValBuf))
+					val := s.GetState(addr, k).Bytes()
+					var valBytes [32]byte
+					copy(valBytes[32-len(val):], val)
+					preimage = append(preimage, valBytes[:]...)
+					logBuilder.WriteString(fmt.Sprintf("    %s: %s\n", k.Hex(), hex.EncodeToString(valBytes[:])))
 				}
 
-				// finalize per-account hash
-				var h [32]byte
-				hasher.Read(h[:])
-				b.WriteString(fmt.Sprintf("  Account Hash: %x\n", h[:]))
+				// per-account keccak256
+				hash := crypto.Keccak256(preimage)
+				logBuilder.WriteString(fmt.Sprintf("  Account Hash: %s\n", hex.EncodeToString(hash)))
+				var outHash [32]byte
+				copy(outHash[:], hash)
 
-				resCh <- result{idx: i, hash: h, log: b.String()}
+				outputCh <- result{
+					index:     i,
+					hash:      outHash,
+					preimage:  preimage,
+					logOutput: logBuilder.String(),
+				}
 			}
 		}()
 	}
 
-	// feed work and wait
-	for i := range addrs {
-		addrCh <- i
+	// feed work
+	for i := range addresses {
+		inputCh <- i
 	}
-	close(addrCh)
-	wg.Wait()
-	close(resCh)
+	close(inputCh)
 
-	// 3) collect
-	hashes := make([][32]byte, len(addrs))
-	logs := make([]string, len(addrs))
-	for r := range resCh {
-		hashes[r.idx] = r.hash
-		logs[r.idx] = r.log
+	// when done, close outputCh
+	go func() {
+		wg.Wait()
+		close(outputCh)
+	}()
+
+	// collect
+	hashes := make([][]byte, len(addresses))
+	logs := make([]string, len(addresses))
+	for res := range outputCh {
+		hashes[res.index] = res.hash[:]
+		logs[res.index] = res.logOutput
 	}
 
-	// 4) final fold
-	finalState := crypto.NewKeccakState()
+	// final fold
+	finalHasher := crypto.NewKeccakState()
 	for _, h := range hashes {
-		finalState.Write(h[:])
+		finalHasher.Write(h)
 	}
-	var finalBuf [32]byte
-	finalState.Read(finalBuf[:])
-	final := common.BytesToHash(finalBuf[:])
+	var finalHash [32]byte
+	finalHasher.Read(finalHash[:])
+	final := common.BytesToHash(finalHash[:])
 
-	// 5) logging & flush
+	// summary
 	log.Info("State Footprint Summary")
 	for _, entry := range logs {
 		log.Info(entry)
 	}
 	log.Info("Final Footprint Hash", "hash", final.Hex())
 
+	// 4) flush tracked state
 	s.touchedSlots = make(map[common.Address]map[common.Hash]struct{})
+
 	return final, logs
 }
 
