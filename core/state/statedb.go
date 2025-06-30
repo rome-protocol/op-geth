@@ -1454,7 +1454,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		logOutput string
 	}
 
-	const numWorkers = 4
+	const numWorkers = 10
 	inputCh := make(chan int, len(addresses))
 	outputCh := make(chan result, len(addresses))
 
@@ -1554,13 +1554,6 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	var finalHash [32]byte
 	finalHasher.Read(finalHash[:])
 	final := common.BytesToHash(finalHash[:])
-
-	// summary
-	log.Info("State Footprint Summary")
-	for _, entry := range logs {
-		log.Info(entry)
-	}
-	log.Info("Final Footprint Hash", "hash", final.Hex())
 
 	// 4) flush tracked state
 	s.touchedSlots = make(map[common.Address]map[common.Hash]struct{})
