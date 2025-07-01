@@ -1397,6 +1397,33 @@ func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64,
 	return estimatedGas, nil
 }
 
+// Fetch gas estimate from Rome gasometer
+func emulateRomeTx(ctx context.Context, input hexutil.Bytes) error {
+	tracer := log.GetTracer()
+	_, span := tracer.Start(ctx, "emulateRomeTx",
+		trace.WithAttributes(
+			attribute.String("timestamp", time.Now().Format(time.RFC3339Nano)),
+		))
+	defer span.End()
+	gasometerUrl := os.Getenv("ROME_GASOMETER_URL")
+	if gasometerUrl == "" {
+		return fmt.Errorf("ROME_GASOMETER_URL ennvar is not set")
+	}
+	client, err := rpc.Dial(gasometerUrl)
+	if err != nil {
+		log.Error("Failed to connect to the Ethereum client: %v", err)
+	}
+	defer client.Close()
+
+	var result interface{}
+	err = client.CallContext(ctx, &result, "rome_emulateTx", input)
+	if err != nil {
+		return fmt.Errorf("call to rome_emulateTx failed: %w", err)
+	}
+
+	return nil
+}
+
 // RPCMarshalHeader converts the given header to the RPC output .
 func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 	result := map[string]interface{}{
@@ -2123,64 +2150,11 @@ func (s *TransactionAPI) SendRawTransaction(ctx context.Context, input hexutil.B
 		return common.Hash{}, err
 	}
 
-	signer := types.LatestSignerForChainID(tx.ChainId())
-	fromAddr, err := types.Sender(signer, tx)
+	err := emulateRomeTx(ctx, input)
+
 	if err != nil {
-		return common.Hash{}, fmt.Errorf("could not recover sender: %w", err)
+		return common.Hash{}, fmt.Errorf("rome emulate tx failed: %w", err)
 	}
-	from := &fromAddr
-
-	var to *common.Address
-	if tx.To() != nil {
-		addr := *tx.To()
-		to = &addr
-	}
-
-	data := hexutil.Bytes(tx.Data())
-	gas := hexutil.Uint64(tx.Gas())
-	nonce := hexutil.Uint64(tx.Nonce())
-	chainID := (*hexutil.Big)(tx.ChainId())
-
-	var (
-		gasPrice             *hexutil.Big
-		maxFeePerGas         *hexutil.Big
-		maxPriorityFeePerGas *hexutil.Big
-	)
-	if tx.Type() == types.LegacyTxType {
-		gasPrice = (*hexutil.Big)(tx.GasPrice())
-	} else {
-		maxFeePerGas = (*hexutil.Big)(tx.GasFeeCap())
-		maxPriorityFeePerGas = (*hexutil.Big)(tx.GasTipCap())
-	}
-
-	accessList := tx.AccessList()
-
-	gasArgs := TransactionArgs{
-		From:                 from,
-		To:                   to,
-		Gas:                  &gas,
-		GasPrice:             gasPrice,
-		MaxFeePerGas:         maxFeePerGas,
-		MaxPriorityFeePerGas: maxPriorityFeePerGas,
-		Value:                (*hexutil.Big)(tx.Value()),
-		Nonce:                &nonce,
-		Data:                 &data,
-		AccessList:           &accessList,
-		ChainID:              chainID,
-	}
-
-	estGas, err := estimateRomeGas(ctx, gasArgs)
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("rome gas estimate failed: %w", err)
-	}
-	if estGas > gas {
-		return common.Hash{}, fmt.Errorf(
-			"insufficient gas: provided %d but estimated %d is required",
-			gas,
-			estGas,
-		)
-	}
-	log.Info("Rome gas estimate:", "gas", uint64(estGas))
 
 	return SubmitTransaction(ctx, s.b, tx)
 }
