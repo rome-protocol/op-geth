@@ -1416,9 +1416,9 @@ func emulateRomeTx(ctx context.Context, input hexutil.Bytes) error {
 	defer client.Close()
 
 	var result interface{}
-	err = client.CallContext(ctx, &result, "rome_emulateTxFull", input)
+	err = client.CallContext(ctx, &result, "rome_emulateTx", input)
 	if err != nil {
-		return fmt.Errorf("call to rome_emulateTxFull failed: %w", err)
+		return fmt.Errorf("call to rome_emulateTx failed: %w", err)
 	}
 
 	return nil
