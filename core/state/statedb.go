@@ -1463,29 +1463,6 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 				slots[addr] = make(map[common.Hash]struct{})
 			}
 			slots[addr][c.key] = struct{}{}
-
-		case transientStorageChange:
-			addr := *c.account
-			if isPrecompile(addr) {
-				continue
-			}
-			if slots[addr] == nil {
-				slots[addr] = make(map[common.Hash]struct{})
-			}
-			slots[addr][c.key] = struct{}{}
-
-		case resetObjectChange:
-			addr := *c.account
-			if isPrecompile(addr) {
-				continue
-			}
-			if slots[addr] == nil {
-				slots[addr] = make(map[common.Hash]struct{})
-			}
-			// c.prevStorage is map[common.Hash][]byte
-			for k := range c.prevStorage {
-				slots[addr][k] = struct{}{}
-			}
 		}
 	}
 
