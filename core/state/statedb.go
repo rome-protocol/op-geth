@@ -1432,26 +1432,23 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	touched := make(map[common.Address]struct{}, len(s.journal.entries))
 	for _, e := range s.journal.entries {
 		switch c := e.(type) {
-		case createObjectChange:
-			touched[*c.account] = struct{}{}
-		case resetObjectChange:
-			touched[*c.account] = struct{}{}
-		case selfDestructChange:
-			touched[*c.account] = struct{}{}
-		case balanceChange:
-			touched[*c.account] = struct{}{}
-		case nonceChange:
-			touched[*c.account] = struct{}{}
-		case storageChange:
-			touched[*c.account] = struct{}{}
-		case codeChange:
-			touched[*c.account] = struct{}{}
-		case touchChange:
-			touched[*c.account] = struct{}{}
-		case accessListAddAccountChange:
-			touched[*c.address] = struct{}{}
-		case accessListAddSlotChange:
-			touched[*c.address] = struct{}{}
+		case storageChange, balanceChange, nonceChange,
+			createObjectChange, resetObjectChange:
+			// all of those carry *c.account
+			var addr common.Address
+			switch x := c.(type) {
+			case storageChange:
+				addr = *x.account
+			case balanceChange:
+				addr = *x.account
+			case nonceChange:
+				addr = *x.account
+			case createObjectChange:
+				addr = *x.account
+			case resetObjectChange:
+				addr = *x.account
+			}
+			touched[addr] = struct{}{}
 		}
 	}
 	// build and sort address list
