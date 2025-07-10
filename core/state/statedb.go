@@ -1426,29 +1426,32 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 	}
 	return copied
 }
-
 func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
-	// 1) collect every touched address from the journal (all change types except transientStorageChange)
-	touched := make(map[common.Address]struct{}, len(s.journal.entries))
+	// 1) collect touched addresses from both journal.dirties and relevant journal entries
+	touched := make(map[common.Address]struct{}, len(s.journal.dirties)+len(s.journal.entries))
+	// a) from dirties
+	for addr := range s.journal.dirties {
+		if !isPrecompile(addr) {
+			touched[addr] = struct{}{}
+		}
+	}
+	// b) from entry types that actually change state
 	for _, e := range s.journal.entries {
 		switch c := e.(type) {
-		case storageChange, balanceChange, nonceChange,
-			createObjectChange, resetObjectChange:
-			// all of those carry *c.account
-			var addr common.Address
-			switch x := c.(type) {
-			case storageChange:
-				addr = *x.account
-			case balanceChange:
-				addr = *x.account
-			case nonceChange:
-				addr = *x.account
-			case createObjectChange:
-				addr = *x.account
-			case resetObjectChange:
-				addr = *x.account
-			}
-			touched[addr] = struct{}{}
+		case createObjectChange:
+			touched[*c.account] = struct{}{}
+		case resetObjectChange:
+			touched[*c.account] = struct{}{}
+		case selfDestructChange:
+			touched[*c.account] = struct{}{}
+		case balanceChange:
+			touched[*c.account] = struct{}{}
+		case nonceChange:
+			touched[*c.account] = struct{}{}
+		case storageChange:
+			touched[*c.account] = struct{}{}
+		case codeChange:
+			touched[*c.account] = struct{}{}
 		}
 	}
 	// build and sort address list
@@ -1500,23 +1503,21 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		}
 	}
 
+	// 3) per-account hashing in parallel
 	type result struct {
-		index     int
-		hash      [32]byte
-		preimage  []byte
-		logOutput string
+		idx  int
+		hash [32]byte
+		log  string
 	}
-
-	const numWorkers = 10
-	inputCh := make(chan int, len(addresses))
-	outputCh := make(chan result, len(addresses))
-
+	in := make(chan int, len(addresses))
+	out := make(chan result, len(addresses))
 	var wg sync.WaitGroup
-	wg.Add(numWorkers)
-	for w := 0; w < numWorkers; w++ {
+	const workers = 10
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
 		go func() {
 			defer wg.Done()
-			for i := range inputCh {
+			for i := range in {
 				addr := addresses[i]
 				var b strings.Builder
 				var pre []byte
@@ -1573,35 +1574,34 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 				copy(hh[:], h)
 				b.WriteString(fmt.Sprintf("  Account Hash: %x\n", h))
 
-				outputCh <- result{i, hh, pre, b.String()}
+				out <- result{i, hh, b.String()}
 			}
 		}()
 	}
-
 	for i := range addresses {
-		inputCh <- i
+		in <- i
 	}
-	close(inputCh)
-
+	close(in)
 	go func() {
 		wg.Wait()
-		close(outputCh)
+		close(out)
 	}()
 
 	hashes := make([][]byte, len(addresses))
 	logs := make([]string, len(addresses))
-	for res := range outputCh {
-		hashes[res.index] = res.hash[:]
-		logs[res.index] = res.logOutput
+	for r := range out {
+		hashes[r.idx] = r.hash[:]
+		logs[r.idx] = r.log
 	}
 
+	// 4) final fold
 	fh := crypto.NewKeccakState()
 	for _, h := range hashes {
 		fh.Write(h)
 	}
-	var finalHash [32]byte
-	fh.Read(finalHash[:])
-	final := common.BytesToHash(finalHash[:])
+	var sum [32]byte
+	fh.Read(sum[:])
+	final := common.BytesToHash(sum[:])
 
 	log.Info("State Footprint Summary")
 	for _, l := range logs {
