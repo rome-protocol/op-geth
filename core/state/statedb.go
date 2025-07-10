@@ -1426,16 +1426,25 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 	}
 	return copied
 }
+
 func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
-	// 1) collect touched addresses from both journal.dirties and relevant journal entries
-	touched := make(map[common.Address]struct{}, len(s.journal.dirties)+len(s.journal.entries))
+	// 1) collect touched addresses from journal.dirties, touchedSlots, and relevant journal entries
+	touched := make(map[common.Address]struct{},
+		len(s.journal.dirties)+len(s.touchedSlots)+len(s.journal.entries))
+
 	// a) from dirties
 	for addr := range s.journal.dirties {
 		if !isPrecompile(addr) {
 			touched[addr] = struct{}{}
 		}
 	}
-	// b) from entry types that actually change state
+	// b) from touchedSlots (storage-only touches)
+	for addr := range s.touchedSlots {
+		if !isPrecompile(addr) {
+			touched[addr] = struct{}{}
+		}
+	}
+	// c) from entry types that actually change state
 	for _, e := range s.journal.entries {
 		switch c := e.(type) {
 		case createObjectChange:
@@ -1454,19 +1463,19 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 			touched[*c.account] = struct{}{}
 		}
 	}
+
 	// build and sort address list
 	addresses := make([]common.Address, 0, len(touched))
 	for addr := range touched {
-		if isPrecompile(addr) {
-			continue
+		if !isPrecompile(addr) {
+			addresses = append(addresses, addr)
 		}
-		addresses = append(addresses, addr)
 	}
 	sort.Slice(addresses, func(i, j int) bool {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
 
-	// 2) build slot‐sets from both touchedSlots and journal entries
+	// 2) build slot‐sets from touchedSlots and journal entries
 	slots := make(map[common.Address]map[common.Hash]struct{}, len(addresses))
 	for addr, m := range s.touchedSlots {
 		if isPrecompile(addr) {
@@ -1509,8 +1518,10 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		hash [32]byte
 		log  string
 	}
+
 	in := make(chan int, len(addresses))
 	out := make(chan result, len(addresses))
+
 	var wg sync.WaitGroup
 	const workers = 10
 	wg.Add(workers)
@@ -1578,6 +1589,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 			}
 		}()
 	}
+
 	for i := range addresses {
 		in <- i
 	}
@@ -1609,6 +1621,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	}
 	log.Info("Final Footprint Hash", "hash", final.Hex())
 
+	// flush
 	s.touchedSlots = make(map[common.Address]map[common.Hash]struct{})
 	return final, logs
 }
