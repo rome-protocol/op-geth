@@ -20,7 +20,6 @@ package state
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"sort"
@@ -1428,16 +1427,44 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 	return copied
 }
 
-// CalculateTxFootPrint calculates the footprint of the current transaction.
 func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
-	// 1) build the list of touched addresses
-	addresses := make([]common.Address, 0, len(s.journal.dirties))
-	for addr := range s.journal.dirties {
+	// 1) collect every touched address from the journal (all change types except transientStorageChange)
+	touched := make(map[common.Address]struct{}, len(s.journal.entries))
+	for _, e := range s.journal.entries {
+		switch c := e.(type) {
+		case createObjectChange:
+			touched[*c.account] = struct{}{}
+		case resetObjectChange:
+			touched[*c.account] = struct{}{}
+		case selfDestructChange:
+			touched[*c.account] = struct{}{}
+		case balanceChange:
+			touched[*c.account] = struct{}{}
+		case nonceChange:
+			touched[*c.account] = struct{}{}
+		case storageChange:
+			touched[*c.account] = struct{}{}
+		case codeChange:
+			touched[*c.account] = struct{}{}
+		case touchChange:
+			touched[*c.account] = struct{}{}
+		case accessListAddAccountChange:
+			touched[*c.address] = struct{}{}
+		case accessListAddSlotChange:
+			touched[*c.address] = struct{}{}
+		}
+	}
+	// build and sort address list
+	addresses := make([]common.Address, 0, len(touched))
+	for addr := range touched {
 		if isPrecompile(addr) {
 			continue
 		}
 		addresses = append(addresses, addr)
 	}
+	sort.Slice(addresses, func(i, j int) bool {
+		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
+	})
 
 	// 2) build slot‐sets from both touchedSlots and journal entries
 	slots := make(map[common.Address]map[common.Hash]struct{}, len(addresses))
@@ -1451,7 +1478,6 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		}
 		slots[addr] = cmap
 	}
-
 	for _, entry := range s.journal.entries {
 		switch c := entry.(type) {
 		case storageChange:
@@ -1463,13 +1489,19 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 				slots[addr] = make(map[common.Hash]struct{})
 			}
 			slots[addr][c.key] = struct{}{}
+		case resetObjectChange:
+			addr := *c.account
+			if isPrecompile(addr) {
+				continue
+			}
+			if slots[addr] == nil {
+				slots[addr] = make(map[common.Hash]struct{})
+			}
+			for k := range c.prevStorage {
+				slots[addr][k] = struct{}{}
+			}
 		}
 	}
-
-	// 3) sort addresses
-	sort.Slice(addresses, func(i, j int) bool {
-		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
-	})
 
 	type result struct {
 		index     int
@@ -1484,63 +1516,67 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 
 	var wg sync.WaitGroup
 	wg.Add(numWorkers)
-
 	for w := 0; w < numWorkers; w++ {
 		go func() {
 			defer wg.Done()
 			for i := range inputCh {
 				addr := addresses[i]
-				var logBuilder strings.Builder
-				var preimage []byte
+				var b strings.Builder
+				var pre []byte
 
-				logBuilder.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
-				preimage = append(preimage, addr.Bytes()...)
+				b.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
+				pre = append(pre, addr.Bytes()...)
 
-				nonce := s.GetNonce(addr)
-				var nonceBytes [8]byte
-				binary.LittleEndian.PutUint64(nonceBytes[:], nonce)
-				preimage = append(preimage, nonceBytes[:]...)
-				logBuilder.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nonceBytes))
+				// nonce: journal bump if present, else state
+				var nonce uint64
+				found := false
+				for j := len(s.journal.entries) - 1; j >= 0; j-- {
+					if nc, ok := s.journal.entries[j].(nonceChange); ok && *nc.account == addr {
+						nonce = nc.prev + 1
+						found = true
+						break
+					}
+				}
+				if !found {
+					nonce = s.GetNonce(addr)
+				}
+				var nb [8]byte
+				binary.LittleEndian.PutUint64(nb[:], nonce)
+				pre = append(pre, nb[:]...)
+				b.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nb))
 
-				balance := s.GetBalance(addr).Bytes()
-				var balanceBytes [32]byte
-				copy(balanceBytes[32-len(balance):], balance)
-				preimage = append(preimage, balanceBytes[:]...)
-				logBuilder.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(balance).String(), balanceBytes))
+				bal := s.GetBalance(addr).Bytes()
+				var bb [32]byte
+				copy(bb[32-len(bal):], bal)
+				pre = append(pre, bb[:]...)
+				b.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(bb[:]).String(), bb))
 
 				code := s.GetCode(addr)
-				preimage = append(preimage, code...)
-				logBuilder.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
+				pre = append(pre, code...)
+				b.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
-				var keys []common.Hash
-				if slotMap, ok := slots[addr]; ok && len(slotMap) > 0 {
-					for k := range slotMap {
-						keys = append(keys, k)
-					}
-					sort.Slice(keys, func(i, j int) bool {
-						return bytes.Compare(keys[i][:], keys[j][:]) < 0
-					})
+				keys := make([]common.Hash, 0, len(slots[addr]))
+				for k := range slots[addr] {
+					keys = append(keys, k)
 				}
-				logBuilder.WriteString(fmt.Sprintf("  Storage Slots (%d):\n", len(keys)))
+				sort.Slice(keys, func(i, j int) bool {
+					return bytes.Compare(keys[i][:], keys[j][:]) < 0
+				})
+				b.WriteString(fmt.Sprintf("  Storage Slots (%d):\n", len(keys)))
 				for _, k := range keys {
-					val := s.GetState(addr, k).Bytes()
-					var valBytes [32]byte
-					copy(valBytes[32-len(val):], val)
-					preimage = append(preimage, valBytes[:]...)
-					logBuilder.WriteString(fmt.Sprintf("    %s: %s\n", k.Hex(), hex.EncodeToString(valBytes[:])))
+					v := s.GetState(addr, k).Bytes()
+					var vb [32]byte
+					copy(vb[32-len(v):], v)
+					pre = append(pre, vb[:]...)
+					b.WriteString(fmt.Sprintf("    %s: %x\n", k.Hex(), vb))
 				}
 
-				hash := crypto.Keccak256(preimage)
-				logBuilder.WriteString(fmt.Sprintf("  Account Hash: %s\n", hex.EncodeToString(hash)))
-				var outHash [32]byte
-				copy(outHash[:], hash)
+				h := crypto.Keccak256(pre)
+				var hh [32]byte
+				copy(hh[:], h)
+				b.WriteString(fmt.Sprintf("  Account Hash: %x\n", h))
 
-				outputCh <- result{
-					index:     i,
-					hash:      outHash,
-					preimage:  preimage,
-					logOutput: logBuilder.String(),
-				}
+				outputCh <- result{i, hh, pre, b.String()}
 			}
 		}()
 	}
@@ -1562,22 +1598,21 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		logs[res.index] = res.logOutput
 	}
 
-	finalHasher := crypto.NewKeccakState()
+	fh := crypto.NewKeccakState()
 	for _, h := range hashes {
-		finalHasher.Write(h)
+		fh.Write(h)
 	}
 	var finalHash [32]byte
-	finalHasher.Read(finalHash[:])
+	fh.Read(finalHash[:])
 	final := common.BytesToHash(finalHash[:])
 
 	log.Info("State Footprint Summary")
-	for _, entry := range logs {
-		log.Info(entry)
+	for _, l := range logs {
+		log.Info(l)
 	}
 	log.Info("Final Footprint Hash", "hash", final.Hex())
 
 	s.touchedSlots = make(map[common.Address]map[common.Hash]struct{})
-
 	return final, logs
 }
 
