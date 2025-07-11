@@ -1444,7 +1444,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 			touched[addr] = struct{}{}
 		}
 	}
-	// c) from entry types that actually change state
+	// c) from journal entries that represent *persistent* changes
 	for _, e := range s.journal.entries {
 		switch c := e.(type) {
 		case createObjectChange:
@@ -1461,10 +1461,12 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 			touched[*c.account] = struct{}{}
 		case codeChange:
 			touched[*c.account] = struct{}{}
+		case touchChange:
+			touched[*c.account] = struct{}{}
 		}
 	}
 
-	// build and sort address list
+	//  build & sort address list
 	addresses := make([]common.Address, 0, len(touched))
 	for addr := range touched {
 		if !isPrecompile(addr) {
@@ -1475,7 +1477,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
 
-	// 2) build slot‐sets from touchedSlots and journal entries
+	// 2) build slot-sets from touchedSlots + storage/reset entries
 	slots := make(map[common.Address]map[common.Hash]struct{}, len(addresses))
 	for addr, m := range s.touchedSlots {
 		if isPrecompile(addr) {
@@ -1518,7 +1520,6 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		hash [32]byte
 		log  string
 	}
-
 	in := make(chan int, len(addresses))
 	out := make(chan result, len(addresses))
 
@@ -1536,7 +1537,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 				b.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
 				pre = append(pre, addr.Bytes()...)
 
-				// nonce: journal bump if present, else state
+				// nonce: highest journal bump wins
 				var nonce uint64
 				found := false
 				for j := len(s.journal.entries) - 1; j >= 0; j-- {
@@ -1564,6 +1565,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 				pre = append(pre, code...)
 				b.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
+				// collect & sort storage keys
 				keys := make([]common.Hash, 0, len(slots[addr]))
 				for k := range slots[addr] {
 					keys = append(keys, k)
@@ -1589,7 +1591,6 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 			}
 		}()
 	}
-
 	for i := range addresses {
 		in <- i
 	}
