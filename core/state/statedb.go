@@ -1428,7 +1428,18 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 }
 
 func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
-	// 1) collect touched addresses from journal.dirties, touchedSlots, and relevant journal entries
+	// first: figure out which accounts actually had *persistent* storage writes
+	persistent := make(map[common.Address]struct{})
+	for _, e := range s.journal.entries {
+		switch c := e.(type) {
+		case storageChange:
+			persistent[*c.account] = struct{}{}
+		case resetObjectChange:
+			persistent[*c.account] = struct{}{}
+		}
+	}
+
+	// 1) collect touched addresses
 	touched := make(map[common.Address]struct{},
 		len(s.journal.dirties)+len(s.touchedSlots)+len(s.journal.entries))
 
@@ -1438,13 +1449,13 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 			touched[addr] = struct{}{}
 		}
 	}
-	// b) from touchedSlots (storage-only touches)
+	// b) from touchedSlots, but only if they also had a *persistent* write
 	for addr := range s.touchedSlots {
-		if !isPrecompile(addr) {
+		if _, ok := persistent[addr]; ok && !isPrecompile(addr) {
 			touched[addr] = struct{}{}
 		}
 	}
-	// c) from journal entries that represent *persistent* changes
+	// c) from real journal entries (no transientStorageChange)
 	for _, e := range s.journal.entries {
 		switch c := e.(type) {
 		case createObjectChange:
@@ -1461,12 +1472,10 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 			touched[*c.account] = struct{}{}
 		case codeChange:
 			touched[*c.account] = struct{}{}
-		case touchChange:
-			touched[*c.account] = struct{}{}
 		}
 	}
 
-	//  build & sort address list
+	// build & sort addresses
 	addresses := make([]common.Address, 0, len(touched))
 	for addr := range touched {
 		if !isPrecompile(addr) {
@@ -1477,10 +1486,10 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
 
-	// 2) build slot-sets from touchedSlots + storage/reset entries
+	// 2) build slot‐sets, only for accounts in `persistent`
 	slots := make(map[common.Address]map[common.Hash]struct{}, len(addresses))
 	for addr, m := range s.touchedSlots {
-		if isPrecompile(addr) {
+		if _, ok := persistent[addr]; !ok || isPrecompile(addr) {
 			continue
 		}
 		cmap := make(map[common.Hash]struct{}, len(m))
@@ -1489,11 +1498,12 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		}
 		slots[addr] = cmap
 	}
+	// also fold in any slots from resetObjectChange
 	for _, entry := range s.journal.entries {
 		switch c := entry.(type) {
 		case storageChange:
 			addr := *c.account
-			if isPrecompile(addr) {
+			if _, ok := persistent[addr]; !ok || isPrecompile(addr) {
 				continue
 			}
 			if slots[addr] == nil {
@@ -1502,7 +1512,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 			slots[addr][c.key] = struct{}{}
 		case resetObjectChange:
 			addr := *c.account
-			if isPrecompile(addr) {
+			if _, ok := persistent[addr]; !ok || isPrecompile(addr) {
 				continue
 			}
 			if slots[addr] == nil {
@@ -1514,7 +1524,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		}
 	}
 
-	// 3) per-account hashing in parallel
+	// 3) per-account hashing (unchanged)
 	type result struct {
 		idx  int
 		hash [32]byte
@@ -1522,7 +1532,6 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	}
 	in := make(chan int, len(addresses))
 	out := make(chan result, len(addresses))
-
 	var wg sync.WaitGroup
 	const workers = 10
 	wg.Add(workers)
@@ -1537,7 +1546,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 				b.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
 				pre = append(pre, addr.Bytes()...)
 
-				// nonce: highest journal bump wins
+				// nonce: bump if in journal, else state
 				var nonce uint64
 				found := false
 				for j := len(s.journal.entries) - 1; j >= 0; j-- {
@@ -1565,7 +1574,6 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 				pre = append(pre, code...)
 				b.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
-				// collect & sort storage keys
 				keys := make([]common.Hash, 0, len(slots[addr]))
 				for k := range slots[addr] {
 					keys = append(keys, k)
