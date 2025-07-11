@@ -1461,72 +1461,15 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 			touched[*c.account] = struct{}{}
 		case codeChange:
 			touched[*c.account] = struct{}{}
-		case touchChange:
-			touched[*c.account] = struct{}{}
-		case accessListAddAccountChange:
-			touched[*c.address] = struct{}{}
-		case accessListAddSlotChange:
-			touched[*c.address] = struct{}{}
 		}
 	}
 
-	sawPersistent := make(map[common.Address]bool, len(touched))
-	sawTransientOnly := make(map[common.Address]bool, len(touched))
-	for addr := range touched {
-		sawTransientOnly[addr] = false
-		sawPersistent[addr] = false
-	}
-	for _, e := range s.journal.entries {
-		switch c := e.(type) {
-		case transientStorageChange:
-			addr := *c.account
-			if _, ok := sawTransientOnly[addr]; ok {
-				// mark it saw some transient
-				sawTransientOnly[addr] = true
-			}
-		default:
-			// any other journal entry is persistent
-			var addr common.Address
-			switch x := e.(type) {
-			case createObjectChange:
-				addr = *x.account
-			case resetObjectChange:
-				addr = *x.account
-			case selfDestructChange:
-				addr = *x.account
-			case balanceChange:
-				addr = *x.account
-			case nonceChange:
-				addr = *x.account
-			case storageChange:
-				addr = *x.account
-			case codeChange:
-				addr = *x.account
-			case touchChange:
-				addr = *x.account
-			case accessListAddAccountChange:
-				addr = *x.address
-			case accessListAddSlotChange:
-				addr = *x.address
-			default:
-				continue
-			}
-			if _, ok := sawPersistent[addr]; ok {
-				sawPersistent[addr] = true
-			}
-		}
-	}
-	// Now rebuild addresses list, skipping any addr with sawTransientOnly && !sawPersistent
+	// build and sort address list
 	addresses := make([]common.Address, 0, len(touched))
 	for addr := range touched {
-		if isPrecompile(addr) {
-			continue
+		if !isPrecompile(addr) {
+			addresses = append(addresses, addr)
 		}
-		if sawTransientOnly[addr] && !sawPersistent[addr] {
-			// pure transient → skip
-			continue
-		}
-		addresses = append(addresses, addr)
 	}
 	sort.Slice(addresses, func(i, j int) bool {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
@@ -1575,8 +1518,10 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		hash [32]byte
 		log  string
 	}
+
 	in := make(chan int, len(addresses))
 	out := make(chan result, len(addresses))
+
 	var wg sync.WaitGroup
 	const workers = 10
 	wg.Add(workers)
@@ -1644,6 +1589,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 			}
 		}()
 	}
+
 	for i := range addresses {
 		in <- i
 	}
@@ -1661,12 +1607,12 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	}
 
 	// 4) final fold
-	finalHasher := crypto.NewKeccakState()
+	fh := crypto.NewKeccakState()
 	for _, h := range hashes {
-		finalHasher.Write(h)
+		fh.Write(h)
 	}
 	var sum [32]byte
-	finalHasher.Read(sum[:])
+	fh.Read(sum[:])
 	final := common.BytesToHash(sum[:])
 
 	log.Info("State Footprint Summary")
