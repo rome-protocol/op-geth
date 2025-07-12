@@ -1511,6 +1511,14 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 			for k := range c.prevStorage {
 				slots[addr][k] = struct{}{}
 			}
+		case transientStorageChange:
+			addr := *c.account
+			if !isPrecompile(addr) {
+				if slots[addr] == nil {
+					slots[addr] = make(map[common.Hash]struct{})
+				}
+				slots[addr][c.key] = struct{}{}
+			}
 		}
 	}
 
