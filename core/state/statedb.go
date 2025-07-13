@@ -1428,83 +1428,84 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 }
 
 func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
-	// 1) Figure out exactly which accounts to include (journaled_accs)
-	journaled := make(map[common.Address]struct{})
+	// 1) Collect every touched address:
+	touched := make(map[common.Address]struct{})
+
+	// a) from journal.dirties
+	for addr := range s.journal.dirties {
+		if !isPrecompile(addr) {
+			touched[addr] = struct{}{}
+		}
+	}
+	// b) from ALL touchedSlots (so transient-only accounts get in)
+	for addr := range s.touchedSlots {
+		if !isPrecompile(addr) {
+			touched[addr] = struct{}{}
+		}
+	}
+	// c) from every persistent journal entry
 	for _, e := range s.journal.entries {
 		switch c := e.(type) {
 		case createObjectChange:
-			journaled[*c.account] = struct{}{}
+			touched[*c.account] = struct{}{}
 		case resetObjectChange:
-			journaled[*c.account] = struct{}{}
+			touched[*c.account] = struct{}{}
 		case selfDestructChange:
-			journaled[*c.account] = struct{}{}
+			touched[*c.account] = struct{}{}
 		case balanceChange:
-			journaled[*c.account] = struct{}{}
+			touched[*c.account] = struct{}{}
 		case nonceChange:
-			journaled[*c.account] = struct{}{}
-		case codeChange:
-			journaled[*c.account] = struct{}{}
+			touched[*c.account] = struct{}{}
 		case storageChange:
-			journaled[*c.account] = struct{}{}
+			touched[*c.account] = struct{}{}
+		case codeChange:
+			touched[*c.account] = struct{}{}
 		case touchChange:
-			journaled[*c.account] = struct{}{}
+			touched[*c.account] = struct{}{}
 		case accessListAddAccountChange:
-			journaled[*c.address] = struct{}{}
+			touched[*c.address] = struct{}{}
 		case accessListAddSlotChange:
-			journaled[*c.address] = struct{}{}
-		}
-	}
-	// Also from previous `touchedSlots` sets (these count as writes if they’re in journaled)
-	for addr := range s.touchedSlots {
-		if _, ok := journaled[addr]; ok {
-			journaled[addr] = struct{}{}
-		}
-	}
-	// Remove any precompiles
-	for addr := range journaled {
-		if isPrecompile(addr) {
-			delete(journaled, addr)
+			touched[*c.address] = struct{}{}
 		}
 	}
 
-	// Build and sort our account list
-	addresses := make([]common.Address, 0, len(journaled))
-	for addr := range journaled {
+	// Build and sort the address list
+	addresses := make([]common.Address, 0, len(touched))
+	for addr := range touched {
 		addresses = append(addresses, addr)
 	}
 	sort.Slice(addresses, func(i, j int) bool {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
 
-	// 2) For each account, assemble exactly the slots it touched (journaled_slots)
+	// 2) Build slot-sets identically from ALL touchedSlots + journal writes/resets
 	slots := make(map[common.Address]map[common.Hash]struct{}, len(addresses))
-	// a) start with any persistent touchedSlots
+	// a) start with every touchedSlots entry
 	for addr, m := range s.touchedSlots {
-		if _, ok := journaled[addr]; !ok || isPrecompile(addr) {
+		if isPrecompile(addr) {
 			continue
 		}
-		set := make(map[common.Hash]struct{}, len(m))
+		cmap := make(map[common.Hash]struct{}, len(m))
 		for k := range m {
-			set[k] = struct{}{}
+			cmap[k] = struct{}{}
 		}
-		slots[addr] = set
+		slots[addr] = cmap
 	}
-	// b) fold in any keys from storage-reset diffs
-	for _, e := range s.journal.entries {
-		switch c := e.(type) {
+	// b) fold in journaled storageChange and resetObjectChange
+	for _, entry := range s.journal.entries {
+		switch c := entry.(type) {
 		case storageChange:
 			addr := *c.account
-			if _, ok := journaled[addr]; !ok {
+			if isPrecompile(addr) {
 				continue
 			}
 			if slots[addr] == nil {
 				slots[addr] = make(map[common.Hash]struct{})
 			}
 			slots[addr][c.key] = struct{}{}
-
 		case resetObjectChange:
 			addr := *c.account
-			if _, ok := journaled[addr]; !ok {
+			if isPrecompile(addr) {
 				continue
 			}
 			if slots[addr] == nil {
@@ -1516,7 +1517,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		}
 	}
 
-	// 3) Now hash each account in parallel exactly like hashv(&[ addr, nonce, balance, code, slots... ])
+	// 3) Hash each account exactly as Solana does (addr ∥ nonceLE ∥ balanceBE ∥ code ∥ slotValuesBE…)
 	type result struct {
 		idx  int
 		hash [32]byte
@@ -1524,23 +1525,21 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	}
 	in := make(chan int, len(addresses))
 	out := make(chan result, len(addresses))
-
 	var wg sync.WaitGroup
-	const workers = 10
-	wg.Add(workers)
-	for w := 0; w < workers; w++ {
+	wg.Add(10)
+	for w := 0; w < 10; w++ {
 		go func() {
 			defer wg.Done()
 			for i := range in {
 				addr := addresses[i]
-				var pre [][]byte
+				var slices [][]byte
 				var b strings.Builder
 
-				// Address
-				pre = append(pre, addr.Bytes())
+				// addr
+				slices = append(slices, addr.Bytes())
 				b.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
 
-				// Nonce (LE 8)
+				// nonce (LE)
 				var nonce uint64
 				for j := len(s.journal.entries) - 1; j >= 0; j-- {
 					if nc, ok := s.journal.entries[j].(nonceChange); ok && *nc.account == addr {
@@ -1553,22 +1552,22 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 				}
 				nb := make([]byte, 8)
 				binary.LittleEndian.PutUint64(nb, nonce)
-				pre = append(pre, nb)
+				slices = append(slices, nb)
 				b.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nb))
 
-				// Balance (BE 32)
+				// balance (BE 32)
 				bal := s.GetBalance(addr).Bytes()
 				bb := make([]byte, 32)
 				copy(bb[32-len(bal):], bal)
-				pre = append(pre, bb)
+				slices = append(slices, bb)
 				b.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(bb), bb))
 
-				// Code
+				// code
 				code := s.GetCode(addr)
-				pre = append(pre, code)
+				slices = append(slices, code)
 				b.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
-				// Sorted slot-values (BE 32 each)
+				// sorted slots
 				keys := make([]common.Hash, 0, len(slots[addr]))
 				for k := range slots[addr] {
 					keys = append(keys, k)
@@ -1577,21 +1576,16 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 					return bytes.Compare(keys[i][:], keys[j][:]) < 0
 				})
 				b.WriteString(fmt.Sprintf("  Storage Slots (%d):\n", len(keys)))
-				for idx, k := range keys {
-					val := s.GetState(addr, k).Bytes()
+				for _, k := range keys {
+					v := s.GetState(addr, k).Bytes()
 					vb := make([]byte, 32)
-					copy(vb[32-len(val):], val)
-					pre = append(pre, vb)
+					copy(vb[32-len(v):], v)
+					slices = append(slices, vb)
 					b.WriteString(fmt.Sprintf("    %s: %x\n", k.Hex(), vb))
-					_ = idx
 				}
 
-				// Hashv
-				flat := make([][]byte, len(pre))
-				for i, x := range pre {
-					flat[i] = x
-				}
-				h := crypto.Keccak256(flat...)
+				// hashv
+				h := crypto.Keccak256(slices...)
 				var hh [32]byte
 				copy(hh[:], h)
 				b.WriteString(fmt.Sprintf("  Account Hash: %x\n", h))
@@ -1617,25 +1611,24 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		logs[r.idx] = r.log
 	}
 
-	// 4) Final fold over each per-account hash
-	stateHasher := crypto.NewKeccakState()
+	// 4) final fold
+	stateH := crypto.NewKeccakState()
 	for _, h := range hashes {
-		stateHasher.Write(h)
+		stateH.Write(h)
 	}
 	var finalBytes [32]byte
-	stateHasher.Read(finalBytes[:])
-	finalHash := common.BytesToHash(finalBytes[:])
+	stateH.Read(finalBytes[:])
+	final := common.BytesToHash(finalBytes[:])
 
-	// Emit logs
 	log.Info("State Footprint Summary")
 	for _, l := range logs {
 		log.Info(l)
 	}
-	log.Info("Final Footprint Hash", "hash", finalHash.Hex())
+	log.Info("Final Footprint Hash", "hash", final.Hex())
 
-	// Flush
+	// flush
 	s.touchedSlots = make(map[common.Address]map[common.Hash]struct{})
-	return finalHash, logs
+	return final, logs
 }
 
 func isPrecompile(addr common.Address) bool {
