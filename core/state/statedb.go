@@ -1431,12 +1431,12 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	// 1) collect every "journaled" account (including self-destruct)
 	touched := make(map[common.Address]struct{}, len(s.journal.dirties)+len(s.journal.entries))
 
-	// a) any dirty address
-	for addr := range s.journal.dirties {
-		if addr != (common.Address{}) && !isPrecompile(addr) {
-			touched[addr] = struct{}{}
-		}
-	}
+	// // a) any dirty address
+	// for addr := range s.journal.dirties {
+	// 	if addr != (common.Address{}) && !isPrecompile(addr) {
+	// 		touched[addr] = struct{}{}
+	// 	}
+	// }
 	// b) any journal entry that truly touched state
 	for _, e := range s.journal.entries {
 		switch c := e.(type) {
