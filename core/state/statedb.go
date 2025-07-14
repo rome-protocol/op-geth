@@ -1428,41 +1428,41 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 }
 
 func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
-	// 1) collect touched addresses
-	touched := make(map[common.Address]struct{}, len(s.journal.dirties)+len(s.journal.entries))
+	// 1) collect every truly touched address (but exclude any selfdestruct resets or the zero address)
+	touched := map[common.Address]struct{}{}
+
+	// a) from journal.dirties
 	for addr := range s.journal.dirties {
-		if !isPrecompile(addr) {
+		if addr != (common.Address{}) && !isPrecompile(addr) {
 			touched[addr] = struct{}{}
 		}
 	}
+
+	// b) from journal entries, but only real state‐changing ones
 	for _, e := range s.journal.entries {
 		switch c := e.(type) {
-		case createObjectChange, resetObjectChange, selfDestructChange,
-			balanceChange, nonceChange, storageChange, codeChange, touchChange:
+		case createObjectChange, selfDestructChange,
+			balanceChange, nonceChange, codeChange:
 			var addr common.Address
 			switch x := c.(type) {
 			case createObjectChange:
 				addr = *x.account
-			case resetObjectChange:
+			case selfDestructChange:
 				addr = *x.account
 			case balanceChange:
 				addr = *x.account
 			case nonceChange:
 				addr = *x.account
-			case storageChange:
-				addr = *x.account
 			case codeChange:
 				addr = *x.account
-			case touchChange:
-				addr = *x.account
 			}
-			if !isPrecompile(addr) {
+			if addr != (common.Address{}) && !isPrecompile(addr) {
 				touched[addr] = struct{}{}
 			}
 		}
 	}
 
-	// build & sort addresses
+	// build & sort address list
 	addresses := make([]common.Address, 0, len(touched))
 	for addr := range touched {
 		addresses = append(addresses, addr)
@@ -1471,10 +1471,10 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
 
-	// 2) build slot‐sets from both touchedSlots and journal entries
+	// 2) gather storage slots *only* from touchedSlots (which you already record on every SetState)
 	slots := make(map[common.Address]map[common.Hash]struct{}, len(addresses))
 	for addr, m := range s.touchedSlots {
-		if isPrecompile(addr) {
+		if addr == (common.Address{}) || isPrecompile(addr) {
 			continue
 		}
 		set := make(map[common.Hash]struct{}, len(m))
@@ -1483,40 +1483,14 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		}
 		slots[addr] = set
 	}
-	for _, entry := range s.journal.entries {
-		switch c := entry.(type) {
-		case storageChange:
-			addr := *c.account
-			if isPrecompile(addr) {
-				continue
-			}
-			if slots[addr] == nil {
-				slots[addr] = make(map[common.Hash]struct{})
-			}
-			slots[addr][c.key] = struct{}{}
 
-		case resetObjectChange:
-			addr := *c.account
-			if isPrecompile(addr) {
-				continue
-			}
-			if slots[addr] == nil {
-				slots[addr] = make(map[common.Hash]struct{})
-			}
-			for k := range c.prevStorage {
-				slots[addr][k] = struct{}{}
-			}
-		}
-	}
-
-	// 3) per-account hashing in parallel
+	// 3) per-account hashing (identical to before)
 	type result struct {
 		idx  int
 		hash [32]byte
 		log  string
 	}
-	in := make(chan int, len(addresses))
-	out := make(chan result, len(addresses))
+	in, out := make(chan int, len(addresses)), make(chan result, len(addresses))
 	var wg sync.WaitGroup
 	const workers = 10
 	wg.Add(workers)
@@ -1525,13 +1499,13 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 			defer wg.Done()
 			for i := range in {
 				addr := addresses[i]
-				var b strings.Builder
 				var pre []byte
+				var b strings.Builder
 
 				b.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
 				pre = append(pre, addr.Bytes()...)
 
-				// nonce
+				// --- nonce ---
 				var nonce uint64
 				found := false
 				for j := len(s.journal.entries) - 1; j >= 0; j-- {
@@ -1549,19 +1523,19 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 				pre = append(pre, nb[:]...)
 				b.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nb))
 
-				// balance
+				// --- balance ---
 				bal := s.GetBalance(addr).Bytes()
 				var bb [32]byte
 				copy(bb[32-len(bal):], bal)
 				pre = append(pre, bb[:]...)
 				b.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(bb[:]), bb))
 
-				// code
+				// --- code ---
 				code := s.GetCode(addr)
 				pre = append(pre, code...)
 				b.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
-				// storage slots
+				// --- storage slots ---
 				keys := make([]common.Hash, 0, len(slots[addr]))
 				for k := range slots[addr] {
 					keys = append(keys, k)
