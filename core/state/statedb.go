@@ -1445,8 +1445,6 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 				addr = *x.account
 			case resetObjectChange:
 				addr = *x.account
-			case selfDestructChange:
-				addr = *x.account
 			case balanceChange:
 				addr = *x.account
 			case nonceChange:
