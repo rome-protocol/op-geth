@@ -118,10 +118,11 @@ type StateDB struct {
 
 	// Journal of state modifications. This is the backbone of
 	// Snapshot and RevertToSnapshot.
-	journal        *journal
-	validRevisions []revision
-	nextRevisionId int
-	touchedSlots   map[common.Address]map[common.Hash]struct{}
+	journal          *journal
+	validRevisions   []revision
+	nextRevisionId   int
+	touchedSlots     map[common.Address]map[common.Hash]struct{}
+	revertedAccounts map[common.Address]struct{}
 
 	// Measurements gathered during execution for debugging purposes
 	AccountReads         time.Duration
@@ -168,6 +169,7 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 		logs:                 make(map[common.Hash][]*types.Log),
 		preimages:            make(map[common.Hash][]byte),
 		touchedSlots:         make(map[common.Address]map[common.Hash]struct{}),
+		revertedAccounts:     make(map[common.Address]struct{}),
 		journal:              newJournal(),
 		accessList:           newAccessList(),
 		transientStorage:     newTransientStorage(),
@@ -1432,37 +1434,41 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 
 	// a) From dirties
 	for addr := range s.journal.dirties {
-		if !isPrecompile(addr) {
+		if !isPrecompile(addr) && !s.isReverted(addr) {
 			touched[addr] = struct{}{}
 		}
 	}
 
 	// b) From touchedSlots
 	for addr := range s.touchedSlots {
-		if !isPrecompile(addr) {
+		if !isPrecompile(addr) && !s.isReverted(addr) {
 			touched[addr] = struct{}{}
 		}
 	}
 
 	// c) From journal entries
 	for _, e := range s.journal.entries {
+		var addr *common.Address
 		switch c := e.(type) {
 		case *createObjectChange:
-			touched[*c.account] = struct{}{}
+			addr = c.account
 		case *resetObjectChange:
-			touched[*c.account] = struct{}{}
+			addr = c.account
 		case *selfDestructChange:
-			touched[*c.account] = struct{}{}
+			addr = c.account
 		case *balanceChange:
-			touched[*c.account] = struct{}{}
+			addr = c.account
 		case *nonceChange:
-			touched[*c.account] = struct{}{}
+			addr = c.account
 		case *storageChange:
-			touched[*c.account] = struct{}{}
+			addr = c.account
 		case *codeChange:
-			touched[*c.account] = struct{}{}
+			addr = c.account
 		case *touchChange:
-			touched[*c.account] = struct{}{}
+			addr = c.account
+		}
+		if addr != nil && !isPrecompile(*addr) && !s.isReverted(*addr) {
+			touched[*addr] = struct{}{}
 		}
 	}
 
@@ -1478,7 +1484,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	// Build slots map
 	slots := make(map[common.Address]map[common.Hash]struct{})
 	for addr, m := range s.touchedSlots {
-		if isPrecompile(addr) {
+		if isPrecompile(addr) || s.isReverted(addr) {
 			continue
 		}
 		slots[addr] = make(map[common.Hash]struct{})
@@ -1490,7 +1496,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		switch c := entry.(type) {
 		case *storageChange:
 			addr := *c.account
-			if isPrecompile(addr) {
+			if isPrecompile(addr) || s.isReverted(addr) {
 				continue
 			}
 			if slots[addr] == nil {
@@ -1499,7 +1505,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 			slots[addr][c.key] = struct{}{}
 		case *resetObjectChange:
 			addr := *c.account
-			if isPrecompile(addr) {
+			if isPrecompile(addr) || s.isReverted(addr) {
 				continue
 			}
 			if slots[addr] == nil {
@@ -1511,7 +1517,6 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		}
 	}
 
-	// Per-account hashing
 	type result struct {
 		idx  int
 		hash [32]byte
@@ -1613,7 +1618,6 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		logs[r.idx] = r.log
 	}
 
-	// Final fold hash
 	fh := crypto.NewKeccakState()
 	for _, h := range hashes {
 		fh.Write(h)
@@ -1628,8 +1632,9 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	}
 	log.Info("Final Footprint Hash", "hash", final.Hex())
 
-	// Reset touched slots
+	// Reset touched slots and reverted state
 	s.touchedSlots = make(map[common.Address]map[common.Hash]struct{})
+	s.revertedAccounts = make(map[common.Address]struct{})
 
 	return final, logs
 }
@@ -1637,4 +1642,9 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 func isPrecompile(addr common.Address) bool {
 	_, ok := vm.PrecompiledContractsBerlin[addr]
 	return ok
+}
+
+func (s *StateDB) isReverted(addr common.Address) bool {
+	_, reverted := s.revertedAccounts[addr]
+	return reverted
 }

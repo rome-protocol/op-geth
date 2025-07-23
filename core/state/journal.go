@@ -59,6 +59,10 @@ func (j *journal) append(entry journalEntry) {
 // dirty handling too.
 func (j *journal) revert(statedb *StateDB, snapshot int) {
 	for i := len(j.entries) - 1; i >= snapshot; i-- {
+		if acc := j.entries[i].dirtied(); acc != nil {
+			statedb.revertedAccounts[*acc] = struct{}{}
+		}
+
 		// Undo the changes made by the operation
 		j.entries[i].revert(statedb)
 
