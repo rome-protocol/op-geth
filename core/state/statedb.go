@@ -1447,10 +1447,22 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	// c) From journal entries
 	for _, e := range s.journal.entries {
 		switch c := e.(type) {
-		case *createObjectChange, *resetObjectChange, *selfDestructChange,
-			*balanceChange, *nonceChange, *storageChange, *codeChange, *touchChange:
-			journalChange :=
-				touched[*c.(journalChange).account()] == struct{}{}
+		case *createObjectChange:
+			touched[*c.account] = struct{}{}
+		case *resetObjectChange:
+			touched[*c.account] = struct{}{}
+		case *selfDestructChange:
+			touched[*c.account] = struct{}{}
+		case *balanceChange:
+			touched[*c.account] = struct{}{}
+		case *nonceChange:
+			touched[*c.account] = struct{}{}
+		case *storageChange:
+			touched[*c.account] = struct{}{}
+		case *codeChange:
+			touched[*c.account] = struct{}{}
+		case *touchChange:
+			touched[*c.account] = struct{}{}
 		}
 	}
 
