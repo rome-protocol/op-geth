@@ -133,15 +133,6 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 		return nil, err
 	}
 
-	// Update the state with pending changes.
-	var root []byte
-	if config.IsByzantium(blockNumber) {
-		statedb.Finalise(true)
-	} else {
-		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
-	}
-	*usedGas += romeGasUsed
-
 	// Calculate the state footprint after VM execution
 	vmState, logs := statedb.CalculateTxFootPrint()
 
@@ -155,6 +146,15 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 		}
 		panic(fmt.Sprintf("state footprint mismatch: expected %s, got %s", footPrint, vmState))
 	}
+
+	// Update the state with pending changes.
+	var root []byte
+	if config.IsByzantium(blockNumber) {
+		statedb.Finalise(true)
+	} else {
+		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
+	}
+	*usedGas += romeGasUsed
 
 	// Create a new receipt for the transaction, storing the intermediate root and gas used
 	// by the tx.
