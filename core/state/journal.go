@@ -59,20 +59,26 @@ func (j *journal) append(entry journalEntry) {
 // dirty handling too.
 func (j *journal) revert(statedb *StateDB, snapshot int) {
 	for i := len(j.entries) - 1; i >= snapshot; i-- {
-		if acc := j.entries[i].dirtied(); acc != nil {
-			statedb.revertedAccounts[*acc] = struct{}{}
+		entry := j.entries[i]
+
+		// Track reverted account creations
+		if coc, ok := entry.(*createObjectChange); ok {
+			// This account was created during the tx and is now being reverted
+			statedb.revertedAccounts[*coc.account] = true
 		}
 
 		// Undo the changes made by the operation
-		j.entries[i].revert(statedb)
+		entry.revert(statedb)
 
 		// Drop any dirty tracking induced by the change
-		if addr := j.entries[i].dirtied(); addr != nil {
+		if addr := entry.dirtied(); addr != nil {
 			if j.dirties[*addr]--; j.dirties[*addr] == 0 {
 				delete(j.dirties, *addr)
 			}
 		}
 	}
+
+	// Truncate journal to the snapshot
 	j.entries = j.entries[:snapshot]
 }
 
