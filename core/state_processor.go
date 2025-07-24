@@ -183,7 +183,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 		receipt.BlobGasPrice = evm.Context.BlobBaseFee
 	}
 
-	log.Info("contract address outside", crypto.CreateAddress(evm.TxContext.Origin, nonce).String(), "origin", evm.TxContext.Origin.String(), "contract nonce", statedb.GetNonce(crypto.CreateAddress(evm.TxContext.Origin, nonce)), "to", msg.To.String())
+	log.Info("contract address outside", crypto.CreateAddress(evm.TxContext.Origin, nonce).String(), "origin", evm.TxContext.Origin.String(), "contract nonce", statedb.GetNonce(crypto.CreateAddress(evm.TxContext.Origin, nonce)), "to", msg.To)
 
 	// If the transaction created a contract, store the creation address in the receipt.
 	if msg.To == nil {
