@@ -527,7 +527,7 @@ func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, nu
 		rs[i].Type = txs[i].Type()
 		rs[i].TxHash = txs[i].Hash()
 		rs[i].EffectiveGasPrice = txs[i].inner.effectiveGasPrice(new(big.Int), baseFee)
-		log.Info("receipt DeriveFields", baseFee, "hash", txs[i].Hash().String())
+		log.Info("receipt DeriveFields", baseFee.String(), "hash", txs[i].Hash().String(), "gas price effective", rs[i].EffectiveGasPrice.String())
 		// EIP-4844 blob transaction fields
 		if txs[i].Type() == BlobTxType {
 			rs[i].BlobGasUsed = txs[i].BlobGas()
