@@ -100,15 +100,22 @@ func (tx *DynamicFeeTx) to() *common.Address    { return tx.To }
 func (tx *DynamicFeeTx) isSystemTx() bool       { return false }
 
 func (tx *DynamicFeeTx) effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.Int {
-	log.Info("dynamic", tx.GasFeeCap)
+	log.Info("dynamic", "feeCap", tx.GasFeeCap.String())
+
 	if baseFee == nil {
-		log.Info("dynamic nil", tx.GasFeeCap)
+		log.Info("dynamic nil", "feeCap", tx.GasFeeCap.String())
 		return dst.Set(tx.GasFeeCap)
 	}
+
+	log.Info("baseFee", "value", baseFee.String())
+
 	tip := dst.Sub(tx.GasFeeCap, baseFee)
+	log.Info("tip", "value", tip.String())
+
 	if tip.Cmp(tx.GasTipCap) > 0 {
 		tip.Set(tx.GasTipCap)
 	}
+
 	return tip.Add(tip, baseFee)
 }
 
