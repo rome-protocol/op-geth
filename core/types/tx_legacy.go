@@ -21,6 +21,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // LegacyTx is the transaction data of the original Ethereum transactions.
@@ -106,7 +107,7 @@ func (tx *LegacyTx) to() *common.Address    { return tx.To }
 func (tx *LegacyTx) isSystemTx() bool       { return false }
 
 func (tx *LegacyTx) effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.Int {
-	log.Info("legacy", tx.GasFeeCap)
+	log.Info("legacy", tx.GasPrice)
 	return dst.Set(tx.GasPrice)
 }
 
