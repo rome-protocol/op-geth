@@ -1652,6 +1652,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 //	price = min(gasTipCap + baseFee, gasFeeCap)
 func effectiveGasPrice(tx *types.Transaction, baseFee *big.Int) *big.Int {
 	fee := tx.GasTipCap()
+	log.Info("effective gas", fee, "basefee", baseFee)
 	fee = fee.Add(fee, baseFee)
 	if tx.GasFeeCapIntCmp(fee) < 0 {
 		return tx.GasFeeCap()
