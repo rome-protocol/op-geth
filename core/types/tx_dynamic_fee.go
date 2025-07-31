@@ -99,7 +99,14 @@ func (tx *DynamicFeeTx) to() *common.Address    { return tx.To }
 func (tx *DynamicFeeTx) isSystemTx() bool       { return false }
 
 func (tx *DynamicFeeTx) effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.Int {
-	return dst.Set(tx.gasTipCap())
+	if baseFee == nil {
+		return dst.Set(tx.GasFeeCap)
+	}
+	tip := dst.Sub(tx.GasFeeCap, baseFee)
+	if tip.Cmp(tx.GasTipCap) > 0 {
+		tip.Set(tx.GasTipCap)
+	}
+	return tip.Add(tip, baseFee)
 }
 
 func (tx *DynamicFeeTx) rawSignatureValues() (v, r, s *big.Int) {
