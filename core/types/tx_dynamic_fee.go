@@ -103,7 +103,7 @@ func (tx *DynamicFeeTx) effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.I
 	log.Info("dynamic", "feeCap", tx.GasFeeCap.String())
 
 	if baseFee == nil {
-		log.Info("dynamic nil", "feeCap", tx.GasFeeCap.String())
+		log.Info("dynamic nil", "feeCap", tx.GasFeeCap.String(), "tipCap", tx.GasTipCap.String())
 		return dst.Set(tx.GasFeeCap)
 	}
 
