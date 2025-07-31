@@ -106,6 +106,7 @@ func (tx *LegacyTx) to() *common.Address    { return tx.To }
 func (tx *LegacyTx) isSystemTx() bool       { return false }
 
 func (tx *LegacyTx) effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.Int {
+	log.Info("legacy", tx.GasFeeCap)
 	return dst.Set(tx.GasPrice)
 }
 

@@ -21,6 +21,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -99,7 +100,9 @@ func (tx *DynamicFeeTx) to() *common.Address    { return tx.To }
 func (tx *DynamicFeeTx) isSystemTx() bool       { return false }
 
 func (tx *DynamicFeeTx) effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.Int {
+	log.Info("dynamic", tx.GasFeeCap)
 	if baseFee == nil {
+		log.Info("dynamic nil", tx.GasFeeCap)
 		return dst.Set(tx.GasFeeCap)
 	}
 	tip := dst.Sub(tx.GasFeeCap, baseFee)
