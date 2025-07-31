@@ -518,7 +518,6 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 // data and contextual infos like containing block and transactions.
 func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, number uint64, time uint64, baseFee *big.Int, blobGasPrice *big.Int, txs []*Transaction) error {
 	signer := MakeSigner(config, new(big.Int).SetUint64(number), time)
-	log.Info("receipt DeriveFields", baseFee)
 	logIndex := uint(0)
 	if len(txs) != len(rs) {
 		return errors.New("transaction and receipt count mismatch")
@@ -528,7 +527,7 @@ func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, nu
 		rs[i].Type = txs[i].Type()
 		rs[i].TxHash = txs[i].Hash()
 		rs[i].EffectiveGasPrice = txs[i].inner.effectiveGasPrice(new(big.Int), baseFee)
-
+		log.Info("receipt DeriveFields", baseFee, "hash", txs[i].Hash().String())
 		// EIP-4844 blob transaction fields
 		if txs[i].Type() == BlobTxType {
 			rs[i].BlobGasUsed = txs[i].BlobGas()
