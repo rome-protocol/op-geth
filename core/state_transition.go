@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-
+	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -119,10 +119,10 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.In
 		BlobGasFeeCap:     tx.BlobGasFeeCap(),
 	}
 	// If baseFee provided, set gasPrice to effectiveGasPrice.
-	// if baseFee != nil {
-	// 	log.Info("TransactionToMessage here", cmath.BigMin(msg.GasPrice.Add(msg.GasTipCap, baseFee), msg.GasFeeCap))
-	// 	msg.GasPrice = cmath.BigMin(msg.GasPrice.Add(msg.GasTipCap, baseFee), msg.GasFeeCap)
-	// }
+	if baseFee != nil {
+		log.Info("TransactionToMessage here", cmath.BigMin(msg.GasPrice.Add(msg.GasTipCap, baseFee), msg.GasFeeCap), "fee cap", msg.GasFeeCap, "baseFee", baseFee)
+		msg.GasPrice = cmath.BigMin(msg.GasPrice.Add(msg.GasTipCap, baseFee), msg.GasFeeCap)
+	}
 	var err error
 	msg.From, err = types.Sender(s, tx)
 	return msg, err
