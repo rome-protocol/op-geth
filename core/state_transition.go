@@ -402,9 +402,6 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	}
 
 	effectiveTip := msg.GasPrice
-	if msg.GasTipCap != nil {
-		effectiveTip = msg.GasTipCap
-	}
 
 	if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
 		// Skip fee payment when NoBaseFee is set and the fee fields
