@@ -121,7 +121,7 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.In
 	}
 	// If baseFee provided, set gasPrice to effectiveGasPrice.
 	if baseFee != nil {
-		log.Info("TransactionToMessage here", cmath.BigMin(msg.GasPrice.Add(msg.GasTipCap, baseFee), msg.GasFeeCap), "fee cap", msg.GasFeeCap, "baseFee", baseFee, "gas price", msg.GasPrice)
+		log.Info("TransactionToMessage here", cmath.BigMin(msg.GasPrice.Add(msg.GasTipCap, baseFee), msg.GasFeeCap), "fee cap", msg.GasFeeCap, "baseFee", baseFee.String(), "gas price", msg.GasPrice)
 		msg.GasPrice = cmath.BigMin(msg.GasPrice.Add(msg.GasTipCap, baseFee), msg.GasFeeCap)
 	}
 	var err error
