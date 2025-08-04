@@ -145,7 +145,7 @@ func (eth *Ethereum) hashState(ctx context.Context, block *types.Block, reexec u
 		if current = eth.blockchain.GetBlockByNumber(next); current == nil {
 			return nil, nil, fmt.Errorf("block #%d not found", next)
 		}
-		_, _, _, err := eth.blockchain.Processor().Process(current, statedb, vm.Config{}, make([]uint64, 0))
+		_, _, _, err := eth.blockchain.Processor().Process(current, statedb, vm.Config{}, make([]uint64, 0), make([]uint64, 0))
 		if err != nil {
 			return nil, nil, fmt.Errorf("processing block %d failed: %v", current.NumberU64(), err)
 		}
@@ -239,7 +239,7 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 	signer := types.MakeSigner(eth.blockchain.Config(), block.Number(), block.Time())
 	for idx, tx := range block.Transactions() {
 		// Assemble the transaction call message and return if the requested offset
-		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee())
+		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee(), nil)
 		txContext := core.NewEVMTxContext(msg)
 		context := core.NewEVMBlockContext(block.Header(), eth.blockchain, nil, eth.blockchain.Config(), statedb)
 		if idx == txIndex {

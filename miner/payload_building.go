@@ -273,6 +273,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 			txs:         args.Transactions,
 			gasLimit:    args.GasLimit,
 			gasUsed:     args.GasUsed,
+			gasPrice:    args.GasPrice,
 		}
 		empty := w.getSealingBlock(emptyParams)
 		if empty.err != nil {
@@ -298,6 +299,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 		txs:         args.Transactions,
 		gasLimit:    args.GasLimit,
 		gasUsed:     args.GasUsed,
+		gasPrice:    args.GasPrice,
 	}
 
 	// Since we skip building the empty block when using the tx pool, we need to explicitly
