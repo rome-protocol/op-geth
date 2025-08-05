@@ -126,6 +126,7 @@ type RomeExecutableData struct {
 	GasLimit      uint64              `json:"gasLimit"      gencodec:"required"`
 	GasUsed       uint64              `json:"gasUsed"       gencodec:"required"`
 	RomeGasUsed   []uint64            `json:"romeGasUsed"   gencodec:"required"`
+	RomeGasPrice  []uint64            `json:"romeGasPrice"  gencodec:"required"`
 	Timestamp     uint64              `json:"timestamp"     gencodec:"required"`
 	ExtraData     []byte              `json:"extraData"     gencodec:"required"`
 	BaseFeePerGas *big.Int            `json:"baseFeePerGas" gencodec:"required"`

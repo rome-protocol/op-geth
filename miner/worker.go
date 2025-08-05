@@ -790,11 +790,11 @@ func (w *worker) updateSnapshot(env *environment) {
 	w.snapshotState = env.state.Copy()
 }
 
-func (w *worker) commitTransaction(env *environment, tx *types.Transaction, index int, romeGasUsed uint64, footPrint string) ([]*types.Log, error) {
+func (w *worker) commitTransaction(env *environment, tx *types.Transaction, index int, romeGasUsed uint64, footPrint string, romeGasPrice uint64) ([]*types.Log, error) {
 	if tx.Type() == types.BlobTxType {
 		return w.commitBlobTransaction(env, tx)
 	}
-	receipt, err := w.applyTransaction(env, tx, index, romeGasUsed, footPrint)
+	receipt, err := w.applyTransaction(env, tx, index, romeGasUsed, footPrint, romeGasPrice)
 	if err != nil {
 		return nil, err
 	}
@@ -828,13 +828,13 @@ func (w *worker) commitBlobTransaction(env *environment, tx *types.Transaction) 
 }
 
 // applyTransaction runs the transaction. If execution fails, state and gas pool are reverted.
-func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index int, romeGasUsed uint64, footPrint string) (*types.Receipt, error) {
+func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index int, romeGasUsed uint64, footPrint string, romeGasPrice uint64) (*types.Receipt, error) {
 	var (
 		snap = env.state.Snapshot()
 		gp   = env.gasPool.Gas()
 	)
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed, footPrint)
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed, footPrint, romeGasPrice)
 
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
@@ -909,7 +909,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 		}
 
 		index++
-		logs, err := w.commitTransaction(env, tx, index, gasUsed, "")
+		logs, err := w.commitTransaction(env, tx, index, gasUsed, "", gasPrice)
 		switch {
 		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
