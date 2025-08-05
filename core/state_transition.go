@@ -100,9 +100,14 @@ type Message struct {
 // TransactionToMessage converts a transaction into a Message.
 func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.Int, romeGasPrice *uint64) (*Message, error) {
 	msg := &Message{
-		Nonce:          tx.Nonce(),
-		GasLimit:       tx.Gas(),
-		GasPrice:       new(big.Int).SetUint64(*romeGasPrice),
+		Nonce:    tx.Nonce(),
+		GasLimit: tx.Gas(),
+		GasPrice: func() *big.Int {
+			if romeGasPrice != nil {
+				return new(big.Int).SetUint64(*romeGasPrice)
+			}
+			return tx.GasPrice()
+		}(),
 		GasFeeCap:      new(big.Int).Set(tx.GasFeeCap()),
 		GasTipCap:      new(big.Int).Set(tx.GasTipCap()),
 		To:             tx.To(),
