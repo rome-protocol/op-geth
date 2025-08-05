@@ -198,11 +198,6 @@ func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 
 	mgval := new(big.Int).SetUint64(romeGasUsed)
 	mgval = mgval.Mul(mgval, st.msg.GasPrice)
-	if st.msg.GasTipCap != nil {
-		mgval = mgval.Mul(mgval, st.msg.GasTipCap)
-	} else {
-		mgval = mgval.Mul(mgval, st.msg.GasPrice)
-	}
 	balanceCheck := new(big.Int).Set(mgval)
 	if have, want := st.state.GetBalance(st.msg.From), balanceCheck; have.Cmp(want) < 0 {
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
