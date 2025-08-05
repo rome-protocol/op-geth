@@ -118,7 +118,6 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 			attribute.String("timestamp", time.Now().Format(time.RFC3339Nano)),
 		))
 	defer span.End()
-	log.Info("gas price 1", msg.GasPrice, "tx hash", tx.Hash().String(), "signer balance", statedb.GetBalance(msg.From))
 
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
@@ -128,7 +127,6 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	if msg.IsDepositTx && config.IsOptimismRegolith(evm.Context.Time) {
 		nonce = statedb.GetNonce(msg.From)
 	}
-	log.Info("gas price 2", msg.GasPrice, "tx hash", tx.Hash().String(), "signer balance", statedb.GetBalance(msg.From))
 
 	// Apply the transaction to the current state (included in the env).
 	result, err := ApplyMessage(evm, msg, gp, romeGasUsed)
@@ -204,7 +202,6 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 // indicating the block was invalid.
 func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, romeGasUsed uint64, footPrint string, romeGasPrice uint64) (*types.Receipt, error) {
 	msg, err := TransactionToMessage(tx, types.MakeSigner(config, header.Number, header.Time), header.BaseFee, &romeGasPrice)
-	log.Info("gas price", msg.GasPrice, "tx hash", tx.Hash().String(), "signer balance", statedb.GetBalance(msg.From))
 	if err != nil {
 		return nil, err
 	}

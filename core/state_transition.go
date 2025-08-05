@@ -25,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -198,11 +197,7 @@ func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 	}
 
 	mgval := new(big.Int).SetUint64(romeGasUsed)
-	if st.msg.GasTipCap != nil {
-		mgval = mgval.Mul(mgval, st.msg.GasTipCap)
-	} else {
-		mgval = mgval.Mul(mgval, st.msg.GasPrice)
-	}
+	mgval = mgval.Mul(mgval, st.msg.GasPrice)
 	balanceCheck := new(big.Int).Set(mgval)
 	if have, want := st.state.GetBalance(st.msg.From), balanceCheck; have.Cmp(want) < 0 {
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
@@ -211,7 +206,6 @@ func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 		return err
 	}
 	st.gasRemaining += math.MaxUint64 / 2
-
 	st.initialGas = math.MaxUint64 / 2
 	st.state.SubBalance(st.msg.From, mgval)
 
@@ -297,15 +291,8 @@ func (st *StateTransition) preCheck(romeGasUsed uint64) error {
 // However if any consensus issue encountered, return the error directly with
 // nil evm execution result.
 func (st *StateTransition) TransitionDb(romeGasUsed uint64) (*ExecutionResult, error) {
-	log.Info("gas price 3", st.msg.GasPrice, "signer balance", st.state.GetBalance(st.msg.From))
-	if mint := st.msg.Mint; mint != nil {
-		st.state.AddBalance(st.msg.From, mint)
-	}
 	snap := st.state.Snapshot()
-	log.Info("gas price 4", st.msg.GasPrice, "signer balance", st.state.GetBalance(st.msg.From))
-
 	result, err := st.innerTransitionDb(romeGasUsed)
-	log.Info("gas price 5", st.msg.GasPrice, "signer balance", st.state.GetBalance(st.msg.From))
 	// Failed deposits must still be included. Unless we cannot produce the block at all due to the gas limit.
 	// On deposit failure, we rewind any state changes from after the minting, and increment the nonce.
 	if err != nil && err != ErrGasLimitReached && st.msg.IsDepositTx {
@@ -360,8 +347,6 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		contractCreation = msg.To == nil
 	)
 
-	log.Info("balance before signer", st.state.GetBalance(msg.From))
-
 	// Check clauses 4-5, subtract intrinsic gas if everything is correct
 	gas, err := IntrinsicGas(msg.Data, msg.AccessList, contractCreation, rules.IsHomestead, rules.IsIstanbul, rules.IsShanghai)
 	if err != nil {
@@ -386,7 +371,6 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From, st.state.GetNonce(sender.Address())+1)
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, msg.Value)
-		log.Info("balance after signer", st.state.GetBalance(msg.From), "errr", vmerr)
 	}
 
 	// if deposit: skip refunds, skip tipping coinbase
