@@ -815,7 +815,7 @@ func (w *worker) commitBlobTransaction(env *environment, tx *types.Transaction) 
 	if (env.blobs+len(sc.Blobs))*params.BlobTxBlobGasPerBlob > params.MaxBlobGasPerBlock {
 		return nil, errors.New("max data blobs reached")
 	}
-	receipt, err := w.applyTransaction(env, tx, 0, 0, "")
+	receipt, err := w.applyTransaction(env, tx, 0, 0, "", 0)
 	if err != nil {
 		return nil, err
 	}
@@ -1120,7 +1120,7 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 	for idx, tx := range genParams.txs {
 		from, _ := types.Sender(work.signer, tx)
 		work.state.SetTxContext(tx.Hash(), work.tcount)
-		_, err := w.commitTransaction(work, tx, idx, genParams.gasUsed[idx], genParams.footPrints[idx])
+		_, err := w.commitTransaction(work, tx, idx, genParams.gasUsed[idx], genParams.footPrints[idx], genParams.gasPrice[idx])
 		if err != nil {
 			return &newPayloadResult{err: fmt.Errorf("failed to force-include tx: %s type: %d sender: %s nonce: %d, err: %w", tx.Hash(), tx.Type(), from, tx.Nonce(), err)}
 		}
