@@ -23,7 +23,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
@@ -98,11 +97,18 @@ type Message struct {
 }
 
 // TransactionToMessage converts a transaction into a Message.
-func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.Int) (*Message, error) {
+func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.Int, romeGasPrice *uint64) (*Message, error) {
+	var gasPrice *big.Int
+	if romeGasPrice != nil {
+		gasPrice = new(big.Int).SetUint64(*romeGasPrice)
+	} else {
+		gasPrice = new(big.Int).Set(tx.GasPrice())
+	}
+
 	msg := &Message{
 		Nonce:          tx.Nonce(),
 		GasLimit:       tx.Gas(),
-		GasPrice:       new(big.Int).Set(tx.GasPrice()),
+		GasPrice:       gasPrice,
 		GasFeeCap:      new(big.Int).Set(tx.GasFeeCap()),
 		GasTipCap:      new(big.Int).Set(tx.GasTipCap()),
 		To:             tx.To(),
@@ -118,10 +124,7 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.In
 		BlobHashes:        tx.BlobHashes(),
 		BlobGasFeeCap:     tx.BlobGasFeeCap(),
 	}
-	// If baseFee provided, set gasPrice to effectiveGasPrice.
-	if baseFee != nil {
-		msg.GasPrice = cmath.BigMin(msg.GasPrice.Add(msg.GasTipCap, baseFee), msg.GasFeeCap)
-	}
+
 	var err error
 	msg.From, err = types.Sender(s, tx)
 	return msg, err
