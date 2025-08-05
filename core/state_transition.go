@@ -297,13 +297,15 @@ func (st *StateTransition) preCheck(romeGasUsed uint64) error {
 // However if any consensus issue encountered, return the error directly with
 // nil evm execution result.
 func (st *StateTransition) TransitionDb(romeGasUsed uint64) (*ExecutionResult, error) {
-
+	log.Info("gas price 3", st.msg.GasPrice, "signer balance", st.state.GetBalance(st.msg.From))
 	if mint := st.msg.Mint; mint != nil {
 		st.state.AddBalance(st.msg.From, mint)
 	}
 	snap := st.state.Snapshot()
+	log.Info("gas price 4", st.msg.GasPrice, "signer balance", st.state.GetBalance(st.msg.From))
 
 	result, err := st.innerTransitionDb(romeGasUsed)
+	log.Info("gas price 5", st.msg.GasPrice, "signer balance", st.state.GetBalance(st.msg.From))
 	// Failed deposits must still be included. Unless we cannot produce the block at all due to the gas limit.
 	// On deposit failure, we rewind any state changes from after the minting, and increment the nonce.
 	if err != nil && err != ErrGasLimitReached && st.msg.IsDepositTx {
