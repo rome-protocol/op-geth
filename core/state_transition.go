@@ -198,11 +198,7 @@ func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 	}
 
 	mgval := new(big.Int).SetUint64(romeGasUsed)
-	if st.msg.GasTipCap != nil {
-		mgval = mgval.Mul(mgval, st.msg.GasTipCap)
-	} else {
-		mgval = mgval.Mul(mgval, st.msg.GasPrice)
-	}
+	mgval = mgval.Mul(mgval, st.msg.GasPrice)
 	balanceCheck := new(big.Int).Set(mgval)
 	if have, want := st.state.GetBalance(st.msg.From), balanceCheck; have.Cmp(want) < 0 {
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
@@ -211,7 +207,6 @@ func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 		return err
 	}
 	st.gasRemaining += math.MaxUint64 / 2
-
 	st.initialGas = math.MaxUint64 / 2
 	st.state.SubBalance(st.msg.From, mgval)
 
@@ -297,7 +292,7 @@ func (st *StateTransition) preCheck(romeGasUsed uint64) error {
 // However if any consensus issue encountered, return the error directly with
 // nil evm execution result.
 func (st *StateTransition) TransitionDb(romeGasUsed uint64) (*ExecutionResult, error) {
-	log.Info("balance", st.state.GetBalance(st.msg.From)) 
+	log.Info("balance", st.state.GetBalance(st.msg.From))
 	if mint := st.msg.Mint; mint != nil {
 		st.state.AddBalance(st.msg.From, mint)
 	}
@@ -358,7 +353,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		rules            = st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber, st.evm.Context.Random != nil, st.evm.Context.Time)
 		contractCreation = msg.To == nil
 	)
-	log.Info("balance", st.state.GetBalance(msg.From)) 
+	log.Info("balance", st.state.GetBalance(msg.From))
 
 	// Check clauses 4-5, subtract intrinsic gas if everything is correct
 	gas, err := IntrinsicGas(msg.Data, msg.AccessList, contractCreation, rules.IsHomestead, rules.IsIstanbul, rules.IsShanghai)
