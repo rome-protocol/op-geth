@@ -378,6 +378,16 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, msg.Value)
 	}
 
+	if vmerr != nil {
+		refund := new(big.Int).SetUint64(romeGasUsed)
+		if st.msg.GasTipCap != nil {
+			refund = refund.Mul(refund, st.msg.GasTipCap)
+		} else {
+			refund = refund.Mul(refund, st.msg.GasPrice)
+		}
+		st.state.AddBalance(st.msg.From, refund)
+	}
+
 	// if deposit: skip refunds, skip tipping coinbase
 	// Regolith changes this behaviour to report the actual gasUsed instead of always reporting all gas used.
 	if st.msg.IsDepositTx && !rules.IsOptimismRegolith {
