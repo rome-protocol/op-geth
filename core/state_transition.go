@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -382,6 +383,17 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From, st.state.GetNonce(sender.Address())+1)
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, msg.Value)
+	}
+
+	if vmerr != nil {
+		log.Info("vmerr", vmerr)
+		mgval := new(big.Int).SetUint64(romeGasUsed)
+		if st.msg.GasTipCap != nil {
+			mgval = mgval.Mul(mgval, st.msg.GasTipCap)
+		} else {
+			mgval = mgval.Mul(mgval, st.msg.GasPrice)
+		}
+		st.state.AddBalance(st.msg.From, mgval)
 	}
 
 	// if deposit: skip refunds, skip tipping coinbase
