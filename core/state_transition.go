@@ -386,7 +386,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	}
 
 	if vmerr != nil {
-		log.Info("vmerr", vmerr)
+		log.Info("vmerr", vmerr, "balance", st.state.GetBalance(st.msg.From))
 		mgval := new(big.Int).SetUint64(romeGasUsed)
 		if st.msg.GasTipCap != nil {
 			mgval = mgval.Mul(mgval, st.msg.GasTipCap)
