@@ -292,7 +292,6 @@ func (st *StateTransition) preCheck(romeGasUsed uint64) error {
 // However if any consensus issue encountered, return the error directly with
 // nil evm execution result.
 func (st *StateTransition) TransitionDb(romeGasUsed uint64) (*ExecutionResult, error) {
-	log.Info("balance", st.state.GetBalance(st.msg.From))
 	if mint := st.msg.Mint; mint != nil {
 		st.state.AddBalance(st.msg.From, mint)
 	}
@@ -353,7 +352,6 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		rules            = st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber, st.evm.Context.Random != nil, st.evm.Context.Time)
 		contractCreation = msg.To == nil
 	)
-	log.Info("balance", st.state.GetBalance(msg.From))
 
 	// Check clauses 4-5, subtract intrinsic gas if everything is correct
 	gas, err := IntrinsicGas(msg.Data, msg.AccessList, contractCreation, rules.IsHomestead, rules.IsIstanbul, rules.IsShanghai)
