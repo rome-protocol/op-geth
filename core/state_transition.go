@@ -23,7 +23,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
@@ -98,11 +97,18 @@ type Message struct {
 }
 
 // TransactionToMessage converts a transaction into a Message.
-func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.Int) (*Message, error) {
+func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.Int, romeGasPrice *uint64) (*Message, error) {
+	var gasPrice *big.Int
+	if romeGasPrice != nil {
+		gasPrice = new(big.Int).SetUint64(*romeGasPrice)
+	} else {
+		gasPrice = new(big.Int).Set(tx.GasPrice())
+	}
+
 	msg := &Message{
 		Nonce:          tx.Nonce(),
 		GasLimit:       tx.Gas(),
-		GasPrice:       new(big.Int).Set(tx.GasPrice()),
+		GasPrice:       gasPrice,
 		GasFeeCap:      new(big.Int).Set(tx.GasFeeCap()),
 		GasTipCap:      new(big.Int).Set(tx.GasTipCap()),
 		To:             tx.To(),
@@ -118,10 +124,7 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.In
 		BlobHashes:        tx.BlobHashes(),
 		BlobGasFeeCap:     tx.BlobGasFeeCap(),
 	}
-	// If baseFee provided, set gasPrice to effectiveGasPrice.
-	if baseFee != nil {
-		msg.GasPrice = cmath.BigMin(msg.GasPrice.Add(msg.GasTipCap, baseFee), msg.GasFeeCap)
-	}
+
 	var err error
 	msg.From, err = types.Sender(s, tx)
 	return msg, err
@@ -194,11 +197,7 @@ func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 	}
 
 	mgval := new(big.Int).SetUint64(romeGasUsed)
-	if st.msg.GasTipCap != nil {
-		mgval = mgval.Mul(mgval, st.msg.GasTipCap)
-	} else {
-		mgval = mgval.Mul(mgval, st.msg.GasPrice)
-	}
+	mgval = mgval.Mul(mgval, st.msg.GasPrice)
 	balanceCheck := new(big.Int).Set(mgval)
 	if have, want := st.state.GetBalance(st.msg.From), balanceCheck; have.Cmp(want) < 0 {
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
@@ -207,7 +206,6 @@ func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 		return err
 	}
 	st.gasRemaining += math.MaxUint64 / 2
-
 	st.initialGas = math.MaxUint64 / 2
 	st.state.SubBalance(st.msg.From, mgval)
 
@@ -403,10 +401,6 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	}
 
 	effectiveTip := msg.GasPrice
-	if msg.GasTipCap != nil {
-		effectiveTip = msg.GasTipCap
-	}
-
 	if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
 		// Skip fee payment when NoBaseFee is set and the fee fields
 		// are 0. This avoids a negative effectiveTip being applied to

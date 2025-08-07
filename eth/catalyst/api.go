@@ -390,6 +390,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			Transactions: transactions,
 			GasLimit:     payloadAttributes.GasLimit,
 			GasUsed:      payloadAttributes.GasUsed,
+			GasPrice:     payloadAttributes.GasPrice,
 			Footprints:   payloadAttributes.TxFootprints,
 		}
 		id := args.Id()
