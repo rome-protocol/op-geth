@@ -1120,10 +1120,42 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 	for idx, tx := range genParams.txs {
 		from, _ := types.Sender(work.signer, tx)
 		work.state.SetTxContext(tx.Hash(), work.tcount)
-		_, err := w.commitTransaction(work, tx, idx, genParams.gasUsed[idx], genParams.footPrints[idx], genParams.gasPrice[idx])
-		if err != nil {
-			return &newPayloadResult{err: fmt.Errorf("failed to force-include tx: %s type: %d sender: %s nonce: %d, err: %w", tx.Hash(), tx.Type(), from, tx.Nonce(), err)}
+
+		var (
+			gasUsed   uint64
+			footprint string
+			gasPrice  uint64
+		)
+
+		if idx < len(genParams.gasUsed) {
+			gasUsed = genParams.gasUsed[idx]
+		} else {
+			log.Warn("Fallback: gasUsed missing", "idx", idx, "txHash", tx.Hash())
+			gasUsed = 0
 		}
+
+		if idx < len(genParams.footPrints) {
+			footprint = genParams.footPrints[idx]
+		} else {
+			log.Warn("Fallback: footPrints missing", "idx", idx, "txHash", tx.Hash())
+			footprint = ""
+		}
+
+		if idx < len(genParams.gasPrice) {
+			gasPrice = genParams.gasPrice[idx]
+		} else {
+			log.Warn("Fallback: gasPrice missing", "idx", idx, "txHash", tx.Hash())
+			gasPrice = 0
+		}
+
+		_, err := w.commitTransaction(work, tx, idx, gasUsed, footprint, gasPrice)
+		if err != nil {
+			return &newPayloadResult{
+				err: fmt.Errorf("failed to force-include tx: %s type: %d sender: %s nonce: %d, err: %w",
+					tx.Hash(), tx.Type(), from, tx.Nonce(), err),
+			}
+		}
+
 		work.tcount++
 	}
 
