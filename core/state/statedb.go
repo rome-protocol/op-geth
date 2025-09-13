@@ -1427,7 +1427,7 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 	return copied
 }
 
-func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
+func (s *StateDB) CalculateTxFootPrint(txHash common.Hash) (common.Hash, []string) {
 	// 1) collect touched addresses from journal.dirties, touchedSlots, and relevant journal entries
 	touched := make(map[common.Address]struct{},
 		len(s.journal.dirties)+len(s.touchedSlots)+len(s.journal.entries))
@@ -1538,7 +1538,6 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 				b.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
 				pre = append(pre, addr.Bytes()...)
 
-				// nonce: journal bump if present, else state
 				var nonce uint64
 				found := false
 				for j := len(s.journal.entries) - 1; j >= 0; j-- {
@@ -1608,8 +1607,11 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		logs[r.idx] = r.log
 	}
 
-	// 4) final fold
+	// 4) final fold - include transaction hash in the footprint
 	fh := crypto.NewKeccakState()
+	// First write the transaction hash
+	fh.Write(txHash[:])
+	// Then write all the address hashes
 	for _, h := range hashes {
 		fh.Write(h)
 	}
@@ -1621,7 +1623,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	for _, l := range logs {
 		log.Info(l)
 	}
-	log.Info("Final Footprint Hash", "hash", final.Hex())
+	log.Info("Final Footprint Hash", "hash", final.Hex(), "txHash", txHash.Hex())
 
 	// flush
 	s.touchedSlots = make(map[common.Address]map[common.Hash]struct{})
