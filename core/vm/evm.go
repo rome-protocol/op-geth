@@ -217,6 +217,10 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}
 		evm.StateDB.CreateAccount(addr)
 	}
+	// Check if caller has sufficient balance before transfer
+	if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
+		return nil, gas, ErrInsufficientBalance
+	}
 	evm.Context.Transfer(evm.StateDB, caller.Address(), addr, value)
 
 	// Capture the tracer start/end events in debug mode
@@ -458,6 +462,10 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	evm.StateDB.CreateAccount(address)
 	if evm.chainRules.IsEIP158 {
 		evm.StateDB.SetNonce(address, 1)
+	}
+	// Check if caller has sufficient balance before transfer
+	if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
+		return nil, common.Address{}, gas, ErrInsufficientBalance
 	}
 	evm.Context.Transfer(evm.StateDB, caller.Address(), address, value)
 
