@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie/trienode"
@@ -423,7 +424,28 @@ func (s *stateObject) SubBalance(amount *big.Int) {
 	if amount.Sign() == 0 {
 		return
 	}
-	s.SetBalance(new(big.Int).Sub(s.Balance(), amount))
+
+	currentBalance := s.Balance()
+	newBalance := new(big.Int).Sub(currentBalance, amount)
+
+	// Log the balance operation for debugging
+	log.Info("SubBalance operation",
+		"address", s.address.Hex(),
+		"current_balance", currentBalance,
+		"amount_to_subtract", amount,
+		"new_balance", newBalance,
+		"will_be_negative", newBalance.Sign() < 0)
+
+	// Check for negative balance and log warning
+	if newBalance.Sign() < 0 {
+		log.Info("Creating negative balance!",
+			"address", s.address.Hex(),
+			"current_balance", currentBalance,
+			"amount_to_subtract", amount,
+			"resulting_balance", newBalance)
+	}
+
+	s.SetBalance(newBalance)
 }
 
 func (s *stateObject) SetBalance(amount *big.Int) {

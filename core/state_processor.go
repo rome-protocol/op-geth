@@ -87,15 +87,28 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
+		log.Info("Processing transaction", "tx_index", i, "tx_hash", tx.Hash().Hex(), "nonce", tx.Nonce(), "gas_limit", tx.Gas(), "value", tx.Value())
+
 		msg, err := TransactionToMessage(tx, signer, header.BaseFee, nil)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
+
+		// Log sender balance before transaction
+		senderBalance := statedb.GetBalance(msg.From)
+		log.Info("Transaction sender balance", "tx_hash", tx.Hash().Hex(), "sender", msg.From.Hex(), "balance", senderBalance)
+
 		statedb.SetTxContext(tx.Hash(), i)
 		receipt, err := applyTransaction(msg, p.config, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, romeGasUsed[i], "")
 		if err != nil {
+			log.Info("Transaction failed", "tx_hash", tx.Hash().Hex(), "error", err)
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
+
+		// Log sender balance after transaction
+		senderBalanceAfter := statedb.GetBalance(msg.From)
+		log.Info("Transaction sender balance after", "tx_hash", tx.Hash().Hex(), "sender", msg.From.Hex(), "balance", senderBalanceAfter, "balance_change", new(big.Int).Sub(senderBalanceAfter, senderBalance))
+
 		receipts = append(receipts, receipt)
 		allLogs = append(allLogs, receipt.Logs...)
 	}
@@ -135,13 +148,26 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 
 	// Calculate the state footprint after VM execution
 	vmState, logs := statedb.CalculateTxFootPrint(tx.Hash())
+	log.Info("Calculated transaction footprint", "tx_hash", tx.Hash().Hex(), "footprint", vmState.Hex(), "expected", footPrint)
 
 	if footPrint != "" && footPrint != "0x0" && vmState != common.HexToHash(footPrint) {
 		err := log.FlushLogs(logs)
 		if err != nil {
-			log.Error("failed to flush logs", "error", err)
+			log.Info("failed to flush logs", "error", err)
 		}
-		log.Warn("state footprint mismatch: expected %s, got %s", footPrint, vmState)
+		log.Info("state footprint mismatch: expected %s, got %s", footPrint, vmState)
+
+		// Log additional state information for debugging
+		log.Info("State footprint mismatch details",
+			"tx_hash", tx.Hash().Hex(),
+			"expected_footprint", footPrint,
+			"actual_footprint", vmState.Hex(),
+			"msg_from", msg.From.Hex(),
+			"msg_to", msg.To.Hex(),
+			"msg_value", msg.Value,
+			"msg_gas", msg.GasLimit,
+			"result_gas_used", result.UsedGas,
+			"result_failed", result.Failed)
 	}
 
 	// Update the state with pending changes.

@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -199,7 +200,22 @@ func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 	mgval := new(big.Int).SetUint64(romeGasUsed)
 	mgval = mgval.Mul(mgval, st.msg.GasPrice)
 	balanceCheck := new(big.Int).Set(mgval)
-	if have, want := st.state.GetBalance(st.msg.From), balanceCheck; have.Cmp(want) < 0 {
+
+	// Log balance check details
+	currentBalance := st.state.GetBalance(st.msg.From)
+	log.Info("Balance check before gas payment",
+		"from", st.msg.From.Hex(),
+		"current_balance", currentBalance,
+		"required_balance", balanceCheck,
+		"gas_price", st.msg.GasPrice,
+		"rome_gas_used", romeGasUsed)
+
+	if have, want := currentBalance, balanceCheck; have.Cmp(want) < 0 {
+		log.Info("Insufficient funds for gas payment",
+			"from", st.msg.From.Hex(),
+			"have", have,
+			"want", want,
+			"deficit", new(big.Int).Sub(want, have))
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
 	}
 	if err := st.gp.SubGas(romeGasUsed); err != nil {

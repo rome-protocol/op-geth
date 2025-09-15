@@ -1428,6 +1428,12 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 }
 
 func (s *StateDB) CalculateTxFootPrint(txHash common.Hash) (common.Hash, []string) {
+	log.Info("Calculating transaction footprint",
+		"tx_hash", txHash.Hex(),
+		"journal_dirties_count", len(s.journal.dirties),
+		"touched_slots_count", len(s.touchedSlots),
+		"journal_entries_count", len(s.journal.entries))
+
 	// 1) collect touched addresses from journal.dirties, touchedSlots, and relevant journal entries
 	touched := make(map[common.Address]struct{},
 		len(s.journal.dirties)+len(s.touchedSlots)+len(s.journal.entries))
@@ -1476,6 +1482,11 @@ func (s *StateDB) CalculateTxFootPrint(txHash common.Hash) (common.Hash, []strin
 	sort.Slice(addresses, func(i, j int) bool {
 		return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
 	})
+
+	log.Info("Footprint calculation - touched addresses",
+		"tx_hash", txHash.Hex(),
+		"touched_addresses_count", len(addresses),
+		"addresses", addresses)
 
 	// 2) build slot‐sets from touchedSlots and journal entries
 	slots := make(map[common.Address]map[common.Hash]struct{}, len(addresses))
