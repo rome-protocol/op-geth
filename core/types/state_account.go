@@ -75,9 +75,7 @@ func SlimAccountRLP(account StateAccount) []byte {
 	if account.Balance != nil && account.Balance.Sign() < 0 {
 		log.Info("Attempting to RLP encode account with negative balance!",
 			"nonce", account.Nonce,
-			"balance", account.Balance,
-			"root", account.Root.Hex(),
-			"code_hash", common.BytesToHash(account.CodeHash).Hex())
+			"balance", account.Balance)
 	}
 
 	slim := SlimAccount{
@@ -93,18 +91,13 @@ func SlimAccountRLP(account StateAccount) []byte {
 
 	log.Info("Encoding SlimAccount to RLP",
 		"nonce", slim.Nonce,
-		"balance", slim.Balance,
-		"balance_sign", slim.Balance.Sign(),
-		"root", slim.Root,
-		"code_hash", slim.CodeHash)
+		"balance", slim.Balance)
 
 	data, err := rlp.EncodeToBytes(slim)
 	if err != nil {
 		log.Info("RLP encoding failed",
-			"error", err,
 			"nonce", slim.Nonce,
-			"balance", slim.Balance,
-			"balance_sign", slim.Balance.Sign())
+			"balance", slim.Balance)
 		panic(err)
 	}
 	return data

@@ -214,8 +214,7 @@ func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 		log.Info("Insufficient funds for gas payment",
 			"from", st.msg.From.Hex(),
 			"have", have,
-			"want", want,
-			"deficit", new(big.Int).Sub(want, have))
+			"want", want)
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
 	}
 	if err := st.gp.SubGas(romeGasUsed); err != nil {
