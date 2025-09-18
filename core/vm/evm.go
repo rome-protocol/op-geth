@@ -459,18 +459,17 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	if evm.StateDB.GetNonce(address) != 0 || (contractHash != (common.Hash{}) && contractHash != types.EmptyCodeHash) {
 		return nil, common.Address{}, 0, ErrContractAddressCollision
 	}
-  // If there is an endowment, ensure the caller can afford it prior to state changes
-  if value.Sign() != 0 && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
-    return nil, common.Address{}, gas, ErrInsufficientBalance
-  }
-  // Create a new account on the state
+  	// If there is an endowment, ensure the caller can afford it prior to state changes
+  	if value.Sign() != 0 && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
+    	return nil, common.Address{}, gas, ErrInsufficientBalance
+  	}
+  	// Create a new account on the state
 	snapshot := evm.StateDB.Snapshot()
 	evm.StateDB.CreateAccount(address)
 	if evm.chainRules.IsEIP158 {
 		evm.StateDB.SetNonce(address, 1)
 	}
-  // Perform the endowment transfer (safe due to pre-check above)
-  evm.Context.Transfer(evm.StateDB, caller.Address(), address, value)
+  	evm.Context.Transfer(evm.StateDB, caller.Address(), address, value)
 
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
