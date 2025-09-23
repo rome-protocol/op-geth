@@ -141,8 +141,8 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 			if err := log.FlushLogs(logs); err != nil {
 				log.Error("failed to flush logs", "error", err)
 			}
-			panic("state footprint mismatch: expected %s, got %s", footPrint, vmState)
-			// log.Warn("state footprint mismatch: expected %s, got %s", footPrint, vmState)
+			log.Info("state footprint mismatch: expected %s, got %s", footPrint, vmState)
+			panic("state footprint mismatch: expected")
 		}
 	}
 
