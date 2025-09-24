@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -35,6 +36,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// footprintChecked keeps track of tx hashes for which we've already performed
+// a footprint calculation, to avoid duplicate work when the same tx is executed
+// more than once across the engine flow.
+var footprintChecked sync.Map // map[common.Hash]struct{}
 
 // StateProcessor is a basic Processor, which takes care of transitioning
 // state from one point to another.
@@ -133,15 +139,17 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 		return nil, err
 	}
 
-	// Calculate the state footprint after VM execution
+	// Calculate the state footprint after VM execution only once per tx hash
 	if footPrint != "" && footPrint != "0x0" {
-		vmState, logs := statedb.CalculateTxFootPrint()
+		if _, loaded := footprintChecked.LoadOrStore(tx.Hash(), struct{}{}); !loaded {
+			vmState, logs := statedb.CalculateTxFootPrint()
 
-		if vmState != common.HexToHash(footPrint) {
-			if err := log.FlushLogs(logs); err != nil {
-				log.Error("failed to flush logs", "error", err)
+			if vmState != common.HexToHash(footPrint) {
+				if err := log.FlushLogs(logs); err != nil {
+					log.Error("failed to flush logs", "error", err)
+				}
+				log.Warn("state footprint mismatch: expected %s, got %s", footPrint, vmState)
 			}
-			log.Warn("state footprint mismatch: expected %s, got %s", footPrint, vmState)
 		}
 	}
 
