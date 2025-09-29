@@ -21,6 +21,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -82,9 +84,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		vmenv   = vm.NewEVM(context, vm.TxContext{}, statedb, p.config, cfg)
 		signer  = types.MakeSigner(p.config, header.Number, header.Time)
 	)
-	if beaconRoot := block.BeaconRoot(); beaconRoot != nil {
-		ProcessBeaconBlockRoot(*beaconRoot, vmenv, statedb)
-	}
+	// if beaconRoot := block.BeaconRoot(); beaconRoot != nil {
+	// 	ProcessBeaconBlockRoot(*beaconRoot, vmenv, statedb)
+	// }
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		msg, err := TransactionToMessage(tx, signer, header.BaseFee, nil)
@@ -133,19 +135,17 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 		return nil, err
 	}
 
-	// Calculate the state footprint after VM execution
-	// if footPrint != "" && footPrint != "0x0" {
-	vmState, logs := statedb.CalculateTxFootPrint()
-
-	if vmState != common.HexToHash(footPrint) {
-		if err := log.FlushLogs(logs); err != nil {
-			log.Error("failed to flush logs", "error", err)
+	// Calculate the state footprint after VM execution only if an expected footprint is provided
+	if footPrint != "" && footPrint != "0x0" {
+		vmState, logs := statedb.CalculateTxFootPrint()
+		if vmState != common.HexToHash(footPrint) {
+			if err := log.FlushLogs(logs); err != nil {
+				log.Error("failed to flush logs", "error", err)
+			}
+			log.Info("state footprint mismatch", "expected", footPrint, "got", vmState)
+			panic("state footprint mismatch")
 		}
-		log.Info("state footprint mismatch: expected %s, got %s", footPrint, vmState)
-		panic("state footprint mismatch: expected")
-
 	}
-	// }
 
 	// Update the state with pending changes.
 	var root []byte
