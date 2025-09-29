@@ -21,8 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
