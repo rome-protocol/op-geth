@@ -122,6 +122,12 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
 
+	// Ensure OP predeploys are touched so they appear in the journal/footprint
+	if config.Optimism != nil {
+		// L2ToL1MessagePasser (Bedrock)
+		statedb.AddAddressToAccessList(common.HexToAddress("0x4200000000000000000000000000000000000016"))
+	}
+
 	nonce := tx.Nonce()
 	if msg.IsDepositTx && config.IsOptimismRegolith(evm.Context.Time) {
 		nonce = statedb.GetNonce(msg.From)
