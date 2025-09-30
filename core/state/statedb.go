@@ -1431,17 +1431,27 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	// 1) collect touched addresses from journal.dirties, touchedSlots, and relevant journal entries
 	touched := make(map[common.Address]struct{},
 		len(s.journal.dirties)+len(s.touchedSlots)+len(s.journal.entries))
+	// Track where an address came from for diagnostics
+	sources := make(map[common.Address]map[string]struct{})
+	addSource := func(addr common.Address, src string) {
+		if sources[addr] == nil {
+			sources[addr] = make(map[string]struct{})
+		}
+		sources[addr][src] = struct{}{}
+	}
 
 	// a) from dirties
 	for addr := range s.journal.dirties {
 		if !isPrecompile(addr) {
 			touched[addr] = struct{}{}
+			addSource(addr, "dirties")
 		}
 	}
 	// b) from touchedSlots (storage-only touches)
 	for addr := range s.touchedSlots {
 		if !isPrecompile(addr) {
 			touched[addr] = struct{}{}
+			addSource(addr, "touchedSlots")
 		}
 	}
 	// c) from entry types that actually change state
@@ -1449,22 +1459,31 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		switch c := e.(type) {
 		case createObjectChange:
 			touched[*c.account] = struct{}{}
+			addSource(*c.account, "journal:createObjectChange")
 		case resetObjectChange:
 			touched[*c.account] = struct{}{}
+			addSource(*c.account, "journal:resetObjectChange")
 		case selfDestructChange:
 			touched[*c.account] = struct{}{}
+			addSource(*c.account, "journal:selfDestructChange")
 		case balanceChange:
 			touched[*c.account] = struct{}{}
+			addSource(*c.account, "journal:balanceChange")
 		case nonceChange:
 			touched[*c.account] = struct{}{}
+			addSource(*c.account, "journal:nonceChange")
 		case storageChange:
 			touched[*c.account] = struct{}{}
+			addSource(*c.account, "journal:storageChange")
 		case codeChange:
 			touched[*c.account] = struct{}{}
+			addSource(*c.account, "journal:codeChange")
 		case touchChange:
 			touched[*c.account] = struct{}{}
+			addSource(*c.account, "journal:touchChange")
 		case accessListAddAccountChange:
 			touched[*c.address] = struct{}{}
+			addSource(*c.address, "journal:accessListAddAccountChange")
 		}
 	}
 
@@ -1582,6 +1601,16 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 					copy(vb[32-len(v):], v)
 					pre = append(pre, vb[:]...)
 					b.WriteString(fmt.Sprintf("    %s: %x\n", k.Hex(), vb))
+				}
+
+				// Emit diagnostic sources for why this address is included
+				if srcs := sources[addr]; len(srcs) > 0 {
+					var parts []string
+					for sname := range srcs {
+						parts = append(parts, sname)
+					}
+					sort.Strings(parts)
+					b.WriteString(fmt.Sprintf("  Sources: %s\n", strings.Join(parts, ",")))
 				}
 
 				h := crypto.Keccak256(pre)
