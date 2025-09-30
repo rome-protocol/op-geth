@@ -1065,6 +1065,10 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		log.Error("Failed to create sealing context", "err", err)
 		return nil, err
 	}
+	// Reset cumulative footprint at start of payload building so it can accumulate across txs
+	if env != nil && env.state != nil {
+		env.state.ResetFootprint()
+	}
 	if header.ParentBeaconRoot != nil {
 		context := core.NewEVMBlockContext(header, w.chain, nil, w.chainConfig, env.state)
 		vmenv := vm.NewEVM(context, vm.TxContext{}, env.state, w.chainConfig, vm.Config{})

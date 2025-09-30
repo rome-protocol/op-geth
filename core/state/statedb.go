@@ -1625,12 +1625,16 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	}
 	log.Info("Final Footprint Hash", "hash", final.Hex())
 
-	// flush
-	s.touchedSlots = make(map[common.Address]map[common.Hash]struct{})
+	// Do not flush here; allow callers to control lifecycle so footprints can accumulate across a block
 	return final, logs
 }
 
 func isPrecompile(addr common.Address) bool {
 	_, ok := vm.PrecompiledContractsBerlin[addr]
 	return ok
+}
+
+// ResetFootprint clears the internal footprint tracking. Should be called at block boundaries.
+func (s *StateDB) ResetFootprint() {
+	s.touchedSlots = make(map[common.Address]map[common.Hash]struct{})
 }
