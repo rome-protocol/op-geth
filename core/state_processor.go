@@ -36,6 +36,18 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// FootprintStoreFunc is a callback function for storing footprint data
+type FootprintStoreFunc func(txHash common.Hash, expectedFootprint, actualFootprint string, blockNumber uint64, mismatch bool)
+
+// FootprintEvictFunc is a callback function for evicting old footprint data
+type FootprintEvictFunc func(currentBlockNumber uint64)
+
+// Global footprint callbacks
+var (
+	GlobalFootprintStore FootprintStoreFunc
+	GlobalFootprintEvict FootprintEvictFunc
+)
+
 // StateProcessor is a basic Processor, which takes care of transitioning
 // state from one point to another.
 //
@@ -92,6 +104,10 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
 		statedb.SetTxContext(tx.Hash(), i)
+
+		if i >= len(romeGasUsed) {
+			return nil, nil, 0, fmt.Errorf("data integrity failure: romeGasUsed index %d >= %d", i, len(romeGasUsed))
+		}
 		receipt, err := applyTransaction(msg, p.config, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, romeGasUsed[i], "")
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
@@ -106,6 +122,10 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), withdrawals)
+
+	if GlobalFootprintEvict != nil {
+		GlobalFootprintEvict(blockNumber.Uint64())
+	}
 
 	return receipts, allLogs, *usedGas, nil
 }
@@ -137,11 +157,16 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	if footPrint != "" && footPrint != "0x0" {
 		vmState, logs := statedb.CalculateTxFootPrint()
 
-		if vmState != common.HexToHash(footPrint) {
+		mismatch := vmState != common.HexToHash(footPrint)
+		if mismatch {
 			if err := log.FlushLogs(logs); err != nil {
 				log.Error("failed to flush logs", "error", err)
 			}
 			log.Warn("state footprint mismatch: expected %s, got %s", footPrint, vmState)
+		}
+
+		if GlobalFootprintStore != nil {
+			GlobalFootprintStore(tx.Hash(), footPrint, vmState.Hex(), blockNumber.Uint64(), mismatch)
 		}
 	}
 
