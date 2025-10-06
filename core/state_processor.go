@@ -127,15 +127,18 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 		nonce = statedb.GetNonce(msg.From)
 	}
 
-	// Apply the transaction to the current state (included in the env).
-	result, err := ApplyMessage(evm, msg, gp, romeGasUsed)
+    // Snapshot journal start to scope footprint to this tx
+    start := statedb.JournalLength()
+
+    // Apply the transaction to the current state (included in the env).
+    result, err := ApplyMessage(evm, msg, gp, romeGasUsed)
 	if err != nil {
 		return nil, err
 	}
 
 	// Calculate the state footprint after VM execution
-	if footPrint != "" && footPrint != "0x0" {
-		vmState, logs := statedb.CalculateTxFootPrint()
+    if footPrint != "" && footPrint != "0x0" {
+        vmState, logs := statedb.CalculateTxFootPrintFrom(start)
 
 		if vmState != common.HexToHash(footPrint) {
 			if err := log.FlushLogs(logs); err != nil {
