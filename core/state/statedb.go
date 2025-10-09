@@ -47,6 +47,14 @@ const (
 	storageDeleteLimit = 512 * 1024 * 1024
 )
 
+var (
+	// hardhatConsoleAddress is the Hardhat console.log precompile address
+	hardhatConsoleAddress = common.HexToAddress("0x000000000000000000636F6e736F6c652e6c6f67")
+	
+	// foundryVMAddress is the Foundry/Forge VM cheatcode address
+	foundryVMAddress = common.HexToAddress("0x7109709ECfa91a80626fF3989D68f67F5b1DD12D")
+)
+
 type revision struct {
 	id           int
 	journalIndex int
@@ -1443,13 +1451,13 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 
 	// a) from dirties
 	for addr := range s.journal.dirties {
-		if !isPrecompile(addr) {
+		if !isMagicAddress(addr) {
 			touched[addr] = struct{}{}
 		}
 	}
 	// b) from touchedSlots (storage-only touches)
 	for addr := range s.touchedSlots {
-		if !isPrecompile(addr) {
+		if !isMagicAddress(addr) {
 			touched[addr] = struct{}{}
 		}
 	}
@@ -1478,7 +1486,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	// build and sort address list
 	addresses := make([]common.Address, 0, len(touched))
 	for addr := range touched {
-		if !isPrecompile(addr) {
+		if !isMagicAddress(addr) {
 			addresses = append(addresses, addr)
 		}
 	}
@@ -1489,7 +1497,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	// 2) build slot‐sets from touchedSlots and journal entries
 	slots := make(map[common.Address]map[common.Hash]struct{}, len(addresses))
 	for addr, m := range s.touchedSlots {
-		if isPrecompile(addr) {
+		if isMagicAddress(addr) {
 			continue
 		}
 		cmap := make(map[common.Hash]struct{}, len(m))
@@ -1502,7 +1510,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 		switch c := entry.(type) {
 		case storageChange:
 			addr := *c.account
-			if isPrecompile(addr) {
+			if isMagicAddress(addr) {
 				continue
 			}
 			if slots[addr] == nil {
@@ -1511,7 +1519,7 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 			slots[addr][c.key] = struct{}{}
 		case resetObjectChange:
 			addr := *c.account
-			if isPrecompile(addr) {
+			if isMagicAddress(addr) {
 				continue
 			}
 			if slots[addr] == nil {
@@ -1637,16 +1645,16 @@ func (s *StateDB) CalculateTxFootPrint() (common.Hash, []string) {
 	return final, logs
 }
 
-// CalculateTxFootPrintFrom computes the footprint considering only journal entries
+// CalculateTxFootPrint computes the footprint considering only journal entries
 // from the provided start index (inclusive) to the current end, plus the current
-// transaction's touchedSlots. This limits the footprint to the current tx.
-func (s *StateDB) CalculateTxFootPrintFrom(start int) (common.Hash, []string) {
+// transaction's touchedSlots.
+func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     // 1) collect touched addresses from touchedSlots and journal entries since start
     touched := make(map[common.Address]struct{}, len(s.touchedSlots))
 
     // a) from touchedSlots (storage-only touches in this tx)
     for addr := range s.touchedSlots {
-        if !isPrecompile(addr) {
+        if !isMagicAddress(addr) {
             touched[addr] = struct{}{}
         }
     }
@@ -1681,7 +1689,7 @@ func (s *StateDB) CalculateTxFootPrintFrom(start int) (common.Hash, []string) {
     // build and sort address list
     addresses := make([]common.Address, 0, len(touched))
     for addr := range touched {
-        if !isPrecompile(addr) {
+        if !isMagicAddress(addr) {
             addresses = append(addresses, addr)
         }
     }
@@ -1692,7 +1700,7 @@ func (s *StateDB) CalculateTxFootPrintFrom(start int) (common.Hash, []string) {
     // 2) build slot-sets from touchedSlots and journal entries since start
     slots := make(map[common.Address]map[common.Hash]struct{}, len(addresses))
     for addr, m := range s.touchedSlots {
-        if isPrecompile(addr) {
+        if isMagicAddress(addr) {
             continue
         }
         cmap := make(map[common.Hash]struct{}, len(m))
@@ -1705,7 +1713,7 @@ func (s *StateDB) CalculateTxFootPrintFrom(start int) (common.Hash, []string) {
         switch c := s.journal.entries[i].(type) {
         case storageChange:
             addr := *c.account
-            if isPrecompile(addr) {
+            if isMagicAddress(addr) {
                 continue
             }
             if slots[addr] == nil {
@@ -1714,7 +1722,7 @@ func (s *StateDB) CalculateTxFootPrintFrom(start int) (common.Hash, []string) {
             slots[addr][c.key] = struct{}{}
         case resetObjectChange:
             addr := *c.account
-            if isPrecompile(addr) {
+            if isMagicAddress(addr) {
                 continue
             }
             if slots[addr] == nil {
@@ -1840,7 +1848,18 @@ func (s *StateDB) CalculateTxFootPrintFrom(start int) (common.Hash, []string) {
     return final, logs
 }
 
-func isPrecompile(addr common.Address) bool {
-	_, ok := vm.PrecompiledContractsBerlin[addr]
-	return ok
+// isMagicAddress returns true if the address is a precompile or other special
+// system/development address that should be excluded from footprint calculations.
+func isMagicAddress(addr common.Address) bool {
+	// Check standard precompiles
+	if _, ok := vm.PrecompiledContractsBerlin[addr]; ok {
+		return true
+	}
+	
+	// Check development/testing tool addresses
+	if addr == hardhatConsoleAddress || addr == foundryVMAddress {
+		return true
+	}
+	
+	return false
 }

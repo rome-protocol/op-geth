@@ -138,7 +138,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 
 	// Calculate the state footprint after VM execution
     if footPrint != "" && footPrint != "0x0" {
-        vmState, logs := statedb.CalculateTxFootPrintFrom(start)
+        vmState, logs := statedb.CalculateTxFootPrint(start)
 
 		if vmState != common.HexToHash(footPrint) {
 			if err := log.FlushLogs(logs); err != nil {
