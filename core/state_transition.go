@@ -23,6 +23,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
@@ -97,18 +98,11 @@ type Message struct {
 }
 
 // TransactionToMessage converts a transaction into a Message.
-func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.Int, romeGasPrice *uint64) (*Message, error) {
-	var gasPrice *big.Int
-	if romeGasPrice != nil {
-		gasPrice = new(big.Int).SetUint64(*romeGasPrice)
-	} else {
-		gasPrice = new(big.Int).Set(tx.GasPrice())
-	}
-
+func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.Int) (*Message, error) {
 	msg := &Message{
 		Nonce:          tx.Nonce(),
 		GasLimit:       tx.Gas(),
-		GasPrice:       gasPrice,
+		GasPrice:       new(big.Int).Set(tx.GasPrice()),
 		GasFeeCap:      new(big.Int).Set(tx.GasFeeCap()),
 		GasTipCap:      new(big.Int).Set(tx.GasTipCap()),
 		To:             tx.To(),
@@ -124,7 +118,10 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.In
 		BlobHashes:        tx.BlobHashes(),
 		BlobGasFeeCap:     tx.BlobGasFeeCap(),
 	}
-
+	// If baseFee provided, set gasPrice to effectiveGasPrice.
+	if baseFee != nil {
+		msg.GasPrice = cmath.BigMin(msg.GasPrice.Add(msg.GasTipCap, baseFee), msg.GasFeeCap)
+	}
 	var err error
 	msg.From, err = types.Sender(s, tx)
 	return msg, err
@@ -137,8 +134,8 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.In
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg *Message, gp *GasPool, romeGasUsed uint64) (*ExecutionResult, error) {
-	return NewStateTransition(evm, msg, gp).TransitionDb(romeGasUsed)
+func ApplyMessage(evm *vm.EVM, msg *Message, gp *GasPool, romeGasUsed uint64, romeGasPrice uint64) (*ExecutionResult, error) {
+	return NewStateTransition(evm, msg, gp).TransitionDb(romeGasUsed, romeGasPrice)
 }
 
 // StateTransition represents a state transition.
@@ -190,14 +187,15 @@ func (st *StateTransition) to() common.Address {
 	return *st.msg.To
 }
 
-func (st *StateTransition) buyGas(romeGasUsed uint64) error {
+func (st *StateTransition) buyGas(romeGasUsed uint64, romeGasPrice uint64) error {
 	zeroAddress := common.Address{}
 	if st.evm.Context.Coinbase == zeroAddress {
 		return nil
 	}
 
 	mgval := new(big.Int).SetUint64(romeGasUsed)
-	mgval = mgval.Mul(mgval, st.msg.GasPrice)
+	mgval = mgval.Mul(mgval, new(big.Int).SetUint64(romeGasPrice))
+
 	balanceCheck := new(big.Int).Set(mgval)
 	if have, want := st.state.GetBalance(st.msg.From), balanceCheck; have.Cmp(want) < 0 {
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
@@ -206,13 +204,14 @@ func (st *StateTransition) buyGas(romeGasUsed uint64) error {
 		return err
 	}
 	st.gasRemaining += math.MaxUint64 / 2
+
 	st.initialGas = math.MaxUint64 / 2
 	st.state.SubBalance(st.msg.From, mgval)
 
 	return nil
 }
 
-func (st *StateTransition) preCheck(romeGasUsed uint64) error {
+func (st *StateTransition) preCheck(romeGasUsed uint64, romeGasPrice uint64) error {
 	if st.msg.IsDepositTx {
 		// No fee fields to check, no nonce to check, and no need to check if EOA (L1 already verified it for us)
 		// Gas is free, but no refunds!
@@ -277,7 +276,7 @@ func (st *StateTransition) preCheck(romeGasUsed uint64) error {
 			}
 		}
 	}
-	return st.buyGas(romeGasUsed)
+	return st.buyGas(romeGasUsed, romeGasPrice)
 }
 
 // TransitionDb will transition the state by applying the current message and
@@ -290,13 +289,13 @@ func (st *StateTransition) preCheck(romeGasUsed uint64) error {
 //
 // However if any consensus issue encountered, return the error directly with
 // nil evm execution result.
-func (st *StateTransition) TransitionDb(romeGasUsed uint64) (*ExecutionResult, error) {
+func (st *StateTransition) TransitionDb(romeGasUsed uint64, romeGasPrice uint64) (*ExecutionResult, error) {
 	if mint := st.msg.Mint; mint != nil {
 		st.state.AddBalance(st.msg.From, mint)
 	}
 	snap := st.state.Snapshot()
 
-	result, err := st.innerTransitionDb(romeGasUsed)
+	result, err := st.innerTransitionDb(romeGasUsed, romeGasPrice)
 	// Failed deposits must still be included. Unless we cannot produce the block at all due to the gas limit.
 	// On deposit failure, we rewind any state changes from after the minting, and increment the nonce.
 	if err != nil && err != ErrGasLimitReached && st.msg.IsDepositTx {
@@ -322,7 +321,7 @@ func (st *StateTransition) TransitionDb(romeGasUsed uint64) (*ExecutionResult, e
 	return result, err
 }
 
-func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResult, error) {
+func (st *StateTransition) innerTransitionDb(romeGasUsed uint64, romeGasPrice uint64) (*ExecutionResult, error) {
 	// First check this message satisfies all consensus rules before
 	// applying the message. The rules include these clauses
 	//
@@ -334,7 +333,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 	// 6. caller has enough balance to cover asset transfer for **topmost** call
 
 	// Check clauses 1-3, buy gas if everything is correct
-	if err := st.preCheck(romeGasUsed); err != nil {
+	if err := st.preCheck(romeGasUsed, romeGasPrice); err != nil {
 		return nil, err
 	}
 
@@ -400,7 +399,8 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64) (*ExecutionResu
 		}, nil
 	}
 
-	effectiveTip := msg.GasPrice
+	effectiveTip := new(big.Int).SetUint64(romeGasPrice)
+
 	if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
 		// Skip fee payment when NoBaseFee is set and the fee fields
 		// are 0. This avoids a negative effectiveTip being applied to
