@@ -135,6 +135,7 @@ type RomeExecutableData struct {
 	BlobGasUsed   *uint64             `json:"blobGasUsed"`
 	ExcessBlobGas *uint64             `json:"excessBlobGas"`
 	TxFootprints  []string            `json:"txFootprints,omitempty" gencodec:"optional"`
+	RomeGasPrice  []uint64            `json:"romeGasPrice"   gencodec:"required"`
 }
 
 // JSON type overrides for RomeExecutableData.

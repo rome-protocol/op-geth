@@ -63,7 +63,7 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 			return
 		}
 		// Convert the transaction into an executable message and pre-cache its sender
-		msg, err := TransactionToMessage(tx, signer, header.BaseFee, nil)
+		msg, err := TransactionToMessage(tx, signer, header.BaseFee)
 		if err != nil {
 			return // Also invalid block, bail out
 		}
@@ -89,6 +89,6 @@ func precacheTransaction(msg *Message, config *params.ChainConfig, gaspool *GasP
 	// Update the evm with the new transaction context.
 	evm.Reset(NewEVMTxContext(msg), statedb)
 	// Add addresses to access list if applicable
-	_, err := ApplyMessage(evm, msg, gaspool, 0)
+	_, err := ApplyMessage(evm, msg, gaspool, 0, 0)
 	return err
 }
