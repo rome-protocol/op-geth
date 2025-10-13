@@ -247,6 +247,11 @@ func (d *dummyChain) GetHeader(h common.Hash, n uint64) *types.Header {
 	return fakeHeader(n, parentHash)
 }
 
+// GetFootPrintMismatchTracker returns nil for the dummy chain.
+func (d *dummyChain) GetFootPrintMismatchTracker() *core.FootprintMismatchTracker {
+	return nil
+}
+
 // TestBlockhash tests the blockhash operation. It's a bit special, since it internally
 // requires access to a chain reader.
 func TestBlockhash(t *testing.T) {
