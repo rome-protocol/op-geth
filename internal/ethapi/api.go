@@ -1206,7 +1206,7 @@ func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.S
 
 	// Execute the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
-	result, err := core.ApplyMessage(evm, msg, gp, 0)
+	result, err := core.ApplyMessage(evm, msg, gp, 0, 0)
 	if err := state.Error(); err != nil {
 		return nil, err
 	}
@@ -1807,7 +1807,7 @@ func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrH
 		tracer := logger.NewAccessListTracer(accessList, args.from(), to, precompiles)
 		config := vm.Config{Tracer: tracer, NoBaseFee: true}
 		vmenv := b.GetEVM(ctx, msg, statedb, header, &config, nil)
-		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(math.MaxUint64), 0)
+		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(math.MaxUint64), 0, 0)
 		if err != nil {
 			return nil, 0, nil, fmt.Errorf("failed to apply transaction: %v err: %v", args.toTransaction().Hash(), err)
 		}
