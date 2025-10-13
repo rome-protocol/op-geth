@@ -144,8 +144,29 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 			if err := log.FlushLogs(logs); err != nil {
 				log.Error("failed to flush logs", "error", err)
 			}
-			log.Warn("state footprint mismatch: expected %s, got %s", footPrint, vmState)
-			panic("state footprint mismatch")
+			
+			txHash := tx.Hash()
+			tracker := p.bc.GetFootPrintMismatchTracker()
+			
+			if tracker != nil && tracker.IsKnown(txHash) {
+				log.Warn("state footprint mismatch", 
+					"tx", txHash.Hex(), 
+					"expected", footPrint, 
+					"got", vmState.Hex())
+			} else {
+				log.Error("state footprint mismatch", 
+					"tx", txHash.Hex(), 
+					"expected", footPrint, 
+					"got", vmState.Hex())
+				
+				if tracker != nil {
+					if err := tracker.RecordMismatch(txHash); err != nil {
+						log.Error("Failed to record footprint mismatch", "tx", txHash.Hex(), "error", err)
+					}
+				}
+				
+				panic("state footprint mismatch")
+			}
 		}
 	}
 
