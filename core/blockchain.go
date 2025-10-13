@@ -258,6 +258,8 @@ type BlockChain struct {
 	processor  Processor // Block transaction processor interface
 	forker     *ForkChoice
 	vmConfig   vm.Config
+	
+	footprintMismatchTracker *FootprintMismatchTracker // Tracks known footprint mismatches
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -978,6 +980,16 @@ func (bc *BlockChain) stopWithoutSaving() {
 	// returned.
 	bc.chainmu.Close()
 	bc.wg.Wait()
+}
+
+// GetFootPrintMismatchTracker returns the footprint mismatch tracker for this blockchain
+func (bc *BlockChain) GetFootPrintMismatchTracker() *FootprintMismatchTracker {
+	return bc.footprintMismatchTracker
+}
+
+// SetFootPrintMismatchTracker sets the footprint mismatch tracker for this blockchain
+func (bc *BlockChain) SetFootPrintMismatchTracker(tracker *FootprintMismatchTracker) {
+	bc.footprintMismatchTracker = tracker
 }
 
 // Stop stops the blockchain service. If any imports are currently in progress

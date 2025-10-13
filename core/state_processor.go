@@ -92,7 +92,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
 		statedb.SetTxContext(tx.Hash(), i)
-		receipt, err := applyTransaction(msg, p.config, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, romeGasUsed[i], "", romeGasPrice[i])
+		receipt, err := applyTransaction(msg, p.config, p.bc, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, romeGasUsed[i], "", romeGasPrice[i])
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
@@ -110,7 +110,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	return receipts, allLogs, *usedGas, nil
 }
 
-func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, romeGasUsed uint64, footPrint string, romeGasPrice uint64) (*types.Receipt, error) {
+func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, romeGasUsed uint64, footPrint string, romeGasPrice uint64) (*types.Receipt, error) {
 	tracer := log.GetTracer()
 	_, span := tracer.Start(context.Background(), "applyTransaction",
 		trace.WithAttributes(
@@ -127,21 +127,46 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 		nonce = statedb.GetNonce(msg.From)
 	}
 
-	// Apply the transaction to the current state (included in the env).
-	result, err := ApplyMessage(evm, msg, gp, romeGasUsed, romeGasPrice)
+    // Snapshot journal start to scope footprint to this tx
+    start := statedb.JournalLength()
+
+    // Apply the transaction to the current state 
+    result, err := ApplyMessage(evm, msg, gp, romeGasUsed, romeGasPrice)
 	if err != nil {
 		return nil, err
 	}
 
 	// Calculate the state footprint after VM execution
-	if footPrint != "" && footPrint != "0x0" {
-		vmState, logs := statedb.CalculateTxFootPrint()
+    if footPrint != "" && footPrint != "0x0" {
+        vmState, logs := statedb.CalculateTxFootPrint(start)
 
 		if vmState != common.HexToHash(footPrint) {
 			if err := log.FlushLogs(logs); err != nil {
 				log.Error("failed to flush logs", "error", err)
 			}
-			log.Warn("state footprint mismatch: expected %s, got %s", footPrint, vmState)
+			
+			txHash := tx.Hash()
+			tracker := bc.GetFootPrintMismatchTracker()
+			
+			if tracker != nil && tracker.IsKnown(txHash) {
+				log.Warn("state footprint mismatch", 
+					"tx", txHash.Hex(), 
+					"expected", footPrint, 
+					"got", vmState.Hex())
+			} else {
+				log.Error("state footprint mismatch", 
+					"tx", txHash.Hex(), 
+					"expected", footPrint, 
+					"got", vmState.Hex())
+				
+				if tracker != nil {
+					if err := tracker.RecordMismatch(txHash); err != nil {
+						log.Error("Failed to record footprint mismatch", "tx", txHash.Hex(), "error", err)
+					}
+				}
+				
+				panic("state footprint mismatch")
+			}
 		}
 	}
 
@@ -209,7 +234,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	blockContext := NewEVMBlockContext(header, bc, author, config, statedb)
 	txContext := NewEVMTxContext(msg)
 	vmenv := vm.NewEVM(blockContext, txContext, statedb, config, cfg)
-	return applyTransaction(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, romeGasUsed, footPrint, romeGasPrice)
+	return applyTransaction(msg, config, bc, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, romeGasUsed, footPrint, romeGasPrice)
 }
 
 // ProcessBeaconBlockRoot applies the EIP-4788 system call to the beacon block root

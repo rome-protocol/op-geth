@@ -35,6 +35,9 @@ type ChainContext interface {
 
 	// GetHeader returns the header corresponding to the hash/number argument pair.
 	GetHeader(common.Hash, uint64) *types.Header
+
+	// GetFootPrintMismatchTracker returns the footprint mismatch tracker.
+	GetFootPrintMismatchTracker() *FootprintMismatchTracker
 }
 
 // NewEVMBlockContext creates a new context for use in the EVM.

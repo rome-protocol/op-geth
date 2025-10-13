@@ -571,3 +571,7 @@ func (cm *chainMaker) GetBlock(hash common.Hash, number uint64) *types.Block {
 func (cm *chainMaker) GetTd(hash common.Hash, number uint64) *big.Int {
 	return nil // not supported
 }
+
+func (cm *chainMaker) GetFootPrintMismatchTracker() *FootprintMismatchTracker {
+	return nil // not needed for chain generation
+}
