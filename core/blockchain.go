@@ -982,6 +982,16 @@ func (bc *BlockChain) stopWithoutSaving() {
 	bc.wg.Wait()
 }
 
+// GetFootPrintMismatchTracker returns the footprint mismatch tracker for this blockchain
+func (bc *BlockChain) GetFootPrintMismatchTracker() *FootprintMismatchTracker {
+	return bc.footprintMismatchTracker
+}
+
+// SetFootPrintMismatchTracker sets the footprint mismatch tracker for this blockchain
+func (bc *BlockChain) SetFootPrintMismatchTracker(tracker *FootprintMismatchTracker) {
+	bc.footprintMismatchTracker = tracker
+}
+
 // Stop stops the blockchain service. If any imports are currently in progress
 // it will abort them using the procInterrupt.
 func (bc *BlockChain) Stop() {
