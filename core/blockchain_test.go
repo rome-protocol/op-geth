@@ -162,7 +162,7 @@ func testBlockChainImport(chain types.Blocks, blockchain *BlockChain) error {
 		if err != nil {
 			return err
 		}
-		receipts, _, usedGas, err := blockchain.processor.Process(block, statedb, vm.Config{}, make([]uint64, 0), make([]uint64, 0))
+		receipts, _, usedGas, err := blockchain.processor.Process(block, statedb, vm.Config{}, make([]uint64, 0), make([]uint64, 0), make([]string, 0))
 		if err != nil {
 			blockchain.reportBlock(block, receipts, err)
 			return err

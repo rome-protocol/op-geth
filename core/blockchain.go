@@ -1824,7 +1824,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, romeGasUsed 
 
 		// Process block using the parent state as reference point
 		pstart := time.Now()
-		receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig, romeGasUsed, romeGasPrice)
+		receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig, romeGasUsed, romeGasPrice, footPrints)
 
 		if err != nil {
 			bc.reportBlock(block, receipts, err)
