@@ -70,7 +70,7 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 // Process returns the receipts and logs accumulated during the process and
 // returns the amount of gas that was used in the process. If any of the
 // transactions failed to execute due to insufficient gas it will return an error.
-func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg vm.Config, romeGasUsed []uint64, romeGasPrice []uint64) (types.Receipts, []*types.Log, uint64, error) {
+func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg vm.Config, romeGasUsed []uint64, romeGasPrice []uint64, footPrints []string) (types.Receipts, []*types.Log, uint64, error) {
 	var (
 		receipts    types.Receipts
 		usedGas     = new(uint64)
@@ -102,14 +102,18 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		statedb.SetTxContext(tx.Hash(), i)
 		
 		var txRomeGasUsed, txRomeGasPrice uint64
+		var txFootPrint string
 		if romeGasUsed != nil && i < len(romeGasUsed) {
 			txRomeGasUsed = romeGasUsed[i]
 		}
 		if romeGasPrice != nil && i < len(romeGasPrice) {
 			txRomeGasPrice = romeGasPrice[i]
 		}
+		if footPrints != nil && i < len(footPrints) {
+			txFootPrint = footPrints[i]
+		}
 		
-		receipt, err := applyTransaction(msg, p.config, p.bc, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, txRomeGasUsed, "", txRomeGasPrice)
+		receipt, err := applyTransaction(msg, p.config, p.bc, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, txRomeGasUsed, txFootPrint, txRomeGasPrice)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
