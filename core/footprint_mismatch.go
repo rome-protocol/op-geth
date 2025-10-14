@@ -127,5 +127,5 @@ func (t *FootprintMismatchTracker) RecordMismatch(txHash common.Hash) error {
 
 // ShouldPanic checks the environment variable to determine if we should panic on mismatch.
 func (t *FootprintMismatchTracker) ShouldPanic() bool {
-	return os.Getenv("GETH_FOOTPRINT_PANIC") != "false"
+	return os.Getenv("GETH_FOOTPRINT_PANIC") == "true"
 }
