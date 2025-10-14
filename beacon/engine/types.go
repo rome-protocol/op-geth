@@ -256,9 +256,6 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 	if len(params.RomeGasUsed) != len(txs) {
 		return nil, fmt.Errorf("invalid RomeGasUsed length: %d, expected: %d", len(params.RomeGasUsed), len(txs))
 	}
-	if len(params.TxFootprints) != len(txs) {
-		return nil, fmt.Errorf("invalid TxFootprints length: %d, expected: %d", len(params.TxFootprints), len(txs))
-	}
 	if len(params.ExtraData) > 32 {
 		return nil, fmt.Errorf("invalid extradata length: %v", len(params.ExtraData))
 	}
