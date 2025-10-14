@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
+	"github.com/ethereum/go-ethereum/core/footprint"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state/pruner"
 	"github.com/ethereum/go-ethereum/core/txpool"
@@ -235,10 +236,10 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		return nil, err
 	}
 	
-	// Initialize footprint mismatch tracker
+	// Initialize footprint manager
 	dataDir := stack.ResolvePath("")
-	tracker := core.GetFootPrintMismatchTracker(dataDir)
-	eth.blockchain.SetFootPrintMismatchTracker(tracker)
+	manager := footprint.GetManager(dataDir)
+	eth.blockchain.SetFootprintManager(manager)
 	
 	if chainConfig := eth.blockchain.Config(); chainConfig.Optimism != nil { // config.Genesis.Config.ChainID cannot be used because it's based on CLI flags only, thus default to mainnet L1
 		config.NetworkId = chainConfig.ChainID.Uint64() // optimism defaults eth network ID to chain ID
@@ -366,6 +367,11 @@ func makeExtraData(extra []byte) []byte {
 // NOTE, some of these services probably need to be moved to somewhere else.
 func (s *Ethereum) APIs() []rpc.API {
 	apis := ethapi.GetAPIs(s.APIBackend)
+
+	// Append footprint APIs
+	if manager := s.blockchain.GetFootprintManager(); manager != nil {
+		apis = append(apis, footprint.GetAPIs(manager)...)
+	}
 
 	// Append any APIs exposed explicitly by the consensus engine
 	apis = append(apis, s.engine.APIs(s.BlockChain())...)

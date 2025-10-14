@@ -42,11 +42,7 @@ type FootprintStoreFunc func(txHash common.Hash, expectedFootprint, actualFootpr
 // FootprintEvictFunc is a callback function for evicting old footprint data
 type FootprintEvictFunc func(currentBlockNumber uint64)
 
-// Global footprint callbacks
-var (
-	GlobalFootprintStore FootprintStoreFunc
-	GlobalFootprintEvict FootprintEvictFunc
-)
+// Removed global footprint callbacks - now using footprint.Manager directly
 
 // StateProcessor is a basic Processor, which takes care of transitioning
 // state from one point to another.
@@ -119,8 +115,8 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), withdrawals)
 
-	if GlobalFootprintEvict != nil {
-		GlobalFootprintEvict(blockNumber.Uint64())
+	if manager := p.bc.GetFootprintManager(); manager != nil {
+		manager.EvictOldEntries(blockNumber.Uint64())
 	}
 
 	return receipts, allLogs, *usedGas, nil
@@ -163,9 +159,9 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 			}
 			
 			txHash := tx.Hash()
-			tracker := bc.GetFootPrintMismatchTracker()
+			manager := bc.GetFootprintManager()
 			
-			if tracker != nil && tracker.IsKnown(txHash) {
+			if manager != nil && manager.IsKnownMismatch(txHash) {
 				log.Warn("state footprint mismatch", 
 					"tx", txHash.Hex(), 
 					"expected", footPrint, 
@@ -176,8 +172,8 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 					"expected", footPrint, 
 					"got", vmState.Hex())
 				
-				if tracker != nil {
-					if err := tracker.RecordMismatch(txHash); err != nil {
+				if manager != nil {
+					if err := manager.RecordMismatch(txHash); err != nil {
 						log.Error("Failed to record footprint mismatch", "tx", txHash.Hex(), "error", err)
 					}
 				}
@@ -186,8 +182,8 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 			}
 		}
 
-		if GlobalFootprintStore != nil {
-			GlobalFootprintStore(tx.Hash(), footPrint, vmState.Hex(), blockNumber.Uint64(), mismatch)
+		if manager := bc.GetFootprintManager(); manager != nil {
+			manager.Store(tx.Hash(), footPrint, vmState.Hex(), blockNumber.Uint64(), mismatch)
 		}
 	}
 

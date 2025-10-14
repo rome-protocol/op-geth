@@ -1,0 +1,203 @@
+// Copyright 2024 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
+package footprint
+
+import (
+	"bufio"
+	"os"
+	"path/filepath"
+	"sync"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+)
+
+// Entry represents a cached state footprint entry
+type Entry struct {
+	ExpectedFootprint string // The expected footprint from Rome-EVM
+	ActualFootprint   string // The actual footprint from op-geth
+	BlockNumber       uint64 // Block number where this footprint was computed
+	Mismatch          bool   // Whether there was a footprint mismatch
+}
+
+// Manager handles both footprint caching and mismatch tracking
+type Manager struct {
+	mu              sync.RWMutex
+	cache           map[common.Hash]*Entry       // Recent footprint entries
+	knownMismatches map[common.Hash]bool         // Known mismatches for skipping
+	mismatchFile    string                       // Path to persist known mismatches
+	maxCacheAge     uint64                       // Maximum age in blocks (12 blocks)
+}
+
+var (
+	globalManager     *Manager
+	globalManagerOnce sync.Once
+)
+
+// GetManager returns the global footprint Manager singleton.
+func GetManager(dataDir string) *Manager {
+	globalManagerOnce.Do(func() {
+		mismatchFile := filepath.Join(dataDir, "known_footprint_mismatches.txt")
+		globalManager = &Manager{
+			cache:           make(map[common.Hash]*Entry),
+			knownMismatches: make(map[common.Hash]bool),
+			mismatchFile:    mismatchFile,
+			maxCacheAge:     12,
+		}
+		globalManager.loadKnownMismatches()
+	})
+	return globalManager
+}
+
+// loadKnownMismatches reads known mismatch tx hashes from disk
+func (m *Manager) loadKnownMismatches() {
+	file, err := os.Open(m.mismatchFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Info("No known footprint mismatches file found, starting fresh", "path", m.mismatchFile)
+			return
+		}
+		log.Warn("Failed to open known footprint mismatches file", "path", m.mismatchFile, "error", err)
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	count := 0
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" || line[0] == '#' {
+			continue
+		}
+		txHash := common.HexToHash(line)
+		m.knownMismatches[txHash] = true
+		count++
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Warn("Error reading known footprint mismatches file", "path", m.mismatchFile, "error", err)
+		return
+	}
+
+	log.Info("Loaded known footprint mismatches", "count", count, "path", m.mismatchFile)
+}
+
+// IsKnownMismatch checks if a transaction hash is in the known mismatches list
+func (m *Manager) IsKnownMismatch(txHash common.Hash) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.knownMismatches[txHash]
+}
+
+// RecordMismatch adds a new mismatch to the known list and persists to disk
+func (m *Manager) RecordMismatch(txHash common.Hash) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if already known
+	if m.knownMismatches[txHash] {
+		return nil
+	}
+
+	// Add to in-memory map
+	m.knownMismatches[txHash] = true
+
+	// Append to file
+	file, err := os.OpenFile(m.mismatchFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		log.Error("Failed to open known footprint mismatches file for writing", "path", m.mismatchFile, "error", err)
+		return err
+	}
+	defer file.Close()
+
+	if _, err := file.WriteString(txHash.Hex() + "\n"); err != nil {
+		log.Error("Failed to write to known footprint mismatches file", "path", m.mismatchFile, "error", err)
+		return err
+	}
+
+	log.Info("Recorded new footprint mismatch", "tx", txHash.Hex(), "path", m.mismatchFile)
+	return nil
+}
+
+// Store stores a footprint entry in the cache
+func (m *Manager) Store(txHash common.Hash, expectedFootprint, actualFootprint string, blockNumber uint64, mismatch bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.cache[txHash] = &Entry{
+		ExpectedFootprint: expectedFootprint,
+		ActualFootprint:   actualFootprint,
+		BlockNumber:       blockNumber,
+		Mismatch:          mismatch,
+	}
+}
+
+// Get retrieves a footprint entry from the cache
+func (m *Manager) Get(txHash common.Hash) (*Entry, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	entry, ok := m.cache[txHash]
+	return entry, ok
+}
+
+// EvictOldEntries removes cache entries older than maxCacheAge blocks from the current block
+func (m *Manager) EvictOldEntries(currentBlockNumber uint64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if currentBlockNumber <= m.maxCacheAge {
+		return
+	}
+
+	minBlockNumber := currentBlockNumber - m.maxCacheAge
+	for txHash, entry := range m.cache {
+		if entry.BlockNumber < minBlockNumber {
+			delete(m.cache, txHash)
+		}
+	}
+}
+
+// GetStats returns statistics about the footprint manager
+func (m *Manager) GetStats() map[string]interface{} {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	mismatchCount := 0
+	for _, entry := range m.cache {
+		if entry.Mismatch {
+			mismatchCount++
+		}
+	}
+
+	return map[string]interface{}{
+		"cache_size":               len(m.cache),
+		"cache_mismatch_count":     mismatchCount,
+		"known_mismatches_count":   len(m.knownMismatches),
+		"max_cache_age_blocks":     m.maxCacheAge,
+	}
+}
+
+// Clear removes all cache entries (but keeps known mismatches)
+func (m *Manager) ClearCache() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.cache = make(map[common.Hash]*Entry)
+	log.Info("Footprint cache cleared")
+}
+

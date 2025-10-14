@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
+	"github.com/ethereum/go-ethereum/core/footprint"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
@@ -259,7 +260,7 @@ type BlockChain struct {
 	forker     *ForkChoice
 	vmConfig   vm.Config
 	
-	footprintMismatchTracker *FootprintMismatchTracker // Tracks known footprint mismatches
+	footprintManager *footprint.Manager // Manages footprint caching and mismatch tracking
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -982,14 +983,14 @@ func (bc *BlockChain) stopWithoutSaving() {
 	bc.wg.Wait()
 }
 
-// GetFootPrintMismatchTracker returns the footprint mismatch tracker for this blockchain
-func (bc *BlockChain) GetFootPrintMismatchTracker() *FootprintMismatchTracker {
-	return bc.footprintMismatchTracker
+// GetFootprintManager returns the footprint manager for this blockchain
+func (bc *BlockChain) GetFootprintManager() *footprint.Manager {
+	return bc.footprintManager
 }
 
-// SetFootPrintMismatchTracker sets the footprint mismatch tracker for this blockchain
-func (bc *BlockChain) SetFootPrintMismatchTracker(tracker *FootprintMismatchTracker) {
-	bc.footprintMismatchTracker = tracker
+// SetFootprintManager sets the footprint manager for this blockchain
+func (bc *BlockChain) SetFootprintManager(manager *footprint.Manager) {
+	bc.footprintManager = manager
 }
 
 // Stop stops the blockchain service. If any imports are currently in progress

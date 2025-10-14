@@ -1,0 +1,60 @@
+// Copyright 2024 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
+package footprint
+
+import (
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rpc"
+)
+
+// API provides RPC methods to query state footprints
+type API struct {
+	manager *Manager
+}
+
+// NewAPI creates a new footprint API
+func NewAPI(manager *Manager) *API {
+	return &API{
+		manager: manager,
+	}
+}
+
+// GetFootprintByHash returns the footprint entry for a transaction hash
+func (api *API) GetFootprintByHash(txHash common.Hash) (*Entry, error) {
+	entry, ok := api.manager.Get(txHash)
+	if !ok {
+		return nil, nil
+	}
+	return entry, nil
+}
+
+// GetFootprintStats returns statistics about the footprint manager
+func (api *API) GetFootprintStats() map[string]interface{} {
+	return api.manager.GetStats()
+}
+
+// GetAPIs returns the collection of RPC services the footprint package offers
+func GetAPIs(manager *Manager) []rpc.API {
+	return []rpc.API{
+		{
+			Namespace: "rome",
+			Service:   NewAPI(manager),
+			Public:    true,
+		},
+	}
+}
+
