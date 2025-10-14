@@ -204,7 +204,7 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 			rejectedTxs = append(rejectedTxs, &rejectedTx{i, errMsg})
 			continue
 		}
-		msg, err := core.TransactionToMessage(tx, signer, pre.Env.BaseFee, nil)
+		msg, err := core.TransactionToMessage(tx, signer, pre.Env.BaseFee)
 		if err != nil {
 			log.Warn("rejected tx", "index", i, "hash", tx.Hash(), "error", err)
 			rejectedTxs = append(rejectedTxs, &rejectedTx{i, err.Error()})
@@ -235,7 +235,7 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 		evm := vm.NewEVM(vmContext, txContext, statedb, chainConfig, vmConfig)
 
 		// (ret []byte, usedGas uint64, failed bool, err error)
-		msgResult, err := core.ApplyMessage(evm, msg, gaspool, 0)
+		msgResult, err := core.ApplyMessage(evm, msg, gaspool, 0, 0)
 		if err != nil {
 			statedb.RevertToSnapshot(snapshot)
 			log.Info("rejected tx", "index", i, "hash", tx.Hash(), "from", msg.From, "error", err)
