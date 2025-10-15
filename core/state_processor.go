@@ -100,20 +100,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
 		statedb.SetTxContext(tx.Hash(), i)
-		
-		var txRomeGasUsed, txRomeGasPrice uint64
-		var txFootPrint string
-		if romeGasUsed != nil && i < len(romeGasUsed) {
-			txRomeGasUsed = romeGasUsed[i]
-		}
-		if romeGasPrice != nil && i < len(romeGasPrice) {
-			txRomeGasPrice = romeGasPrice[i]
-		}
-		if footPrints != nil && i < len(footPrints) {
-			txFootPrint = footPrints[i]
-		}
-		
-		receipt, err := applyTransaction(msg, p.config, p.bc, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, txRomeGasUsed, txFootPrint, txRomeGasPrice)
+		receipt, err := applyTransaction(msg, p.config, p.bc, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, romeGasUsed[i], "", romeGasPrice[i])
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
