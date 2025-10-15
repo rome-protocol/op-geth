@@ -51,7 +51,7 @@ func (api *API) GetFootprintStats() map[string]interface{} {
 func GetAPIs(manager *Manager) []rpc.API {
 	return []rpc.API{
 		{
-			Namespace: "rome",
+			Namespace: "eth",
 			Service:   NewAPI(manager),
 			Public:    true,
 		},
