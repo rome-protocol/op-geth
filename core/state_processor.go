@@ -151,15 +151,14 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 	// Calculate the state footprint after VM execution
     if footPrint != "" && footPrint != "0x0" {
         vmState, logs := statedb.CalculateTxFootPrint(start)
-
+		txHash := tx.Hash()
 		mismatch := vmState != common.HexToHash(footPrint)
+		manager := bc.GetFootprintManager()
+
 		if mismatch {
 			if err := log.FlushLogs(logs); err != nil {
 				log.Error("failed to flush logs", "error", err)
 			}
-			
-			txHash := tx.Hash()
-			manager := bc.GetFootprintManager()
 			
 			if manager != nil && manager.IsKnownMismatch(txHash) {
 				log.Warn("state footprint mismatch", 
@@ -176,15 +175,16 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 					if err := manager.RecordMismatch(txHash); err != nil {
 						log.Error("Failed to record footprint mismatch", "tx", txHash.Hex(), "error", err)
 					}
-					if tracker.ShouldPanic() {
+					if manager.ShouldPanic() {
 						panic("state footprint mismatch")
-					}	
+					}
 				}			
 			}
 		}
 
-		if manager := bc.GetFootprintManager(); manager != nil {
-			manager.Store(tx.Hash(), footPrint, vmState.Hex(), blockNumber.Uint64(), mismatch)
+		// Always store footprint data, whether there's a mismatch or not
+		if manager != nil {
+			manager.Store(txHash, footPrint, vmState.Hex(), blockNumber.Uint64(), mismatch)
 		}
 	}
 

@@ -201,3 +201,7 @@ func (m *Manager) ClearCache() {
 	log.Info("Footprint cache cleared")
 }
 
+// ShouldPanic checks the environment variable to determine if we should panic on mismatch.
+func (m *Manager) ShouldPanic() bool {
+	return os.Getenv("GETH_FOOTPRINT_PANIC") == "true"
+}
