@@ -176,9 +176,10 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 					if err := manager.RecordMismatch(txHash); err != nil {
 						log.Error("Failed to record footprint mismatch", "tx", txHash.Hex(), "error", err)
 					}
-				}
-				
-				panic("state footprint mismatch")
+					if tracker.ShouldPanic() {
+						panic("state footprint mismatch")
+					}	
+				}			
 			}
 		}
 
