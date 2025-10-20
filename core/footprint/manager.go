@@ -28,19 +28,19 @@ import (
 
 // Entry represents a cached state footprint entry
 type Entry struct {
-	ExpectedFootprint string // The expected footprint from Rome-EVM
-	ActualFootprint   string // The actual footprint from op-geth
-	BlockNumber       uint64 // Block number where this footprint was computed
-	Mismatch          bool   // Whether there was a footprint mismatch
+	ExpectedFootprint string 
+	ActualFootprint   string 
+	BlockNumber       uint64
+	Mismatch          bool  
 }
 
 // Manager handles both footprint caching and mismatch tracking
 type Manager struct {
 	mu              sync.RWMutex
-	cache           map[common.Hash]*Entry       // Recent footprint entries
-	knownMismatches map[common.Hash]bool         // Known mismatches for skipping
-	mismatchFile    string                       // Path to persist known mismatches
-	maxCacheAge     uint64                       // Maximum age in blocks (12 blocks)
+	cache           map[common.Hash]*Entry       
+	knownMismatches map[common.Hash]bool        
+	mismatchFile    string                       
+	maxCacheAge     uint64                       
 }
 
 var (
@@ -48,7 +48,7 @@ var (
 	globalManagerOnce sync.Once
 )
 
-// GetManager returns the global footprint Manager singleton.
+// GetManager returns the global footprint Manager.
 func GetManager(dataDir string) *Manager {
 	globalManagerOnce.Do(func() {
 		mismatchFile := filepath.Join(dataDir, "known_footprint_mismatches.txt")
@@ -192,7 +192,7 @@ func (m *Manager) GetStats() map[string]interface{} {
 	}
 }
 
-// Clear removes all cache entries (but keeps known mismatches)
+// Clear removes all cache entries 
 func (m *Manager) ClearCache() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
