@@ -42,8 +42,6 @@ type FootprintStoreFunc func(txHash common.Hash, expectedFootprint, actualFootpr
 // FootprintEvictFunc is a callback function for evicting old footprint data
 type FootprintEvictFunc func(currentBlockNumber uint64)
 
-// Removed global footprint callbacks - now using footprint.Manager directly
-
 // StateProcessor is a basic Processor, which takes care of transitioning
 // state from one point to another.
 //
