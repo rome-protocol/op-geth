@@ -47,7 +47,7 @@ func (api *API) GetFootprintStats() map[string]interface{} {
 	return api.manager.GetStats()
 }
 
-// GetAPIs returns the collection of RPC services the footprint package offers
+// GetAPIs returns the collection of RPC services offered by footprint manager
 func GetAPIs(manager *Manager) []rpc.API {
 	return []rpc.API{
 		{
