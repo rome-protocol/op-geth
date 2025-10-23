@@ -260,12 +260,6 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 	if len(params.LogsBloom) != 256 {
 		return nil, fmt.Errorf("invalid logsBloom length: %v", len(params.LogsBloom))
 	}
-	if len(params.RomeGasUsed) != len(txs) {
-        return nil, fmt.Errorf("invalid RomeGasUsed length: %d, expected: %d", len(params.RomeGasUsed), len(txs))
-    }
-    if len(params.TxFootprints) != len(txs) {
-        return nil, fmt.Errorf("invalid TxFootprints length: %d, expected: %d", len(params.TxFootprints), len(txs))
-    }
 	// Check that baseFeePerGas is not negative or too big
 	if params.BaseFeePerGas != nil && (params.BaseFeePerGas.Sign() == -1) {
 		return nil, fmt.Errorf("invalid baseFeePerGas: %v", params.BaseFeePerGas)
