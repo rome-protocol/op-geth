@@ -145,7 +145,7 @@ func (eth *Ethereum) hashState(ctx context.Context, block *types.Block, reexec u
 		if current = eth.blockchain.GetBlockByNumber(next); current == nil {
 			return nil, nil, fmt.Errorf("block #%d not found", next)
 		}
-		_, _, _, err := eth.blockchain.Processor().Process(current, statedb, vm.Config{}, make([]uint64, 0), make([]uint64, 0))
+		_, _, _, err := eth.blockchain.Processor().Process(current, statedb, vm.Config{}, make([]uint64, 0), make([]uint64, 0), make([]string, 0))
 		if err != nil {
 			return nil, nil, fmt.Errorf("processing block %d failed: %v", current.NumberU64(), err)
 		}

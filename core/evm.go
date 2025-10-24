@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
+	"github.com/ethereum/go-ethereum/core/footprint"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
@@ -36,8 +37,8 @@ type ChainContext interface {
 	// GetHeader returns the header corresponding to the hash/number argument pair.
 	GetHeader(common.Hash, uint64) *types.Header
 
-	// GetFootPrintMismatchTracker returns the footprint mismatch tracker.
-	GetFootPrintMismatchTracker() *FootprintMismatchTracker
+	// GetFootprintManager returns the footprint manager.
+	GetFootprintManager() *footprint.Manager
 }
 
 // NewEVMBlockContext creates a new context for use in the EVM.

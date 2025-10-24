@@ -42,6 +42,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/footprint"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -83,6 +84,7 @@ func fetchRomeGasPrice(ctx context.Context) (*hexutil.Big, error) {
 	client, err := rpc.Dial(gasometerUrl)
 	if err != nil {
 		log.Error("Failed to connect to the Ethereum client: %v", err)
+		return nil, fmt.Errorf("failed to connect to gasometer: %w", err)
 	}
 	defer client.Close()
 
@@ -1166,7 +1168,7 @@ func (context *ChainContext) GetHeader(hash common.Hash, number uint64) *types.H
 	return header
 }
 
-func (context *ChainContext) GetFootPrintMismatchTracker() *core.FootprintMismatchTracker {
+func (context *ChainContext) GetFootprintManager() *footprint.Manager {
 	return nil
 }
 
@@ -1389,6 +1391,7 @@ func estimateRomeGas(ctx context.Context, args TransactionArgs) (hexutil.Uint64,
 	client, err := rpc.Dial(gasometerUrl)
 	if err != nil {
 		log.Error("Failed to connect to the Ethereum client: %v", err)
+		return 0, fmt.Errorf("failed to connect to gasometer: %w", err)
 	}
 	defer client.Close()
 
@@ -1416,6 +1419,7 @@ func emulateRomeTx(ctx context.Context, input hexutil.Bytes) error {
 	client, err := rpc.Dial(gasometerUrl)
 	if err != nil {
 		log.Error("Failed to connect to the Ethereum client: %v", err)
+		return fmt.Errorf("failed to connect to gasometer: %w", err)
 	}
 	defer client.Close()
 

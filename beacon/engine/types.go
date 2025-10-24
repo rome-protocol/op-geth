@@ -253,6 +253,7 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 	if err != nil {
 		return nil, err
 	}
+
 	if len(params.ExtraData) > 32 {
 		return nil, fmt.Errorf("invalid extradata length: %v", len(params.ExtraData))
 	}

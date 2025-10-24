@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/asm"
+	"github.com/ethereum/go-ethereum/core/footprint"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -247,8 +248,8 @@ func (d *dummyChain) GetHeader(h common.Hash, n uint64) *types.Header {
 	return fakeHeader(n, parentHash)
 }
 
-// GetFootPrintMismatchTracker returns nil for the dummy chain.
-func (d *dummyChain) GetFootPrintMismatchTracker() *core.FootprintMismatchTracker {
+// GetFootprintManager returns nil for the dummy chain.
+func (d *dummyChain) GetFootprintManager() *footprint.Manager {
 	return nil
 }
 

@@ -383,30 +383,51 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64, romeGasPrice ui
 	if st.msg.IsDepositTx && !rules.IsOptimismRegolith {
 		// Record deposits as using all their gas (matches the gas pool)
 		// System Transactions are special & are not recorded as using any gas (anywhere)
+		depositGasUsed := romeGasUsed
+		if depositGasUsed == 0 {
+			depositGasUsed = st.gasUsed()
+		}
 		return &ExecutionResult{
-			UsedGas:    romeGasUsed,
+			UsedGas:    depositGasUsed,
 			Err:        vmerr,
 			ReturnData: ret,
 		}, nil
 	}
 	if st.msg.IsDepositTx && rules.IsOptimismRegolith {
 		// Skip coinbase payments for deposit tx in Regolith
+		depositGasUsed := romeGasUsed
+		if depositGasUsed == 0 {
+			depositGasUsed = st.gasUsed()
+		}
 		return &ExecutionResult{
-			UsedGas:     romeGasUsed,
+			UsedGas:     depositGasUsed,
 			RefundedGas: 0,
 			Err:         vmerr,
 			ReturnData:  ret,
 		}, nil
 	}
 
+	// Use romeGasUsed if provided, otherwise use actual gas used
+	gasUsedForFee := romeGasUsed
+	if gasUsedForFee == 0 {
+		gasUsedForFee = st.gasUsed()
+	}
+
 	effectiveTip := new(big.Int).SetUint64(romeGasPrice)
+	// If romeGasPrice is 0, calculate the effective tip from the transaction
+	if romeGasPrice == 0 {
+		effectiveTip = new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee)
+		if effectiveTip.Cmp(msg.GasTipCap) > 0 {
+			effectiveTip = msg.GasTipCap
+		}
+	}
 
 	if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
 		// Skip fee payment when NoBaseFee is set and the fee fields
 		// are 0. This avoids a negative effectiveTip being applied to
 		// the coinbase when simulating calls.
 	} else {
-		fee := new(big.Int).SetUint64(romeGasUsed)
+		fee := new(big.Int).SetUint64(gasUsedForFee)
 		fee.Mul(fee, effectiveTip)
 		zeroAddress := common.Address{}
 		if st.evm.Context.Coinbase != zeroAddress {

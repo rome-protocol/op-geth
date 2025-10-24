@@ -36,6 +36,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// FootprintStoreFunc is a callback function for storing footprint data
+type FootprintStoreFunc func(txHash common.Hash, expectedFootprint, actualFootprint string, blockNumber uint64, mismatch bool)
+
+// FootprintEvictFunc is a callback function for evicting old footprint data
+type FootprintEvictFunc func(currentBlockNumber uint64)
+
 // StateProcessor is a basic Processor, which takes care of transitioning
 // state from one point to another.
 //
@@ -62,7 +68,7 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 // Process returns the receipts and logs accumulated during the process and
 // returns the amount of gas that was used in the process. If any of the
 // transactions failed to execute due to insufficient gas it will return an error.
-func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg vm.Config, romeGasUsed []uint64, romeGasPrice []uint64) (types.Receipts, []*types.Log, uint64, error) {
+func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg vm.Config, romeGasUsed []uint64, romeGasPrice []uint64, footPrints []string) (types.Receipts, []*types.Log, uint64, error) {
 	var (
 		receipts    types.Receipts
 		usedGas     = new(uint64)
@@ -107,6 +113,10 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), withdrawals)
 
+	if manager := p.bc.GetFootprintManager(); manager != nil {
+		manager.EvictOldEntries(blockNumber.Uint64())
+	}
+
 	return receipts, allLogs, *usedGas, nil
 }
 
@@ -139,16 +149,16 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 	// Calculate the state footprint after VM execution
     if footPrint != "" && footPrint != "0x0" {
         vmState, logs := statedb.CalculateTxFootPrint(start)
+		txHash := tx.Hash()
+		mismatch := vmState != common.HexToHash(footPrint)
+		manager := bc.GetFootprintManager()
 
-		if vmState != common.HexToHash(footPrint) {
+		if mismatch {
 			if err := log.FlushLogs(logs); err != nil {
 				log.Error("failed to flush logs", "error", err)
 			}
 			
-			txHash := tx.Hash()
-			tracker := bc.GetFootPrintMismatchTracker()
-			
-			if tracker != nil && tracker.IsKnown(txHash) {
+			if manager != nil && manager.IsKnownMismatch(txHash) {
 				log.Warn("state footprint mismatch", 
 					"tx", txHash.Hex(), 
 					"expected", footPrint, 
@@ -159,15 +169,20 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 					"expected", footPrint, 
 					"got", vmState.Hex())
 				
-				if tracker != nil {
-					if err := tracker.RecordMismatch(txHash); err != nil {
+				if manager != nil {
+					if err := manager.RecordMismatch(txHash); err != nil {
 						log.Error("Failed to record footprint mismatch", "tx", txHash.Hex(), "error", err)
 					}
-					if tracker.ShouldPanic() {
+					if manager.ShouldPanic() {
 						panic("state footprint mismatch")
-					}	
+					}
 				}			
 			}
+		}
+
+		// Always store footprint data, whether there's a mismatch or not
+		if manager != nil {
+			manager.Store(txHash, footPrint, vmState.Hex(), blockNumber.Uint64(), mismatch)
 		}
 	}
 
