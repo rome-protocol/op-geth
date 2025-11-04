@@ -427,8 +427,11 @@ func opExtCodeHash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext)
 }
 
 func opGasprice(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	v, _ := uint256.FromBig(interpreter.evm.GasPrice)
-	scope.Stack.push(v)
+		scope.Stack.push(new(uint256.Int))
+	} else {
+		v, _ := uint256.FromBig(interpreter.evm.GasPrice)
+		scope.Stack.push(v)
+	}
 	return nil, nil
 }
 
@@ -571,7 +574,12 @@ func opMsize(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]by
 }
 
 func opGas(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	scope.Stack.push(new(uint256.Int).SetUint64(scope.Contract.Gas))
+	gasValue := scope.Contract.initialGas
+	if gasValue == 0 || gasValue == ^uint64(0) {
+		scope.Stack.push(new(uint256.Int).SetAllOne())
+	} else {
+		scope.Stack.push(new(uint256.Int).SetUint64(gasValue))
+	}
 	return nil, nil
 }
 
