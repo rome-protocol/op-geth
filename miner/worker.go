@@ -1021,24 +1021,16 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	if len(w.extra) != 0 && w.chainConfig.Optimism == nil { // Optimism chains must not set any extra data.
 		header.Extra = w.extra
 	}
-	// Set the randomness field from the beacon chain if it's available.
-	if genParams.random != (common.Hash{}) {
-		header.MixDigest = genParams.random
-	}
+	header.MixDigest = common.Hash{}
 	// Set baseFee and GasLimit if we are on an EIP-1559 chain
 	if w.chainConfig.IsLondon(header.Number) {
-		header.BaseFee = eip1559.CalcBaseFee(w.chainConfig, parent, header.Time)
+		header.BaseFee = big.NewInt(0)
 		if !w.chainConfig.IsLondon(parent.Number) {
 			parentGasLimit := parent.GasLimit * w.chainConfig.ElasticityMultiplier()
 			header.GasLimit = core.CalcGasLimit(parentGasLimit, w.config.GasCeil)
 		}
 	}
-	if genParams.gasLimit != nil { // override gas limit if specified
-		header.GasLimit = *genParams.gasLimit
-	} else if w.chain.Config().Optimism != nil && w.config.GasCeil != 0 {
-		// configure the gas limit of pending blocks with the miner gas limit config when using optimism
-		header.GasLimit = w.config.GasCeil
-	}
+	header.GasLimit = math.MaxUint64
 	// Apply EIP-4844, EIP-4788.
 	if w.chainConfig.IsCancun(header.Number, header.Time) {
 		var excessBlobGas uint64
