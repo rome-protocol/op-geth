@@ -98,6 +98,8 @@ type ConsensusAPI struct {
 
 	remoteBlocks *headerQueue  // Cache of remote payloads received
 	localBlocks  *payloadQueue // Cache of local payloads generated
+	solanaMeta   map[common.Hash]solanaMetadata
+	solanaLock   sync.Mutex
 
 	// The forkchoice update and new payload method require us to return the
 	// latest valid hash in an invalid chain. To support that return, we need
@@ -136,6 +138,11 @@ type ConsensusAPI struct {
 	newPayloadLock sync.Mutex // Lock for the NewPayload method
 }
 
+type solanaMetadata struct {
+	number *uint64
+	hash   *common.Hash
+}
+
 // NewConsensusAPI creates a new consensus api for the given backend.
 // The underlying blockchain needs to have a valid terminal total difficulty set.
 func NewConsensusAPI(eth *eth.Ethereum) *ConsensusAPI {
@@ -153,6 +160,7 @@ func newConsensusAPIWithoutHeartbeat(eth *eth.Ethereum) *ConsensusAPI {
 		eth:               eth,
 		remoteBlocks:      newHeaderQueue(),
 		localBlocks:       newPayloadQueue(),
+		solanaMeta:        make(map[common.Hash]solanaMetadata),
 		invalidBlocksHits: make(map[common.Hash]int),
 		invalidTipsets:    make(map[common.Hash]*types.Header),
 	}
@@ -467,7 +475,55 @@ func (api *ConsensusAPI) getPayload(payloadID engine.PayloadID, full bool) (*eng
 	if data == nil {
 		return nil, engine.UnknownPayload
 	}
+	if payload := data.ExecutionPayload; payload != nil {
+		api.storeSolanaMetadata(payload)
+	}
 	return data, nil
+}
+
+func (api *ConsensusAPI) storeSolanaMetadata(payload *engine.RomeExecutableData) {
+	if payload == nil {
+		return
+	}
+	var meta solanaMetadata
+	if payload.SolanaBlockNumber != nil {
+		num := uint64(*payload.SolanaBlockNumber)
+		meta.number = &num
+	}
+	if payload.SolanaBlockHash != nil {
+		hash := *payload.SolanaBlockHash
+		meta.hash = &hash
+	}
+	if meta.number == nil && meta.hash == nil {
+		return
+	}
+	api.solanaLock.Lock()
+	api.solanaMeta[payload.BlockHash] = meta
+	api.solanaLock.Unlock()
+}
+
+func (api *ConsensusAPI) populateSolanaMetadata(params *engine.RomeExecutableData) {
+	api.solanaLock.Lock()
+	defer api.solanaLock.Unlock()
+
+	meta, ok := api.solanaMeta[params.BlockHash]
+	if !ok {
+		return
+	}
+	if params.SolanaBlockNumber == nil && meta.number != nil {
+		val := hexutil.Uint64(*meta.number)
+		params.SolanaBlockNumber = &val
+	}
+	if params.SolanaBlockHash == nil && meta.hash != nil {
+		hash := *meta.hash
+		params.SolanaBlockHash = &hash
+	}
+}
+
+func (api *ConsensusAPI) forgetSolanaMetadata(hash common.Hash) {
+	api.solanaLock.Lock()
+	delete(api.solanaMeta, hash)
+	api.solanaLock.Unlock()
 }
 
 // NewPayloadV1 creates an Eth1 block, inserts it in the chain, and returns the status of the chain.
@@ -529,6 +585,8 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 	api.newPayloadLock.Lock()
 	defer api.newPayloadLock.Unlock()
 	log.Trace("Engine API request received", "method", "NewPayload", "number", params.Number, "hash", params.BlockHash)
+	api.populateSolanaMetadata(&params)
+	defer api.forgetSolanaMetadata(params.BlockHash)
 	block, err := engine.ExecutableDataToBlock(params, versionedHashes, beaconRoot)
 	if err != nil {
 		log.Warn("Invalid NewPayload params", "params", params, "error", err)
