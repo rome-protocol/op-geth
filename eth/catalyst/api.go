@@ -98,7 +98,8 @@ type ConsensusAPI struct {
 
 	remoteBlocks *headerQueue  // Cache of remote payloads received
 	localBlocks  *payloadQueue // Cache of local payloads generated
-	solanaMeta   map[common.Hash]solanaMetadata
+	solanaMeta     map[common.Hash]solanaMetadata
+	solanaPending  map[engine.PayloadID]solanaMetadata
 	solanaLock   sync.Mutex
 
 	// The forkchoice update and new payload method require us to return the
@@ -161,6 +162,7 @@ func newConsensusAPIWithoutHeartbeat(eth *eth.Ethereum) *ConsensusAPI {
 		remoteBlocks:      newHeaderQueue(),
 		localBlocks:       newPayloadQueue(),
 		solanaMeta:        make(map[common.Hash]solanaMetadata),
+		solanaPending:     make(map[engine.PayloadID]solanaMetadata),
 		invalidBlocksHits: make(map[common.Hash]int),
 		invalidTipsets:    make(map[common.Hash]*types.Header),
 	}
@@ -404,6 +406,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			Footprints:   payloadAttributes.TxFootprints,
 		}
 		id := args.Id()
+		api.storePendingSolanaAttributes(id, payloadAttributes)
 		// If we already are busy generating this work, then we do not need
 		// to start a second process.
 		if api.localBlocks.has(id) {
@@ -476,12 +479,12 @@ func (api *ConsensusAPI) getPayload(payloadID engine.PayloadID, full bool) (*eng
 		return nil, engine.UnknownPayload
 	}
 	if payload := data.ExecutionPayload; payload != nil {
-		api.storeSolanaMetadata(payload)
+		api.storeSolanaMetadata(payloadID, payload)
 	}
 	return data, nil
 }
 
-func (api *ConsensusAPI) storeSolanaMetadata(payload *engine.RomeExecutableData) {
+func (api *ConsensusAPI) storeSolanaMetadata(id engine.PayloadID, payload *engine.RomeExecutableData) {
 	if payload == nil {
 		return
 	}
@@ -494,11 +497,50 @@ func (api *ConsensusAPI) storeSolanaMetadata(payload *engine.RomeExecutableData)
 		hash := *payload.SolanaBlockHash
 		meta.hash = &hash
 	}
+	api.solanaLock.Lock()
+	defer api.solanaLock.Unlock()
+
+	if pending, ok := api.solanaPending[id]; ok {
+		if meta.number == nil && pending.number != nil {
+			meta.number = pending.number
+		}
+		if meta.hash == nil && pending.hash != nil {
+			meta.hash = pending.hash
+		}
+		delete(api.solanaPending, id)
+	}
+	if meta.number == nil && meta.hash == nil {
+		return
+	}
+	if payload.SolanaBlockNumber == nil && meta.number != nil {
+		val := hexutil.Uint64(*meta.number)
+		payload.SolanaBlockNumber = &val
+	}
+	if payload.SolanaBlockHash == nil && meta.hash != nil {
+		hash := *meta.hash
+		payload.SolanaBlockHash = &hash
+	}
+	api.solanaMeta[payload.BlockHash] = meta
+}
+
+func (api *ConsensusAPI) storePendingSolanaAttributes(id engine.PayloadID, attr *engine.RomePayloadAttributes) {
+	if attr == nil {
+		return
+	}
+	var meta solanaMetadata
+	if attr.SolanaBlockNumber != nil {
+		num := *attr.SolanaBlockNumber
+		meta.number = &num
+	}
+	if attr.SolanaBlockHash != nil {
+		hash := *attr.SolanaBlockHash
+		meta.hash = &hash
+	}
 	if meta.number == nil && meta.hash == nil {
 		return
 	}
 	api.solanaLock.Lock()
-	api.solanaMeta[payload.BlockHash] = meta
+	api.solanaPending[id] = meta
 	api.solanaLock.Unlock()
 }
 
