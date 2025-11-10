@@ -55,6 +55,8 @@ type RomePayloadAttributes struct {
 	SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient" gencodec:"required"`
 	Withdrawals           []*types.Withdrawal `json:"withdrawals"`
 	BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
+	SolanaBlockNumber     *uint64             `json:"solanaBlockNumber,omitempty" gencodec:"optional"`
+	SolanaBlockHash       *common.Hash        `json:"solanaBlockHash,omitempty" gencodec:"optional"`
 
 	// Transactions is a field for rollups: the transactions list is forced into the block
 	Transactions [][]byte `json:"transactions,omitempty"  gencodec:"optional"`
@@ -73,6 +75,7 @@ type payloadAttributesMarshaling struct {
 
 	Transactions []hexutil.Bytes
 	GasLimit     *hexutil.Uint64
+	SolanaBlockNumber *hexutil.Uint64
 }
 
 //go:generate go run github.com/fjl/gencodec -type ExecutableData -field-override executableDataMarshaling -out gen_ed.go
@@ -136,6 +139,8 @@ type RomeExecutableData struct {
 	ExcessBlobGas *uint64             `json:"excessBlobGas"`
 	TxFootprints  []string            `json:"txFootprints,omitempty" gencodec:"optional"`
 	RomeGasPrice  []uint64            `json:"romeGasPrice"   gencodec:"required"`
+	SolanaBlockNumber *uint64         `json:"solanaBlockNumber,omitempty" gencodec:"optional"`
+	SolanaBlockHash   *common.Hash    `json:"solanaBlockHash,omitempty" gencodec:"optional"`
 }
 
 // JSON type overrides for RomeExecutableData.
@@ -150,6 +155,7 @@ type RomeExecutableDataMarshaling struct {
 	Transactions  []hexutil.Bytes
 	BlobGasUsed   *hexutil.Uint64
 	ExcessBlobGas *hexutil.Uint64
+	SolanaBlockNumber *hexutil.Uint64
 }
 
 //go:generate go run github.com/fjl/gencodec -type ExecutionPayloadEnvelope -field-override executionPayloadEnvelopeMarshaling -out gen_epe.go
@@ -305,6 +311,8 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 		BlobGasUsed:      params.BlobGasUsed,
 		ParentBeaconRoot: beaconRoot,
 	}
+	header.SolanaBlockNumber = params.SolanaBlockNumber
+	header.SolanaBlockHash = params.SolanaBlockHash
 	block := types.NewBlockWithHeader(header).WithBody(txs, nil /* uncles */).WithWithdrawals(params.Withdrawals)
 	if block.Hash() != params.BlockHash {
 		return nil, fmt.Errorf("blockhash mismatch, want %x, got %x", params.BlockHash, block.Hash())
@@ -333,6 +341,10 @@ func BlockToExecutableData(block *types.Block, fees *big.Int, sidecars []*types.
 		Withdrawals:   block.Withdrawals(),
 		BlobGasUsed:   block.BlobGasUsed(),
 		ExcessBlobGas: block.ExcessBlobGas(),
+	}
+	if header := block.Header(); header != nil {
+		data.SolanaBlockNumber = header.SolanaBlockNumber
+		data.SolanaBlockHash = header.SolanaBlockHash
 	}
 	bundle := BlobsBundleV1{
 		Commitments: make([]hexutil.Bytes, 0),

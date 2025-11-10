@@ -23,6 +23,8 @@ func (r RomePayloadAttributes) MarshalJSON() ([]byte, error) {
 		SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient" gencodec:"required"`
 		Withdrawals           []*types.Withdrawal `json:"withdrawals"`
 		BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
+		SolanaBlockNumber     *hexutil.Uint64     `json:"solanaBlockNumber,omitempty" gencodec:"optional"`
+		SolanaBlockHash       *common.Hash        `json:"solanaBlockHash,omitempty" gencodec:"optional"`
 		Transactions          []hexutil.Bytes     `json:"transactions,omitempty"  gencodec:"optional"`
 		NoTxPool              bool                `json:"noTxPool,omitempty" gencodec:"optional"`
 		GasLimit              *hexutil.Uint64     `json:"gasLimit,omitempty" gencodec:"optional"`
@@ -36,6 +38,11 @@ func (r RomePayloadAttributes) MarshalJSON() ([]byte, error) {
 	enc.SuggestedFeeRecipient = r.SuggestedFeeRecipient
 	enc.Withdrawals = r.Withdrawals
 	enc.BeaconRoot = r.BeaconRoot
+	if r.SolanaBlockNumber != nil {
+		val := hexutil.Uint64(*r.SolanaBlockNumber)
+		enc.SolanaBlockNumber = &val
+	}
+	enc.SolanaBlockHash = r.SolanaBlockHash
 	if r.Transactions != nil {
 		enc.Transactions = make([]hexutil.Bytes, len(r.Transactions))
 		for k, v := range r.Transactions {
@@ -57,6 +64,8 @@ func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 		SuggestedFeeRecipient *common.Address     `json:"suggestedFeeRecipient" gencodec:"required"`
 		Withdrawals           []*types.Withdrawal `json:"withdrawals"`
 		BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
+		SolanaBlockNumber     *hexutil.Uint64     `json:"solanaBlockNumber,omitempty" gencodec:"optional"`
+		SolanaBlockHash       *common.Hash        `json:"solanaBlockHash,omitempty" gencodec:"optional"`
 		Transactions          []hexutil.Bytes     `json:"transactions,omitempty"  gencodec:"optional"`
 		NoTxPool              *bool               `json:"noTxPool,omitempty" gencodec:"optional"`
 		GasLimit              *hexutil.Uint64     `json:"gasLimit,omitempty" gencodec:"optional"`
@@ -92,6 +101,11 @@ func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 	if dec.BeaconRoot != nil {
 		r.BeaconRoot = dec.BeaconRoot
 	}
+	if dec.SolanaBlockNumber != nil {
+		val := uint64(*dec.SolanaBlockNumber)
+		r.SolanaBlockNumber = &val
+	}
+	r.SolanaBlockHash = dec.SolanaBlockHash
 	if dec.Transactions != nil {
 		r.Transactions = make([][]byte, len(dec.Transactions))
 		for k, v := range dec.Transactions {

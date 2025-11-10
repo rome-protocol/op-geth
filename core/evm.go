@@ -78,6 +78,8 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		GasLimit:    header.GasLimit,
 		Random:      random,
 		L1CostFunc:  types.NewL1CostFunc(config, statedb),
+		SolanaBlockNumber: header.SolanaBlockNumber,
+		SolanaBlockHash:   header.SolanaBlockHash,
 	}
 }
 
