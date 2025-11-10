@@ -73,8 +73,8 @@ type RomePayloadAttributes struct {
 type payloadAttributesMarshaling struct {
 	Timestamp hexutil.Uint64
 
-	Transactions []hexutil.Bytes
-	GasLimit     *hexutil.Uint64
+	Transactions      []hexutil.Bytes
+	GasLimit          *hexutil.Uint64
 	SolanaBlockNumber *hexutil.Uint64
 }
 
@@ -119,42 +119,42 @@ type executableDataMarshaling struct {
 
 // RomeExecutableData is the data necessary to execute an EL payload.
 type RomeExecutableData struct {
-	ParentHash    common.Hash         `json:"parentHash"    gencodec:"required"`
-	FeeRecipient  common.Address      `json:"feeRecipient"  gencodec:"required"`
-	StateRoot     common.Hash         `json:"stateRoot"     gencodec:"required"`
-	ReceiptsRoot  common.Hash         `json:"receiptsRoot"  gencodec:"required"`
-	LogsBloom     []byte              `json:"logsBloom"     gencodec:"required"`
-	Random        common.Hash         `json:"prevRandao"    gencodec:"required"`
-	Number        uint64              `json:"blockNumber"   gencodec:"required"`
-	GasLimit      uint64              `json:"gasLimit"      gencodec:"required"`
-	GasUsed       uint64              `json:"gasUsed"       gencodec:"required"`
-	RomeGasUsed   []uint64            `json:"romeGasUsed"   gencodec:"required"`
-	Timestamp     uint64              `json:"timestamp"     gencodec:"required"`
-	ExtraData     []byte              `json:"extraData"     gencodec:"required"`
-	BaseFeePerGas *big.Int            `json:"baseFeePerGas" gencodec:"required"`
-	BlockHash     common.Hash         `json:"blockHash"     gencodec:"required"`
-	Transactions  [][]byte            `json:"transactions"  gencodec:"required"`
-	Withdrawals   []*types.Withdrawal `json:"withdrawals"`
-	BlobGasUsed   *uint64             `json:"blobGasUsed"`
-	ExcessBlobGas *uint64             `json:"excessBlobGas"`
-	TxFootprints  []string            `json:"txFootprints,omitempty" gencodec:"optional"`
-	RomeGasPrice  []uint64            `json:"romeGasPrice"   gencodec:"required"`
-	SolanaBlockNumber *uint64         `json:"solanaBlockNumber,omitempty" gencodec:"optional"`
-	SolanaBlockHash   *common.Hash    `json:"solanaBlockHash,omitempty" gencodec:"optional"`
+	ParentHash        common.Hash         `json:"parentHash"    gencodec:"required"`
+	FeeRecipient      common.Address      `json:"feeRecipient"  gencodec:"required"`
+	StateRoot         common.Hash         `json:"stateRoot"     gencodec:"required"`
+	ReceiptsRoot      common.Hash         `json:"receiptsRoot"  gencodec:"required"`
+	LogsBloom         []byte              `json:"logsBloom"     gencodec:"required"`
+	Random            common.Hash         `json:"prevRandao"    gencodec:"required"`
+	Number            uint64              `json:"blockNumber"   gencodec:"required"`
+	GasLimit          uint64              `json:"gasLimit"      gencodec:"required"`
+	GasUsed           uint64              `json:"gasUsed"       gencodec:"required"`
+	RomeGasUsed       []uint64            `json:"romeGasUsed"   gencodec:"required"`
+	Timestamp         uint64              `json:"timestamp"     gencodec:"required"`
+	ExtraData         []byte              `json:"extraData"     gencodec:"required"`
+	BaseFeePerGas     *big.Int            `json:"baseFeePerGas" gencodec:"required"`
+	BlockHash         common.Hash         `json:"blockHash"     gencodec:"required"`
+	Transactions      [][]byte            `json:"transactions"  gencodec:"required"`
+	Withdrawals       []*types.Withdrawal `json:"withdrawals"`
+	BlobGasUsed       *uint64             `json:"blobGasUsed"`
+	ExcessBlobGas     *uint64             `json:"excessBlobGas"`
+	TxFootprints      []string            `json:"txFootprints,omitempty" gencodec:"optional"`
+	RomeGasPrice      []uint64            `json:"romeGasPrice"   gencodec:"required"`
+	SolanaBlockNumber *hexutil.Uint64     `json:"solanaBlockNumber,omitempty" gencodec:"optional"`
+	SolanaBlockHash   *common.Hash        `json:"solanaBlockHash,omitempty" gencodec:"optional"`
 }
 
 // JSON type overrides for RomeExecutableData.
 type RomeExecutableDataMarshaling struct {
-	Number        hexutil.Uint64
-	GasLimit      hexutil.Uint64
-	GasUsed       []hexutil.Uint64
-	Timestamp     hexutil.Uint64
-	BaseFeePerGas *hexutil.Big
-	ExtraData     hexutil.Bytes
-	LogsBloom     hexutil.Bytes
-	Transactions  []hexutil.Bytes
-	BlobGasUsed   *hexutil.Uint64
-	ExcessBlobGas *hexutil.Uint64
+	Number            hexutil.Uint64
+	GasLimit          hexutil.Uint64
+	GasUsed           []hexutil.Uint64
+	Timestamp         hexutil.Uint64
+	BaseFeePerGas     *hexutil.Big
+	ExtraData         hexutil.Bytes
+	LogsBloom         hexutil.Bytes
+	Transactions      []hexutil.Bytes
+	BlobGasUsed       *hexutil.Uint64
+	ExcessBlobGas     *hexutil.Uint64
 	SolanaBlockNumber *hexutil.Uint64
 }
 
@@ -311,7 +311,10 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 		BlobGasUsed:      params.BlobGasUsed,
 		ParentBeaconRoot: beaconRoot,
 	}
-	header.SolanaBlockNumber = params.SolanaBlockNumber
+	if params.SolanaBlockNumber != nil {
+		num := uint64(*params.SolanaBlockNumber)
+		header.SolanaBlockNumber = &num
+	}
 	header.SolanaBlockHash = params.SolanaBlockHash
 	block := types.NewBlockWithHeader(header).WithBody(txs, nil /* uncles */).WithWithdrawals(params.Withdrawals)
 	if block.Hash() != params.BlockHash {
@@ -343,7 +346,10 @@ func BlockToExecutableData(block *types.Block, fees *big.Int, sidecars []*types.
 		ExcessBlobGas: block.ExcessBlobGas(),
 	}
 	if header := block.Header(); header != nil {
-		data.SolanaBlockNumber = header.SolanaBlockNumber
+		if header.SolanaBlockNumber != nil {
+			val := hexutil.Uint64(*header.SolanaBlockNumber)
+			data.SolanaBlockNumber = &val
+		}
 		data.SolanaBlockHash = header.SolanaBlockHash
 	}
 	bundle := BlobsBundleV1{
