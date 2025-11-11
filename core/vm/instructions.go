@@ -458,22 +458,23 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	} else {
 		lower = upper - 256
 	}
-	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		solNum := *interpreter.evm.Context.SolanaBlockNumber
-		if num64 == solNum && (solNum < lower || solNum >= upper) {
-			if interpreter.evm.Context.SolanaBlockHash != nil {
-				num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
-			} else {
-				num.Clear()
-			}
-			return nil, nil
-		}
-	}
 	if num64 >= lower && num64 < upper {
 		num.SetBytes(interpreter.evm.Context.GetHash(num64).Bytes())
-	} else {
-		num.Clear()
+		return nil, nil
 	}
+
+	// Outside canonical window: fall back to Solana metadata if present.
+	if interpreter.evm.Context.SolanaBlockHash != nil {
+		if interpreter.evm.Context.SolanaBlockNumber != nil && num64 != *interpreter.evm.Context.SolanaBlockNumber {
+			log.Info("opBlockhash fallback to solana hash",
+				"requested", num64,
+				"solanaNumber", *interpreter.evm.Context.SolanaBlockNumber)
+		}
+		num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
+		return nil, nil
+	}
+
+	num.Clear()
 	return nil, nil
 }
 
