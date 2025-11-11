@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -442,6 +443,13 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	if overflow {
 		num.Clear()
 		return nil, nil
+	}
+	if interpreter.evm.Context.SolanaBlockNumber != nil {
+		log.Info("opBlockhash request",
+			"block", interpreter.evm.Context.BlockNumber.Uint64(),
+			"requested", num64,
+			"solanaNumber", *interpreter.evm.Context.SolanaBlockNumber,
+			"hasSolanaHash", interpreter.evm.Context.SolanaBlockHash != nil)
 	}
 	var upper, lower uint64
 	upper = interpreter.evm.Context.BlockNumber.Uint64()
