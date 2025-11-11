@@ -65,19 +65,46 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	if header.Difficulty.Cmp(common.Big0) == 0 {
 		random = &header.MixDigest
 	}
+	var getSolanaHash func(uint64) (common.Hash, bool)
+	if chain != nil {
+		getSolanaHash = func(slot uint64) (common.Hash, bool) {
+			for current := header; current != nil; {
+				if current.SolanaBlockNumber != nil && *current.SolanaBlockNumber == slot {
+					if current.SolanaBlockHash != nil {
+						return *current.SolanaBlockHash, true
+					}
+					return common.Hash{}, false
+				}
+				if current.ParentHash == (common.Hash{}) || current.Number == nil {
+					break
+				}
+				if !current.Number.IsUint64() {
+					break
+				}
+				number := current.Number.Uint64()
+				if number == 0 {
+					break
+				}
+				current = chain.GetHeader(current.ParentHash, number-1)
+			}
+			return common.Hash{}, false
+		}
+	}
+
 	return vm.BlockContext{
-		CanTransfer: CanTransfer,
-		Transfer:    Transfer,
-		GetHash:     GetHashFn(header, chain),
-		Coinbase:    beneficiary,
-		BlockNumber: new(big.Int).Set(header.Number),
-		Time:        header.Time,
-		Difficulty:  new(big.Int).Set(header.Difficulty),
-		BaseFee:     baseFee,
-		BlobBaseFee: blobBaseFee,
-		GasLimit:    header.GasLimit,
-		Random:      random,
-		L1CostFunc:  types.NewL1CostFunc(config, statedb),
+		CanTransfer:       CanTransfer,
+		Transfer:          Transfer,
+		GetHash:           GetHashFn(header, chain),
+		GetSolanaHash:     getSolanaHash,
+		Coinbase:          beneficiary,
+		BlockNumber:       new(big.Int).Set(header.Number),
+		Time:              header.Time,
+		Difficulty:        new(big.Int).Set(header.Difficulty),
+		BaseFee:           baseFee,
+		BlobBaseFee:       blobBaseFee,
+		GasLimit:          header.GasLimit,
+		Random:            random,
+		L1CostFunc:        types.NewL1CostFunc(config, statedb),
 		SolanaBlockNumber: header.SolanaBlockNumber,
 		SolanaBlockHash:   header.SolanaBlockHash,
 	}

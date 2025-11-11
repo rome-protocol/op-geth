@@ -73,20 +73,22 @@ type BlockContext struct {
 	Transfer TransferFunc
 	// GetHash returns the hash corresponding to n
 	GetHash GetHashFunc
+	// GetSolanaHash returns the solana hash for the given solana slot if available.
+	GetSolanaHash func(uint64) (common.Hash, bool)
 	// L1CostFunc returns the L1 cost of the rollup message, the function may be nil, or return nil
 	L1CostFunc types.L1CostFunc
 
 	// Block information
-	Coinbase    common.Address // Provides information for COINBASE
-	GasLimit    uint64         // Provides information for GASLIMIT
-	BlockNumber *big.Int       // Provides information for NUMBER
-	Time        uint64         // Provides information for TIME
-	Difficulty  *big.Int       // Provides information for DIFFICULTY
-	BaseFee     *big.Int       // Provides information for BASEFEE (0 if vm runs with NoBaseFee flag and 0 gas price)
-	BlobBaseFee *big.Int       // Provides information for BLOBBASEFEE (0 if vm runs with NoBaseFee flag and 0 blob gas price)
-	Random      *common.Hash   // Provides information for PREVRANDAO
-	SolanaBlockNumber *uint64  // Provides information for custom Solana block number opcode
-	SolanaBlockHash   *common.Hash // Provides information for custom Solana block hash opcode
+	Coinbase          common.Address // Provides information for COINBASE
+	GasLimit          uint64         // Provides information for GASLIMIT
+	BlockNumber       *big.Int       // Provides information for NUMBER
+	Time              uint64         // Provides information for TIME
+	Difficulty        *big.Int       // Provides information for DIFFICULTY
+	BaseFee           *big.Int       // Provides information for BASEFEE (0 if vm runs with NoBaseFee flag and 0 gas price)
+	BlobBaseFee       *big.Int       // Provides information for BLOBBASEFEE (0 if vm runs with NoBaseFee flag and 0 blob gas price)
+	Random            *common.Hash   // Provides information for PREVRANDAO
+	SolanaBlockNumber *uint64        // Provides information for custom Solana block number opcode
+	SolanaBlockHash   *common.Hash   // Provides information for custom Solana block hash opcode
 }
 
 // TxContext provides the EVM with information about a transaction.
@@ -217,15 +219,15 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			}
 			return nil, gas, nil
 		}
-    if value.Sign() != 0 && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
-      return nil, gas, ErrInsufficientBalance
-    }
-    evm.StateDB.CreateAccount(addr)
+		if value.Sign() != 0 && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
+			return nil, gas, ErrInsufficientBalance
+		}
+		evm.StateDB.CreateAccount(addr)
 	}
-  if value.Sign() != 0 && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
-    return nil, gas, ErrInsufficientBalance
-  }
-  evm.Context.Transfer(evm.StateDB, caller.Address(), addr, value)
+	if value.Sign() != 0 && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
+		return nil, gas, ErrInsufficientBalance
+	}
+	evm.Context.Transfer(evm.StateDB, caller.Address(), addr, value)
 
 	// Capture the tracer start/end events in debug mode
 	if debug {
@@ -461,17 +463,17 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	if evm.StateDB.GetNonce(address) != 0 || (contractHash != (common.Hash{}) && contractHash != types.EmptyCodeHash) {
 		return nil, common.Address{}, 0, ErrContractAddressCollision
 	}
-  	// If there is an endowment, ensure the caller can afford it prior to state changes
-  	if value.Sign() != 0 && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
-    	return nil, common.Address{}, gas, ErrInsufficientBalance
-  	}
-  	// Create a new account on the state
+	// If there is an endowment, ensure the caller can afford it prior to state changes
+	if value.Sign() != 0 && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
+		return nil, common.Address{}, gas, ErrInsufficientBalance
+	}
+	// Create a new account on the state
 	snapshot := evm.StateDB.Snapshot()
 	evm.StateDB.CreateAccount(address)
 	if evm.chainRules.IsEIP158 {
 		evm.StateDB.SetNonce(address, 1)
 	}
-  	evm.Context.Transfer(evm.StateDB, caller.Address(), address, value)
+	evm.Context.Transfer(evm.StateDB, caller.Address(), address, value)
 
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
