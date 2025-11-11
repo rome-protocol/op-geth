@@ -443,8 +443,16 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		num.Clear()
 		return nil, nil
 	}
+	var upper, lower uint64
+	upper = interpreter.evm.Context.BlockNumber.Uint64()
+	if upper < 257 {
+		lower = 0
+	} else {
+		lower = upper - 256
+	}
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		if num64 == *interpreter.evm.Context.SolanaBlockNumber {
+		solNum := *interpreter.evm.Context.SolanaBlockNumber
+		if num64 == solNum && (solNum < lower || solNum >= upper) {
 			if interpreter.evm.Context.SolanaBlockHash != nil {
 				num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
 			} else {
@@ -452,13 +460,6 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 			}
 			return nil, nil
 		}
-	}
-	var upper, lower uint64
-	upper = interpreter.evm.Context.BlockNumber.Uint64()
-	if upper < 257 {
-		lower = 0
-	} else {
-		lower = upper - 256
 	}
 	if num64 >= lower && num64 < upper {
 		num.SetBytes(interpreter.evm.Context.GetHash(num64).Bytes())
