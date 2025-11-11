@@ -444,13 +444,15 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		num.Clear()
 		return nil, nil
 	}
+	var solanaNumber interface{}
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		log.Info("opBlockhash request",
-			"block", interpreter.evm.Context.BlockNumber.Uint64(),
-			"requested", num64,
-			"solanaNumber", *interpreter.evm.Context.SolanaBlockNumber,
-			"hasSolanaHash", interpreter.evm.Context.SolanaBlockHash != nil)
+		solanaNumber = *interpreter.evm.Context.SolanaBlockNumber
 	}
+	log.Info("opBlockhash request",
+		"block", interpreter.evm.Context.BlockNumber.Uint64(),
+		"requested", num64,
+		"solanaNumber", solanaNumber,
+		"hasSolanaHash", interpreter.evm.Context.SolanaBlockHash != nil)
 	var upper, lower uint64
 	upper = interpreter.evm.Context.BlockNumber.Uint64()
 	if upper < 257 {
@@ -474,9 +476,13 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		}
 	}
 	if interpreter.evm.Context.SolanaBlockHash != nil {
+		var solNum interface{}
+		if interpreter.evm.Context.SolanaBlockNumber != nil {
+			solNum = *interpreter.evm.Context.SolanaBlockNumber
+		}
 		log.Info("opBlockhash using current solana hash fallback",
 			"requested", num64,
-			"solanaNumber", interpreter.evm.Context.SolanaBlockNumber,
+			"solanaNumber", solNum,
 			"solanaHash", interpreter.evm.Context.SolanaBlockHash.Hex())
 		num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
 		return nil, nil
