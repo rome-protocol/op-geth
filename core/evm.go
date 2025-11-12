@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/footprint"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -71,22 +72,54 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 			for current := header; current != nil; {
 				if current.SolanaBlockNumber != nil && *current.SolanaBlockNumber == slot {
 					if current.SolanaBlockHash != nil {
+						log.Info("solana hash lookup hit",
+							"requestedSlot", slot,
+							"headerNumber", current.Number.String(),
+							"solanaHash", current.SolanaBlockHash.Hex())
 						return *current.SolanaBlockHash, true
 					}
+					log.Warn("solana hash missing despite matching slot",
+						"requestedSlot", slot,
+						"headerNumber", current.Number.String())
 					return common.Hash{}, false
 				}
 				if current.ParentHash == (common.Hash{}) || current.Number == nil {
+					log.Warn("solana hash lookup reached header without parent or number",
+						"requestedSlot", slot,
+						"headerNumber", func() interface{} {
+							if current.Number == nil {
+								return nil
+							}
+							return current.Number.String()
+						}())
 					break
 				}
 				if !current.Number.IsUint64() {
+					log.Warn("solana hash lookup encountered non-uint64 header number",
+						"requestedSlot", slot,
+						"headerNumber", current.Number.String())
 					break
 				}
 				number := current.Number.Uint64()
 				if number == 0 {
+					log.Warn("solana hash lookup reached genesis without match",
+						"requestedSlot", slot)
 					break
 				}
+				log.Info("solana hash lookup descending",
+					"requestedSlot", slot,
+					"fromHeader", number,
+					"parentHash", current.ParentHash,
+					"headerSolanaNumber", func() interface{} {
+						if current.SolanaBlockNumber == nil {
+							return nil
+						}
+						return *current.SolanaBlockNumber
+					}())
 				current = chain.GetHeader(current.ParentHash, number-1)
 			}
+			log.Warn("solana hash lookup failed",
+				"requestedSlot", slot)
 			return common.Hash{}, false
 		}
 	}
