@@ -444,51 +444,16 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		num.Clear()
 		return nil, nil
 	}
-	var solanaNumber interface{}
+	current := interpreter.evm.Context.BlockNumber.Uint64()
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		solanaNumber = *interpreter.evm.Context.SolanaBlockNumber
+		current = *interpreter.evm.Context.SolanaBlockNumber
 	}
-	log.Info("opBlockhash request",
-		"block", interpreter.evm.Context.BlockNumber.Uint64(),
-		"requested", num64,
-		"solanaNumber", solanaNumber,
-		"hasSolanaHash", interpreter.evm.Context.SolanaBlockHash != nil)
-	var upper, lower uint64
-	upper = interpreter.evm.Context.BlockNumber.Uint64()
-	if upper < 257 {
-		lower = 0
-	} else {
-		lower = upper - 256
-	}
-	if num64 >= lower && num64 < upper {
-		num.SetBytes(interpreter.evm.Context.GetHash(num64).Bytes())
+	if num64 > current || current-num64 <= 256 {
+		num.Clear()
 		return nil, nil
 	}
-
-	// Outside canonical window: try to resolve via Solana metadata.
-	if interpreter.evm.Context.GetSolanaHash != nil {
-		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
-			log.Info("opBlockhash resolved via solana history",
-				"requested", num64,
-				"solanaHash", hash.Hex())
-			num.SetBytes(hash.Bytes())
-			return nil, nil
-		}
-	}
-	if interpreter.evm.Context.SolanaBlockHash != nil {
-		var solNum interface{}
-		if interpreter.evm.Context.SolanaBlockNumber != nil {
-			solNum = *interpreter.evm.Context.SolanaBlockNumber
-		}
-		log.Info("opBlockhash using current solana hash fallback",
-			"requested", num64,
-			"solanaNumber", solNum,
-			"solanaHash", interpreter.evm.Context.SolanaBlockHash.Hex())
-		num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
-		return nil, nil
-	}
-
-	num.Clear()
+	// Outside the 256 window we can fall back to the canonical hash.
+	num.SetBytes(interpreter.evm.Context.GetHash(num64).Bytes())
 	return nil, nil
 }
 
