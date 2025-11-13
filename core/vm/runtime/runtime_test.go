@@ -253,6 +253,10 @@ func (d *dummyChain) GetFootprintManager() *footprint.Manager {
 	return nil
 }
 
+func (d *dummyChain) GetSolanaMetadata(common.Hash) (uint64, common.Hash, bool) {
+	return 0, common.Hash{}, false
+}
+
 // TestBlockhash tests the blockhash operation. It's a bit special, since it internally
 // requires access to a chain reader.
 func TestBlockhash(t *testing.T) {

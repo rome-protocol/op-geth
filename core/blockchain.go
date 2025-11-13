@@ -248,6 +248,8 @@ type BlockChain struct {
 	// future blocks are blocks added for later processing
 	futureBlocks *lru.Cache[common.Hash, *types.Block]
 
+	solanaCache *solanaMetadataCache
+
 	wg            sync.WaitGroup //
 	quit          chan struct{}  // shutdown signal, closed in Stop.
 	stopping      atomic.Bool    // false if chain is running, true when stopped
@@ -259,7 +261,7 @@ type BlockChain struct {
 	processor  Processor // Block transaction processor interface
 	forker     *ForkChoice
 	vmConfig   vm.Config
-	
+
 	footprintManager *footprint.Manager // Manages footprint caching and mismatch tracking
 }
 
@@ -308,6 +310,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		futureBlocks:  lru.NewCache[common.Hash, *types.Block](maxFutureBlocks),
 		engine:        engine,
 		vmConfig:      vmConfig,
+		solanaCache:   newSolanaMetadataCache(500),
 	}
 	bc.flushInterval.Store(int64(cacheConfig.TrieTimeLimit))
 	bc.forker = NewForkChoice(bc, shouldPreserve)
@@ -988,6 +991,24 @@ func (bc *BlockChain) GetFootprintManager() *footprint.Manager {
 	return bc.footprintManager
 }
 
+// GetSolanaMetadata returns the solana metadata for the given block hash. It
+// caches the most recent entries in memory to serve frequent lookups quickly.
+func (bc *BlockChain) GetSolanaMetadata(hash common.Hash) (uint64, common.Hash, bool) {
+	if bc.solanaCache != nil {
+		if slot, solHash, ok := bc.solanaCache.Get(hash); ok {
+			return slot, solHash, true
+		}
+	}
+	slot, solHash, ok := rawdb.ReadSolanaMetadata(bc.db, hash)
+	if !ok {
+		return 0, common.Hash{}, false
+	}
+	if bc.solanaCache != nil {
+		bc.solanaCache.Add(hash, slot, solHash)
+	}
+	return slot, solHash, true
+}
+
 // SetFootprintManager sets the footprint manager for this blockchain
 func (bc *BlockChain) SetFootprintManager(manager *footprint.Manager) {
 	bc.footprintManager = manager
@@ -1419,6 +1440,12 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	rawdb.WriteTd(blockBatch, block.Hash(), block.NumberU64(), externTd)
 	rawdb.WriteBlock(blockBatch, block)
 	rawdb.WriteReceipts(blockBatch, block.Hash(), block.NumberU64(), receipts)
+	if block.Header().SolanaBlockNumber != nil && block.Header().SolanaBlockHash != nil {
+		rawdb.WriteSolanaMetadata(blockBatch, block.Hash(), *block.Header().SolanaBlockNumber, *block.Header().SolanaBlockHash)
+		if bc.solanaCache != nil {
+			bc.solanaCache.Add(block.Hash(), *block.Header().SolanaBlockNumber, *block.Header().SolanaBlockHash)
+		}
+	}
 	rawdb.WritePreimages(blockBatch, state.Preimages())
 	if err := blockBatch.Write(); err != nil {
 		log.Crit("Failed to write block into disk", "err", err)

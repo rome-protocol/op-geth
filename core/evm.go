@@ -40,6 +40,9 @@ type ChainContext interface {
 
 	// GetFootprintManager returns the footprint manager.
 	GetFootprintManager() *footprint.Manager
+
+	// GetSolanaMetadata retrieves the solana slot and hash recorded for a block hash.
+	GetSolanaMetadata(common.Hash) (uint64, common.Hash, bool)
 }
 
 // NewEVMBlockContext creates a new context for use in the EVM.
@@ -70,18 +73,29 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	if chain != nil {
 		getSolanaHash = func(slot uint64) (common.Hash, bool) {
 			for current := header; current != nil; {
-				if current.SolanaBlockNumber != nil && *current.SolanaBlockNumber == slot {
-					if current.SolanaBlockHash != nil {
+				if current.SolanaBlockNumber != nil && *current.SolanaBlockNumber == slot && current.SolanaBlockHash != nil {
+					log.Info("solana hash lookup hit",
+						"requestedSlot", slot,
+						"headerNumber", current.Number.String(),
+						"solanaHash", current.SolanaBlockHash.Hex())
+					return *current.SolanaBlockHash, true
+				}
+				if metaSlot, metaHash, ok := chain.GetSolanaMetadata(current.Hash()); ok {
+					if current.SolanaBlockNumber == nil {
+						slotCopy := metaSlot
+						current.SolanaBlockNumber = &slotCopy
+					}
+					if current.SolanaBlockHash == nil {
+						hashCopy := metaHash
+						current.SolanaBlockHash = &hashCopy
+					}
+					if metaSlot == slot {
 						log.Info("solana hash lookup hit",
 							"requestedSlot", slot,
 							"headerNumber", current.Number.String(),
-							"solanaHash", current.SolanaBlockHash.Hex())
-						return *current.SolanaBlockHash, true
+							"solanaHash", metaHash.Hex())
+						return metaHash, true
 					}
-					log.Warn("solana hash missing despite matching slot",
-						"requestedSlot", slot,
-						"headerNumber", current.Number.String())
-					return common.Hash{}, false
 				}
 				if current.ParentHash == (common.Hash{}) || current.Number == nil {
 					log.Warn("solana hash lookup reached header without parent or number",

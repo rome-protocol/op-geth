@@ -576,3 +576,7 @@ func (cm *chainMaker) GetTd(hash common.Hash, number uint64) *big.Int {
 func (cm *chainMaker) GetFootprintManager() *footprint.Manager {
 	return nil // not needed for chain generation
 }
+
+func (cm *chainMaker) GetSolanaMetadata(common.Hash) (uint64, common.Hash, bool) {
+	return 0, common.Hash{}, false
+}
