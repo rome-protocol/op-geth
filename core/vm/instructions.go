@@ -462,6 +462,20 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		num.Clear()
 		return nil, nil
 	}
+	if diff == 0 {
+		// current block (should not happen as num64 >= current handled above)
+		log.Info("opBlockhash returning zero", "requested", num64, "current", current, "reason", "same-number")
+		num.Clear()
+		return nil, nil
+	}
+	if diff <= 256 {
+		// Return the actual block hash from canonical chain
+		hash := interpreter.evm.Context.GetHash(num64)
+		log.Info("opBlockhash returning canonical hash", "requested", num64, "hash", hash.Hex(), "delta", diff)
+		num.SetBytes(hash.Bytes())
+		return nil, nil
+	}
+	// Older than 256 blocks, return keccak of the number
 	var input [32]byte
 	binary.BigEndian.PutUint64(input[len(input)-8:], num64)
 	hash := crypto.Keccak256Hash(input[:])
