@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -447,12 +448,16 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
 		current = *interpreter.evm.Context.SolanaBlockNumber
 	}
+	log.Info("opBlockhash invoked", "requested", num64, "current", current)
 	if num64 > current || current-num64 <= 256 {
+		log.Info("opBlockhash returning zero", "requested", num64, "current", current, "reason", "in-range-or-future")
 		num.Clear()
 		return nil, nil
 	}
 	// Outside the 256 window we can fall back to the canonical hash.
-	num.SetBytes(interpreter.evm.Context.GetHash(num64).Bytes())
+	hash := interpreter.evm.Context.GetHash(num64)
+	log.Info("opBlockhash returning canonical hash", "requested", num64, "hash", hash.Hex())
+	num.SetBytes(hash.Bytes())
 	return nil, nil
 }
 
