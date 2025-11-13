@@ -449,20 +449,21 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		current = *interpreter.evm.Context.SolanaBlockNumber
 	}
 	log.Info("opBlockhash invoked", "requested", num64, "current", current)
-	if num64 > current {
-		log.Info("opBlockhash returning zero", "requested", num64, "current", current, "reason", "future-request")
+	if num64 >= current {
+		log.Info("opBlockhash returning zero", "requested", num64, "current", current, "reason", "num>=current")
 		num.Clear()
 		return nil, nil
 	}
-	if interpreter.evm.Context.GetSolanaHash != nil && interpreter.evm.Context.SolanaBlockNumber != nil {
-		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
-			log.Info("opBlockhash returning stored solana hash", "requested", num64, "hash", hash.Hex())
-			num.SetBytes(hash[:])
-			return nil, nil
-		}
+	diff := current - num64
+	if diff > 256 {
+		log.Info("opBlockhash returning zero", "requested", num64, "current", current, "reason", "older-than-256")
+		num.Clear()
+		return nil, nil
 	}
-	hash := interpreter.evm.Context.GetHash(num64)
-	log.Info("opBlockhash returning canonical hash", "requested", num64, "hash", hash.Hex())
+	var input [32]byte
+	binary.BigEndian.PutUint64(input[len(input)-8:], num64)
+	hash := crypto.Keccak256Hash(input[:])
+	log.Info("opBlockhash returning synthetic keccak hash", "requested", num64, "hash", hash.Hex(), "delta", diff)
 	num.SetBytes(hash.Bytes())
 	return nil, nil
 }
