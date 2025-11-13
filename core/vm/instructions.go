@@ -457,11 +457,6 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		return nil, nil
 	}
 	diff := current - num64
-	if diff > 256 {
-		log.Info("opBlockhash returning zero", "requested", num64, "current", current, "reason", "older-than-256")
-		num.Clear()
-		return nil, nil
-	}
 	if diff == 0 {
 		// current block (should not happen as num64 >= current handled above)
 		log.Info("opBlockhash returning zero", "requested", num64, "current", current, "reason", "same-number")
@@ -469,10 +464,21 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		return nil, nil
 	}
 	if diff <= 256 {
-		// Return the actual block hash from canonical chain
+		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
+			log.Info("opBlockhash returning solana hash", "requested", num64, "hash", hash.Hex(), "delta", diff)
+			num.SetBytes(hash[:])
+			return nil, nil
+		}
+		// Fall back to canonical hash if we don't have solana metadata
 		hash := interpreter.evm.Context.GetHash(num64)
 		log.Info("opBlockhash returning canonical hash", "requested", num64, "hash", hash.Hex(), "delta", diff)
 		num.SetBytes(hash.Bytes())
+		return nil, nil
+	}
+	// Older than 256 blocks
+	if interpreter.evm.Context.SolanaBlockHash != nil {
+		log.Info("opBlockhash returning header solana hash for old request", "requested", num64, "hash", interpreter.evm.Context.SolanaBlockHash.Hex(), "delta", diff)
+		num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
 		return nil, nil
 	}
 	// Older than 256 blocks, return keccak of the number
