@@ -458,9 +458,14 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	}
 	diff := current - num64
 	if diff == 0 {
-		// current block (should not happen as num64 >= current handled above)
-		log.Info("opBlockhash returning zero", "requested", num64, "current", current, "reason", "same-number")
-		num.Clear()
+		if interpreter.evm.Context.SolanaBlockHash != nil {
+			log.Info("opBlockhash returning current solana hash", "requested", num64, "hash", interpreter.evm.Context.SolanaBlockHash.Hex())
+			num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
+			return nil, nil
+		}
+		hash := interpreter.evm.Context.GetHash(num64)
+		log.Info("opBlockhash returning current canonical hash", "requested", num64, "hash", hash.Hex())
+		num.SetBytes(hash.Bytes())
 		return nil, nil
 	}
 	if diff <= 256 {
