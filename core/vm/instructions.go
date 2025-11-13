@@ -449,12 +449,18 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		current = *interpreter.evm.Context.SolanaBlockNumber
 	}
 	log.Info("opBlockhash invoked", "requested", num64, "current", current)
-	if num64 > current || current-num64 <= 256 {
-		log.Info("opBlockhash returning zero", "requested", num64, "current", current, "reason", "in-range-or-future")
+	if num64 > current {
+		log.Info("opBlockhash returning zero", "requested", num64, "current", current, "reason", "future-request")
 		num.Clear()
 		return nil, nil
 	}
-	// Outside the 256 window we can fall back to the canonical hash.
+	if interpreter.evm.Context.GetSolanaHash != nil && interpreter.evm.Context.SolanaBlockNumber != nil {
+		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
+			log.Info("opBlockhash returning stored solana hash", "requested", num64, "hash", hash.Hex())
+			num.SetBytes(hash[:])
+			return nil, nil
+		}
+	}
 	hash := interpreter.evm.Context.GetHash(num64)
 	log.Info("opBlockhash returning canonical hash", "requested", num64, "hash", hash.Hex())
 	num.SetBytes(hash.Bytes())
