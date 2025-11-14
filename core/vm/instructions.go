@@ -17,6 +17,8 @@
 package vm
 
 import (
+	"encoding/binary"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -457,32 +459,26 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	diff := current - num64
 	if diff == 0 {
 		if interpreter.evm.Context.SolanaBlockHash != nil {
-			log.Info("opBlockhash returning current solana hash", "requested", num64, "hash", interpreter.evm.Context.SolanaBlockHash.Hex())
 			num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
 			return nil, nil
 		}
-		log.Warn("opBlockhash missing current solana hash", "requested", num64)
-		num.Clear()
+		hash := interpreter.evm.Context.GetHash(num64)
+		num.SetBytes(hash.Bytes())
 		return nil, nil
 	}
 	if diff <= 256 {
 		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
-			log.Info("opBlockhash returning solana hash", "requested", num64, "hash", hash.Hex(), "delta", diff)
 			num.SetBytes(hash[:])
 			return nil, nil
 		}
-		log.Warn("opBlockhash missing historical solana hash", "requested", num64, "delta", diff)
-		num.Clear()
+		hash := interpreter.evm.Context.GetHash(num64)
+		num.SetBytes(hash.Bytes())
 		return nil, nil
 	}
-	// Older than 256 blocks always return the current Solana header hash if available.
-	if interpreter.evm.Context.SolanaBlockHash != nil {
-		log.Info("opBlockhash returning header solana hash for old request", "requested", num64, "hash", interpreter.evm.Context.SolanaBlockHash.Hex(), "delta", diff)
-		num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
-		return nil, nil
-	}
-	log.Warn("opBlockhash missing solana hash for old request", "requested", num64, "delta", diff)
-	num.Clear()
+	var input [32]byte
+	binary.BigEndian.PutUint64(input[len(input)-8:], num64)
+	hash := crypto.Keccak256Hash(input[:])
+	num.SetBytes(hash.Bytes())
 	return nil, nil
 }
 
