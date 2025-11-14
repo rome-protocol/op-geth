@@ -446,6 +446,10 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		num.Clear()
 		return nil, nil
 	}
+	if num64 == 0 {
+		num.Clear()
+		return nil, nil
+	}
 	current := interpreter.evm.Context.BlockNumber.Uint64()
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
 		current = *interpreter.evm.Context.SolanaBlockNumber
