@@ -463,9 +463,8 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 			num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
 			return nil, nil
 		}
-		hash := interpreter.evm.Context.GetHash(num64)
-		log.Info("opBlockhash returning current canonical hash", "requested", num64, "hash", hash.Hex())
-		num.SetBytes(hash.Bytes())
+		log.Warn("opBlockhash missing current solana hash", "requested", num64)
+		num.Clear()
 		return nil, nil
 	}
 	if diff <= 256 {
@@ -474,24 +473,18 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 			num.SetBytes(hash[:])
 			return nil, nil
 		}
-		// Fall back to canonical hash if we don't have solana metadata
-		hash := interpreter.evm.Context.GetHash(num64)
-		log.Info("opBlockhash returning canonical hash", "requested", num64, "hash", hash.Hex(), "delta", diff)
-		num.SetBytes(hash.Bytes())
+		log.Warn("opBlockhash missing historical solana hash", "requested", num64, "delta", diff)
+		num.Clear()
 		return nil, nil
 	}
-	// Older than 256 blocks
+	// Older than 256 blocks always return the current Solana header hash if available.
 	if interpreter.evm.Context.SolanaBlockHash != nil {
 		log.Info("opBlockhash returning header solana hash for old request", "requested", num64, "hash", interpreter.evm.Context.SolanaBlockHash.Hex(), "delta", diff)
 		num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
 		return nil, nil
 	}
-	// Older than 256 blocks, return keccak of the number
-	var input [32]byte
-	binary.BigEndian.PutUint64(input[len(input)-8:], num64)
-	hash := crypto.Keccak256Hash(input[:])
-	log.Info("opBlockhash returning synthetic keccak hash", "requested", num64, "hash", hash.Hex(), "delta", diff)
-	num.SetBytes(hash.Bytes())
+	log.Warn("opBlockhash missing solana hash for old request", "requested", num64, "delta", diff)
+	num.Clear()
 	return nil, nil
 }
 
