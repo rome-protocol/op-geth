@@ -475,6 +475,13 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 			num.SetBytes(hash[:])
 			return nil, nil
 		}
+		if interpreter.evm.Context.SolanaBlockNumber != nil {
+			var input [32]byte
+			binary.BigEndian.PutUint64(input[len(input)-8:], num64)
+			hash := crypto.Keccak256Hash(input[:])
+			num.SetBytes(hash.Bytes())
+			return nil, nil
+		}
 		hash := interpreter.evm.Context.GetHash(num64)
 		num.SetBytes(hash.Bytes())
 		return nil, nil
