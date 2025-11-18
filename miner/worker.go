@@ -1030,6 +1030,12 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	// Set Solana metadata from fork choice if available.
 	if genParams.solanaBlockNumber != nil {
 		header.SolanaBlockNumber = genParams.solanaBlockNumber
+		log.Info("prepareWork: Set Solana metadata in header", 
+			"solanaSlot", *genParams.solanaBlockNumber,
+			"solanaHash", genParams.solanaBlockHash,
+			"blockNumber", header.Number.Uint64())
+	} else {
+		log.Info("prepareWork: No Solana metadata in genParams", "blockNumber", header.Number.Uint64())
 	}
 	if genParams.solanaBlockHash != nil {
 		header.SolanaBlockHash = genParams.solanaBlockHash

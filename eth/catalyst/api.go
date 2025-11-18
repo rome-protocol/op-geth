@@ -360,7 +360,11 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	// If payload generation was requested, create a new block to be potentially
 	// sealed by the beacon client. The payload will be requested later, and we
 	// will replace it arbitrarily many times in between.
+	log.Info("ForkchoiceUpdated: payloadAttributes check", "isNil", payloadAttributes == nil)
 	if payloadAttributes != nil {
+		log.Info("ForkchoiceUpdated: payloadAttributes is not nil", 
+			"hasSolanaNumber", payloadAttributes.SolanaBlockNumber != nil,
+			"hasSolanaHash", payloadAttributes.SolanaBlockHash != nil)
 		if api.eth.BlockChain().Config().Optimism != nil && payloadAttributes.GasLimit == nil {
 			return engine.STATUS_INVALID, engine.InvalidPayloadAttributes.With(errors.New("gasLimit parameter is required"))
 		}
@@ -394,6 +398,14 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			GasUsed:           payloadAttributes.GasUsed,
 			GasPrice:          payloadAttributes.GasPrice,
 			Footprints:        payloadAttributes.TxFootprints,
+		}
+		if payloadAttributes.SolanaBlockNumber != nil {
+			log.Info("ForkchoiceUpdated: Received Solana metadata", 
+				"solanaSlot", *payloadAttributes.SolanaBlockNumber,
+				"solanaHash", payloadAttributes.SolanaBlockHash,
+				"head", update.HeadBlockHash)
+		} else {
+			log.Info("ForkchoiceUpdated: No Solana metadata in payload attributes", "head", update.HeadBlockHash)
 		}
 		id := args.Id()
 		// If we already are busy generating this work, then we do not need

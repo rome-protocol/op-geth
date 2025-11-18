@@ -65,6 +65,14 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	if header.Difficulty.Cmp(common.Big0) == 0 {
 		random = &header.MixDigest
 	}
+	if header.SolanaBlockNumber != nil {
+		log.Info("NewEVMBlockContext: Extracted Solana metadata from header", 
+			"solanaSlot", *header.SolanaBlockNumber,
+			"solanaHash", header.SolanaBlockHash,
+			"ethereumBlockNumber", header.Number.Uint64())
+	} else {
+		log.Info("NewEVMBlockContext: No Solana metadata in header", "ethereumBlockNumber", header.Number.Uint64())
+	}
 	return vm.BlockContext{
 		CanTransfer:       CanTransfer,
 		Transfer:          Transfer,
