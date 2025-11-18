@@ -135,20 +135,23 @@ type RomeExecutableData struct {
 	BlockHash     common.Hash         `json:"blockHash"     gencodec:"required"`
 	Transactions  [][]byte            `json:"transactions"  gencodec:"required"`
 	Withdrawals   []*types.Withdrawal `json:"withdrawals"`
-	BlobGasUsed   *uint64             `json:"blobGasUsed"`
-	ExcessBlobGas *uint64             `json:"excessBlobGas"`
-	TxFootprints  []string            `json:"txFootprints,omitempty" gencodec:"optional"`
-	RomeGasPrice  []uint64            `json:"romeGasPrice"   gencodec:"required"`
+	BlobGasUsed       *uint64             `json:"blobGasUsed"`
+	ExcessBlobGas     *uint64             `json:"excessBlobGas"`
+	TxFootprints      []string            `json:"txFootprints,omitempty" gencodec:"optional"`
+	RomeGasPrice      []uint64            `json:"romeGasPrice"   gencodec:"required"`
+	SolanaBlockNumber *uint64             `json:"solanaBlockNumber,omitempty" gencodec:"optional"`
+	SolanaBlockHash   *common.Hash         `json:"solanaBlockHash,omitempty" gencodec:"optional"`
 }
 
 // JSON type overrides for RomeExecutableData.
 type RomeExecutableDataMarshaling struct {
-	Number        hexutil.Uint64
-	GasLimit      hexutil.Uint64
-	GasUsed       []hexutil.Uint64
-	Timestamp     hexutil.Uint64
-	BaseFeePerGas *hexutil.Big
-	ExtraData     hexutil.Bytes
+	Number            hexutil.Uint64
+	GasLimit          hexutil.Uint64
+	GasUsed           []hexutil.Uint64
+	Timestamp         hexutil.Uint64
+	BaseFeePerGas     *hexutil.Big
+	ExtraData         hexutil.Bytes
+	SolanaBlockNumber *hexutil.Uint64
 	LogsBloom     hexutil.Bytes
 	Transactions  []hexutil.Bytes
 	BlobGasUsed   *hexutil.Uint64
@@ -307,6 +310,8 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 		ExcessBlobGas:    params.ExcessBlobGas,
 		BlobGasUsed:      params.BlobGasUsed,
 		ParentBeaconRoot: beaconRoot,
+		SolanaBlockNumber: params.SolanaBlockNumber,
+		SolanaBlockHash:   params.SolanaBlockHash,
 	}
 	block := types.NewBlockWithHeader(header).WithBody(txs, nil /* uncles */).WithWithdrawals(params.Withdrawals)
 	if block.Hash() != params.BlockHash {
@@ -319,23 +324,25 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 // fields from the given block. It assumes the given block is post-merge block.
 func BlockToExecutableData(block *types.Block, fees *big.Int, sidecars []*types.BlobTxSidecar) *ExecutionPayloadEnvelope {
 	data := &RomeExecutableData{
-		BlockHash:     block.Hash(),
-		ParentHash:    block.ParentHash(),
-		FeeRecipient:  block.Coinbase(),
-		StateRoot:     block.Root(),
-		Number:        block.NumberU64(),
-		GasLimit:      block.GasLimit(),
-		GasUsed:       block.GasUsed(),
-		BaseFeePerGas: block.BaseFee(),
-		Timestamp:     block.Time(),
-		ReceiptsRoot:  block.ReceiptHash(),
-		LogsBloom:     block.Bloom().Bytes(),
-		Transactions:  encodeTransactions(block.Transactions()),
-		Random:        block.MixDigest(),
-		ExtraData:     block.Extra(),
-		Withdrawals:   block.Withdrawals(),
-		BlobGasUsed:   block.BlobGasUsed(),
-		ExcessBlobGas: block.ExcessBlobGas(),
+		BlockHash:        block.Hash(),
+		ParentHash:       block.ParentHash(),
+		FeeRecipient:     block.Coinbase(),
+		StateRoot:        block.Root(),
+		Number:           block.NumberU64(),
+		GasLimit:         block.GasLimit(),
+		GasUsed:          block.GasUsed(),
+		BaseFeePerGas:    block.BaseFee(),
+		Timestamp:        block.Time(),
+		ReceiptsRoot:     block.ReceiptHash(),
+		LogsBloom:        block.Bloom().Bytes(),
+		Transactions:     encodeTransactions(block.Transactions()),
+		Random:           block.MixDigest(),
+		ExtraData:        block.Extra(),
+		Withdrawals:      block.Withdrawals(),
+		BlobGasUsed:      block.BlobGasUsed(),
+		ExcessBlobGas:    block.ExcessBlobGas(),
+		SolanaBlockNumber: block.Header().SolanaBlockNumber,
+		SolanaBlockHash:   block.Header().SolanaBlockHash,
 	}
 	bundle := BlobsBundleV1{
 		Commitments: make([]hexutil.Bytes, 0),
