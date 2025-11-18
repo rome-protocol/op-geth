@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -482,9 +483,18 @@ func opTimestamp(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 
 func opNumber(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	// Use Solana slot number if available, otherwise use Ethereum block number
+	ethereumBlockNumber := interpreter.evm.Context.BlockNumber.Uint64()
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		scope.Stack.push(new(uint256.Int).SetUint64(*interpreter.evm.Context.SolanaBlockNumber))
+		solanaSlot := *interpreter.evm.Context.SolanaBlockNumber
+		log.Info("opNumber: Using Solana slot", 
+			"solanaSlot", solanaSlot, 
+			"ethereumBlockNumber", ethereumBlockNumber,
+			"contract", scope.Contract.Address().Hex())
+		scope.Stack.push(new(uint256.Int).SetUint64(solanaSlot))
 	} else {
+		log.Info("opNumber: Using Ethereum block number", 
+			"ethereumBlockNumber", ethereumBlockNumber,
+			"contract", scope.Contract.Address().Hex())
 		v, _ := uint256.FromBig(interpreter.evm.Context.BlockNumber)
 		scope.Stack.push(v)
 	}
