@@ -439,6 +439,14 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		num.Clear()
 		return nil, nil
 	}
+	
+	// If Solana block hash is available, use it directly
+	if interpreter.evm.Context.SolanaBlockHash != nil {
+		num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
+		return nil, nil
+	}
+	
+	// Otherwise, use standard Ethereum block hash lookup
 	var upper, lower uint64
 	upper = interpreter.evm.Context.BlockNumber.Uint64()
 	if upper < 257 {
@@ -465,8 +473,13 @@ func opTimestamp(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 }
 
 func opNumber(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	v, _ := uint256.FromBig(interpreter.evm.Context.BlockNumber)
-	scope.Stack.push(v)
+	// Use Solana slot number if available, otherwise use Ethereum block number
+	if interpreter.evm.Context.SolanaBlockNumber != nil {
+		scope.Stack.push(new(uint256.Int).SetUint64(*interpreter.evm.Context.SolanaBlockNumber))
+	} else {
+		v, _ := uint256.FromBig(interpreter.evm.Context.BlockNumber)
+		scope.Stack.push(v)
+	}
 	return nil, nil
 }
 

@@ -43,6 +43,8 @@ type BuildPayloadArgs struct {
 	Random       common.Hash       // The provided randomness value
 	Withdrawals  types.Withdrawals // The provided withdrawals
 	BeaconRoot   *common.Hash      // The provided beaconRoot (Cancun)
+	SolanaBlockNumber *uint64      // The Solana slot number from fork choice
+	SolanaBlockHash   *common.Hash // The Solana block hash from fork choice
 
 	NoTxPool     bool                 // Optimism addition: option to disable tx pool contents from being included
 	Transactions []*types.Transaction // Optimism addition: txs forced into the block via engine API
@@ -263,19 +265,21 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 		// to deliver for not missing slot.
 		// In OP-Stack, the "empty" block is constructed from provided txs only, i.e. no tx-pool usage.
 		emptyParams := &generateParams{
-			timestamp:   args.Timestamp,
-			forceTime:   true,
-			parentHash:  args.Parent,
-			coinbase:    args.FeeRecipient,
-			random:      args.Random,
-			withdrawals: args.Withdrawals,
-			beaconRoot:  args.BeaconRoot,
-			noTxs:       true,
-			txs:         args.Transactions,
-			gasLimit:    args.GasLimit,
-			gasUsed:     args.GasUsed,
-			footPrints:  args.Footprints,
-			gasPrice:    args.GasPrice,
+			timestamp:         args.Timestamp,
+			forceTime:         true,
+			parentHash:        args.Parent,
+			coinbase:          args.FeeRecipient,
+			random:            args.Random,
+			withdrawals:       args.Withdrawals,
+			beaconRoot:        args.BeaconRoot,
+			solanaBlockNumber: args.SolanaBlockNumber,
+			solanaBlockHash:   args.SolanaBlockHash,
+			noTxs:             true,
+			txs:               args.Transactions,
+			gasLimit:          args.GasLimit,
+			gasUsed:           args.GasUsed,
+			footPrints:        args.Footprints,
+			gasPrice:          args.GasPrice,
 		}
 		empty := w.getSealingBlock(emptyParams)
 		if empty.err != nil {
@@ -290,19 +294,21 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 	}
 
 	fullParams := &generateParams{
-		timestamp:   args.Timestamp,
-		forceTime:   true,
-		parentHash:  args.Parent,
-		coinbase:    args.FeeRecipient,
-		random:      args.Random,
-		withdrawals: args.Withdrawals,
-		beaconRoot:  args.BeaconRoot,
-		noTxs:       false,
-		txs:         args.Transactions,
-		gasLimit:    args.GasLimit,
-		gasUsed:     args.GasUsed,
-		footPrints:  args.Footprints,
-		gasPrice:    args.GasPrice,
+		timestamp:         args.Timestamp,
+		forceTime:         true,
+		parentHash:        args.Parent,
+		coinbase:          args.FeeRecipient,
+		random:            args.Random,
+		withdrawals:       args.Withdrawals,
+		beaconRoot:        args.BeaconRoot,
+		solanaBlockNumber: args.SolanaBlockNumber,
+		solanaBlockHash:   args.SolanaBlockHash,
+		noTxs:             false,
+		txs:               args.Transactions,
+		gasLimit:          args.GasLimit,
+		gasUsed:           args.GasUsed,
+		footPrints:        args.Footprints,
+		gasPrice:          args.GasPrice,
 	}
 
 	// Since we skip building the empty block when using the tx pool, we need to explicitly

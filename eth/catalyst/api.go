@@ -380,18 +380,20 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			span.End()
 		}
 		args := &miner.BuildPayloadArgs{
-			Parent:       update.HeadBlockHash,
-			Timestamp:    payloadAttributes.Timestamp,
-			FeeRecipient: payloadAttributes.SuggestedFeeRecipient,
-			Random:       payloadAttributes.Random,
-			Withdrawals:  payloadAttributes.Withdrawals,
-			BeaconRoot:   payloadAttributes.BeaconRoot,
-			NoTxPool:     payloadAttributes.NoTxPool,
-			Transactions: transactions,
-			GasLimit:     payloadAttributes.GasLimit,
-			GasUsed:      payloadAttributes.GasUsed,
-			GasPrice:     payloadAttributes.GasPrice,
-			Footprints:   payloadAttributes.TxFootprints,
+			Parent:            update.HeadBlockHash,
+			Timestamp:         payloadAttributes.Timestamp,
+			FeeRecipient:      payloadAttributes.SuggestedFeeRecipient,
+			Random:            payloadAttributes.Random,
+			Withdrawals:       payloadAttributes.Withdrawals,
+			BeaconRoot:        payloadAttributes.BeaconRoot,
+			SolanaBlockNumber: payloadAttributes.SolanaBlockNumber,
+			SolanaBlockHash:   payloadAttributes.SolanaBlockHash,
+			NoTxPool:          payloadAttributes.NoTxPool,
+			Transactions:      transactions,
+			GasLimit:          payloadAttributes.GasLimit,
+			GasUsed:           payloadAttributes.GasUsed,
+			GasPrice:          payloadAttributes.GasPrice,
+			Footprints:        payloadAttributes.TxFootprints,
 		}
 		id := args.Id()
 		// If we already are busy generating this work, then we do not need
