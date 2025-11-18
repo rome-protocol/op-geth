@@ -93,6 +93,12 @@ type Header struct {
 
 	// ParentBeaconRoot was added by EIP-4788 and is ignored in legacy headers.
 	ParentBeaconRoot *common.Hash `json:"parentBeaconBlockRoot" rlp:"optional"`
+
+	// SolanaBlockNumber is the Solana slot number from fork choice.
+	SolanaBlockNumber *uint64 `json:"solanaBlockNumber,omitempty" rlp:"optional"`
+
+	// SolanaBlockHash is the Solana block hash from fork choice.
+	SolanaBlockHash *common.Hash `json:"solanaBlockHash,omitempty" rlp:"optional"`
 }
 
 // field type overrides for gencodec

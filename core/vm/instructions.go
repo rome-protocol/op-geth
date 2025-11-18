@@ -440,23 +440,31 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		return nil, nil
 	}
 	
-	// If Solana block hash is available, use it directly
-	if interpreter.evm.Context.SolanaBlockHash != nil {
-		num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
-		return nil, nil
+	// Determine current block number (use Solana slot if available)
+	current := interpreter.evm.Context.BlockNumber.Uint64()
+	if interpreter.evm.Context.SolanaBlockNumber != nil {
+		current = *interpreter.evm.Context.SolanaBlockNumber
 	}
 	
-	// Otherwise, use standard Ethereum block hash lookup
+	// BLOCKHASH only works for blocks in range [current-256, current-1]
 	var upper, lower uint64
-	upper = interpreter.evm.Context.BlockNumber.Uint64()
+	upper = current
 	if upper < 257 {
 		lower = 0
 	} else {
 		lower = upper - 256
 	}
+	
 	if num64 >= lower && num64 < upper {
-		num.SetBytes(interpreter.evm.Context.GetHash(num64).Bytes())
+		// If Solana block hash is available from fork choice, use it
+		if interpreter.evm.Context.SolanaBlockHash != nil {
+			num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
+		} else {
+			// Otherwise, use standard Ethereum block hash lookup
+			num.SetBytes(interpreter.evm.Context.GetHash(num64).Bytes())
+		}
 	} else {
+		// Out of range or current block - return zero
 		num.Clear()
 	}
 	return nil, nil
