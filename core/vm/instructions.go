@@ -460,8 +460,8 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	}
 	// If SolanaBlockNumber is set, use only Solana metadata
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		// Try to get Solana hash for the requested slot using current Solana block number
-		if hash, ok := interpreter.evm.Context.GetSolanaHash(current); ok {
+		// Try to get Solana hash for the requested slot number
+		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
 			num.SetBytes(hash[:])
 			return nil, nil
 		}
