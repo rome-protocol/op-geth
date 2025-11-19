@@ -460,36 +460,19 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		num.Clear()
 		return nil, nil
 	}
-	diff := current - num64
-	if diff == 0 {
-		if interpreter.evm.Context.SolanaBlockHash != nil {
-			num.SetBytes(interpreter.evm.Context.SolanaBlockHash.Bytes())
-			return nil, nil
-		}
-		hash := interpreter.evm.Context.GetHash(num64)
-		num.SetBytes(hash.Bytes())
-		return nil, nil
-	}
-	if diff <= 256 {
-		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
+	// If SolanaBlockNumber is set, use only Solana metadata
+	if interpreter.evm.Context.SolanaBlockNumber != nil {
+		// Try to get Solana hash for the requested slot using current Solana block number
+		if hash, ok := interpreter.evm.Context.GetSolanaHash(current); ok {
 			num.SetBytes(hash[:])
 			return nil, nil
 		}
-		if interpreter.evm.Context.SolanaBlockNumber != nil {
-			var input [32]byte
-			binary.BigEndian.PutUint64(input[len(input)-8:], num64)
-			hash := crypto.Keccak256Hash(input[:])
-			num.SetBytes(hash.Bytes())
-			return nil, nil
-		}
-		hash := interpreter.evm.Context.GetHash(num64)
-		num.SetBytes(hash.Bytes())
+		// If not found, return zero
+		num.Clear()
 		return nil, nil
 	}
-	var input [32]byte
-	binary.BigEndian.PutUint64(input[len(input)-8:], num64)
-	hash := crypto.Keccak256Hash(input[:])
-	num.SetBytes(hash.Bytes())
+	// Beyond 256 blocks, return zero (standard EVM behavior)
+	num.Clear()
 	return nil, nil
 }
 
