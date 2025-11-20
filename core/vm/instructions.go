@@ -461,29 +461,16 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	}
 	// If SolanaBlockNumber is set, use only Solana metadata
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		// Calculate offset: if current Solana is 249 and requested is 248, offset is 1
-		// Use the same offset for Ethereum blocks to find the corresponding Solana slot
-		offset := solanaCurrent - num64
-		if offset > ethCurrent {
-			// Can't go before genesis
-			num.Clear()
+		// When block.number returns Solana block number, blockhash(n) should return
+		// the Solana hash for Solana slot n. Since numbers are guaranteed to match,
+		// we can directly look up the Solana slot.
+		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
+			log.Info("opBlockhash using GetSolanaHash", "slot", num64, "hash", hash.Hex())
+			num.SetBytes(hash[:])
 			return nil, nil
 		}
-		ethBlockNum := ethCurrent - offset
-		// Get the Solana hash for that Ethereum block number
-		// When SolanaBlockNumber is set, we should ONLY use Ethereum block offset, not Solana slot lookup
-		if interpreter.evm.Context.GetSolanaHashByEthBlock != nil {
-			if hash, ok := interpreter.evm.Context.GetSolanaHashByEthBlock(ethBlockNum); ok {
-				log.Info("opBlockhash using GetSolanaHashByEthBlock", "ethBlockNum", ethBlockNum, "hash", hash.Hex(), "offset", offset)
-				num.SetBytes(hash[:])
-				return nil, nil
-			}
-			log.Warn("opBlockhash GetSolanaHashByEthBlock failed", "ethBlockNum", ethBlockNum, "offset", offset, "requested", num64)
-		} else {
-			log.Warn("opBlockhash GetSolanaHashByEthBlock is nil", "ethBlockNum", ethBlockNum, "offset", offset)
-		}
-		// If GetSolanaHashByEthBlock fails or is nil, return zero
-		// Do NOT fall back to Solana slot lookup as that would give wrong results
+		// If not found, return zero
+		log.Warn("opBlockhash GetSolanaHash failed", "slot", num64, "solanaCurrent", solanaCurrent)
 		num.Clear()
 		return nil, nil
 	}
