@@ -469,15 +469,20 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 			num.Clear()
 			return nil, nil
 		}
-		// The requested Solana slot should correspond to (ethCurrent - offset) Ethereum block
-		// But we still need to find what Solana slot that Ethereum block has
-		// Try direct lookup first
+		ethBlockNum := ethCurrent - offset
+		// Get the Solana hash for that Ethereum block number
+		if interpreter.evm.Context.GetSolanaHashByEthBlock != nil {
+			if hash, ok := interpreter.evm.Context.GetSolanaHashByEthBlock(ethBlockNum); ok {
+				num.SetBytes(hash[:])
+				return nil, nil
+			}
+		}
+		// Fallback: try direct Solana slot lookup
 		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
 			num.SetBytes(hash[:])
 			return nil, nil
 		}
-		// If direct lookup fails, the slot might not exist
-		// Return zero as the slot doesn't exist in the chain
+		// If that fails, the slot doesn't exist - return zero
 		num.Clear()
 		return nil, nil
 	}

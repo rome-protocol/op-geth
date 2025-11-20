@@ -70,6 +70,7 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		random = &header.MixDigest
 	}
 	var getSolanaHash func(uint64) (common.Hash, bool)
+	var getSolanaHashByEthBlock func(uint64) (common.Hash, bool)
 	if chain != nil {
 		getSolanaHash = func(slot uint64) (common.Hash, bool) {
 			for current := header; current != nil; {
@@ -136,24 +137,55 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 				"requestedSlot", slot)
 			return common.Hash{}, false
 		}
+		getSolanaHashByEthBlock = func(ethBlockNum uint64) (common.Hash, bool) {
+			// Walk backwards from current header to find the target Ethereum block
+			offset := header.Number.Uint64() - ethBlockNum
+			if offset > header.Number.Uint64() || ethBlockNum > header.Number.Uint64() {
+				return common.Hash{}, false
+			}
+			for current := header; current != nil; {
+				if !current.Number.IsUint64() {
+					break
+				}
+				number := current.Number.Uint64()
+				if number == ethBlockNum {
+					if current.SolanaBlockHash != nil {
+						return *current.SolanaBlockHash, true
+					}
+					if _, metaHash, ok := chain.GetSolanaMetadata(current.Hash()); ok {
+						return metaHash, true
+					}
+					return common.Hash{}, false
+				}
+				if number < ethBlockNum || number == 0 {
+					break
+				}
+				if current.ParentHash == (common.Hash{}) {
+					break
+				}
+				current = chain.GetHeader(current.ParentHash, number-1)
+			}
+			return common.Hash{}, false
+		}
 	}
 
 	return vm.BlockContext{
-		CanTransfer:       CanTransfer,
-		Transfer:          Transfer,
-		GetHash:           GetHashFn(header, chain),
-		GetSolanaHash:     getSolanaHash,
-		Coinbase:          beneficiary,
-		BlockNumber:       new(big.Int).Set(header.Number),
-		Time:              header.Time,
-		Difficulty:        new(big.Int).Set(header.Difficulty),
-		BaseFee:           baseFee,
-		BlobBaseFee:       blobBaseFee,
-		GasLimit:          header.GasLimit,
-		Random:            random,
-		L1CostFunc:        types.NewL1CostFunc(config, statedb),
-		SolanaBlockNumber: header.SolanaBlockNumber,
-		SolanaBlockHash:   header.SolanaBlockHash,
+		CanTransfer:          CanTransfer,
+		Transfer:             Transfer,
+		GetHash:              GetHashFn(header, chain),
+		GetSolanaHash:        getSolanaHash,
+		GetSolanaHashByEthBlock: getSolanaHashByEthBlock,
+		Coinbase:             beneficiary,
+		BlockNumber:          new(big.Int).Set(header.Number),
+		Time:                 header.Time,
+		Difficulty:           new(big.Int).Set(header.Difficulty),
+		BaseFee:              baseFee,
+		BlobBaseFee:          blobBaseFee,
+		GasLimit:             header.GasLimit,
+		Random:               random,
+		L1CostFunc:           types.NewL1CostFunc(config, statedb),
+		SolanaBlockNumber:    header.SolanaBlockNumber,
+		SolanaBlockHash:      header.SolanaBlockHash,
 	}
 }
 
