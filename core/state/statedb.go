@@ -1526,11 +1526,23 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         log.Info("Footprint: Accounts from touchedSlots", "count", len(touchedSlotAddrs), "accounts", addrStrs)
     }
     
-    // c) Also include accounts in stateObjects that have code loaded AND are in the access list
-    // (accessed via CALL/GetCode in this transaction). This matches Solana's behavior of logging 
-    // all accessed accounts. We use the access list to ensure we only include accounts accessed
-    // in THIS transaction, not previous ones in the block.
+    // c) Also include accounts in stateObjects that have code loaded AND were added to access list
+    // during this transaction (have accessListAddAccountChange journal entry since start).
+    // This ensures we only include accounts that were actually accessed via CALL/GetCode during
+    // this transaction, not just pre-added in Prepare() or from previous transactions.
     codeLoadedAccounts := make([]common.Address, 0)
+    accountsAddedToAccessList := make(map[common.Address]bool)
+    
+    // First, collect accounts that were added to access list during this transaction
+    if start >= 0 && start < len(s.journal.entries) {
+        for i := start; i < len(s.journal.entries); i++ {
+            if change, ok := s.journal.entries[i].(accessListAddAccountChange); ok {
+                accountsAddedToAccessList[*change.address] = true
+            }
+        }
+    }
+    
+    // Now include accounts with code loaded that were added to access list during this transaction
     for addr, obj := range s.stateObjects {
         if obj.deleted || isMagicAddress(addr) {
             continue
@@ -1539,8 +1551,8 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         if _, alreadyTouched := touched[addr]; alreadyTouched {
             continue
         }
-        // Only include if account has code loaded AND is in the access list (accessed this transaction)
-        if obj.code != nil && s.accessList != nil && s.accessList.ContainsAddress(addr) {
+        // Only include if account has code loaded AND was added to access list during this transaction
+        if obj.code != nil && accountsAddedToAccessList[addr] {
             touched[addr] = struct{}{}
             codeLoadedAccounts = append(codeLoadedAccounts, addr)
         }
