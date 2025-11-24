@@ -471,6 +471,11 @@ func (s *stateObject) Address() common.Address {
 // Code returns the contract code associated with this object, if any.
 func (s *stateObject) Code() []byte {
 	if s.code != nil {
+		// Code is already loaded - but we still need to track access in this transaction
+		// Only journal if code actually exists (not empty)
+		if len(s.code) > 0 {
+			s.db.journal.append(codeAccessChange{account: &s.address})
+		}
 		return s.code
 	}
 	if bytes.Equal(s.CodeHash(), types.EmptyCodeHash.Bytes()) {
@@ -480,8 +485,7 @@ func (s *stateObject) Code() []byte {
 	if err != nil {
 		s.db.setError(fmt.Errorf("can't load code hash %x: %v", s.CodeHash(), err))
 	}
-	// Track code access only when code is newly loaded from database (not cached)
-	// This ensures we only track accounts whose code was accessed in THIS transaction
+	// Track code access for footprint calculation - only if code actually exists
 	if code != nil && len(code) > 0 {
 		s.db.journal.append(codeAccessChange{account: &s.address})
 	}
