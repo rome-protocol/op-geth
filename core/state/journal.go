@@ -150,10 +150,6 @@ type (
 		account       *common.Address
 		key, prevalue common.Hash
 	}
-	// Track when code is accessed/loaded (for footprint calculation)
-	codeAccessChange struct {
-		account *common.Address
-	}
 )
 
 func (ch createObjectChange) revert(s *StateDB) {
@@ -302,12 +298,4 @@ func (ch accessListAddSlotChange) revert(s *StateDB) {
 
 func (ch accessListAddSlotChange) dirtied() *common.Address {
 	return nil
-}
-
-func (ch codeAccessChange) revert(s *StateDB) {
-	// No-op: code access is just for tracking, doesn't modify state
-}
-
-func (ch codeAccessChange) dirtied() *common.Address {
-	return nil // Code access doesn't dirty the account, just tracks it was accessed
 }

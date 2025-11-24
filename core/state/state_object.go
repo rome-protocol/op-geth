@@ -470,13 +470,7 @@ func (s *stateObject) Address() common.Address {
 
 // Code returns the contract code associated with this object, if any.
 func (s *stateObject) Code() []byte {
-	// Track code access for footprint calculation - journal when code is accessed
-	// even if it's already cached from a previous transaction (to track access in this transaction)
 	if s.code != nil {
-		// Code is already loaded - but we still need to track access in this transaction
-		if len(s.code) > 0 {
-			s.db.journal.append(codeAccessChange{account: &s.address})
-		}
 		return s.code
 	}
 	if bytes.Equal(s.CodeHash(), types.EmptyCodeHash.Bytes()) {
@@ -485,10 +479,6 @@ func (s *stateObject) Code() []byte {
 	code, err := s.db.db.ContractCode(s.address, common.BytesToHash(s.CodeHash()))
 	if err != nil {
 		s.db.setError(fmt.Errorf("can't load code hash %x: %v", s.CodeHash(), err))
-	}
-	// Track code access for footprint calculation - only if code actually exists
-	if code != nil && len(code) > 0 {
-		s.db.journal.append(codeAccessChange{account: &s.address})
 	}
 	s.code = code
 	return code

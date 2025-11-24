@@ -1464,164 +1464,25 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     if start > len(s.journal.entries) {
         start = len(s.journal.entries)
     }
-    
-    // Debug: Track accounts by journal entry type for logging
-    journalAccountsByType := make(map[string][]common.Address)
     for i := start; i < len(s.journal.entries); i++ {
         switch c := s.journal.entries[i].(type) {
         case createObjectChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["createObjectChange"] = append(journalAccountsByType["createObjectChange"], *c.account)
         case resetObjectChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["resetObjectChange"] = append(journalAccountsByType["resetObjectChange"], *c.account)
         case selfDestructChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["selfDestructChange"] = append(journalAccountsByType["selfDestructChange"], *c.account)
         case balanceChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["balanceChange"] = append(journalAccountsByType["balanceChange"], *c.account)
         case nonceChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["nonceChange"] = append(journalAccountsByType["nonceChange"], *c.account)
         case storageChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["storageChange"] = append(journalAccountsByType["storageChange"], *c.account)
         case codeChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["codeChange"] = append(journalAccountsByType["codeChange"], *c.account)
         case touchChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["touchChange"] = append(journalAccountsByType["touchChange"], *c.account)
-        case codeAccessChange:
-            // Track for logging only - we don't include these in footprint to match Solana behavior
-            journalAccountsByType["codeAccessChange"] = append(journalAccountsByType["codeAccessChange"], *c.account)
         }
-    }
-    
-    // Log all journal accounts for debugging
-    log.Info("Footprint: Journal analysis",
-        "start_index", start,
-        "total_journal_entries", len(s.journal.entries),
-        "entries_since_start", len(s.journal.entries)-start)
-    for entryType, addrs := range journalAccountsByType {
-        if len(addrs) > 0 {
-            addrStrs := make([]string, len(addrs))
-            for i, addr := range addrs {
-                addrStrs[i] = addr.Hex()
-            }
-            log.Info("Footprint: Journal accounts", "type", entryType, "count", len(addrs), "accounts", addrStrs)
-        }
-    }
-    
-    // Log accounts from touchedSlots
-    touchedSlotAddrs := make([]common.Address, 0, len(s.touchedSlots))
-    for addr := range s.touchedSlots {
-        if !isMagicAddress(addr) {
-            touchedSlotAddrs = append(touchedSlotAddrs, addr)
-        }
-    }
-    if len(touchedSlotAddrs) > 0 {
-        addrStrs := make([]string, len(touchedSlotAddrs))
-        for i, addr := range touchedSlotAddrs {
-            addrStrs[i] = addr.Hex()
-        }
-        log.Info("Footprint: Accounts from touchedSlots", "count", len(touchedSlotAddrs), "accounts", addrStrs)
-    }
-    
-    // c) Include accounts in the access list that have code, even if not modified.
-    // This handles cases where a transaction recipient contract has code but wasn't
-    // modified during execution (code may be cached from previous transactions).
-    // We only include accounts that:
-    // 1. Are in the access list (indicating they were part of the transaction)
-    // 2. Have code loaded (indicates they're contracts)
-    // 3. Weren't already included via journal entries or touchedSlots
-    accessListAccounts := make([]common.Address, 0)
-    accessListCandidates := make([]common.Address, 0) // For debugging
-    if s.accessList != nil {
-        for addr, obj := range s.stateObjects {
-            if obj.deleted || isMagicAddress(addr) {
-                continue
-            }
-            // Skip if already included
-            if _, alreadyTouched := touched[addr]; alreadyTouched {
-                continue
-            }
-            // Track candidates for debugging
-            if obj.code != nil && len(obj.code) > 0 {
-                accessListCandidates = append(accessListCandidates, addr)
-            }
-            // Check if account is in access list and has code
-            if s.accessList.ContainsAddress(addr) && obj.code != nil && len(obj.code) > 0 {
-                touched[addr] = struct{}{}
-                accessListAccounts = append(accessListAccounts, addr)
-            }
-        }
-    }
-    
-    // Log access list debugging info
-    if len(accessListCandidates) > 0 {
-        candidateStrs := make([]string, len(accessListCandidates))
-        inAccessListFlags := make([]bool, len(accessListCandidates))
-        for i, addr := range accessListCandidates {
-            candidateStrs[i] = addr.Hex()
-            if s.accessList != nil {
-                inAccessListFlags[i] = s.accessList.ContainsAddress(addr)
-            }
-        }
-        log.Info("Footprint: Accounts with code but not in footprint",
-            "count", len(accessListCandidates),
-            "accounts", candidateStrs,
-            "in_access_list", inAccessListFlags)
-    }
-    
-    // Log accounts added via access list
-    if len(accessListAccounts) > 0 {
-        addrStrs := make([]string, len(accessListAccounts))
-        for i, addr := range accessListAccounts {
-            addrStrs[i] = addr.Hex()
-        }
-        log.Info("Footprint: Added accounts from access list with code",
-            "count", len(accessListAccounts),
-            "accounts", addrStrs)
-    }
-    
-    // Log all accounts in stateObjects for comparison, with details about why they're there
-    stateObjectAddrs := make([]common.Address, 0, len(s.stateObjects))
-    stateObjectDetails := make(map[common.Address]string)
-    for addr, obj := range s.stateObjects {
-        if !obj.deleted && !isMagicAddress(addr) {
-            stateObjectAddrs = append(stateObjectAddrs, addr)
-            // Determine why this account is in stateObjects
-            reasons := make([]string, 0)
-            if _, inTouched := touched[addr]; inTouched {
-                reasons = append(reasons, "in_footprint")
-            } else {
-                reasons = append(reasons, "not_in_footprint")
-            }
-            if obj.code != nil {
-                reasons = append(reasons, "has_code_loaded")
-            }
-            if !obj.empty() {
-                reasons = append(reasons, "non_empty")
-            }
-            if len(obj.originStorage) > 0 || len(obj.pendingStorage) > 0 || len(obj.dirtyStorage) > 0 {
-                reasons = append(reasons, "has_storage")
-            }
-            stateObjectDetails[addr] = strings.Join(reasons, ",")
-        }
-    }
-    if len(stateObjectAddrs) > 0 {
-        addrStrs := make([]string, len(stateObjectAddrs))
-        detailsStrs := make([]string, len(stateObjectAddrs))
-        for i, addr := range stateObjectAddrs {
-            addrStrs[i] = addr.Hex()
-            detailsStrs[i] = stateObjectDetails[addr]
-        }
-        log.Info("Footprint: All accounts in stateObjects", 
-            "count", len(stateObjectAddrs), 
-            "accounts", addrStrs,
-            "details", detailsStrs)
     }
 
     // build and sort address list
