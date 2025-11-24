@@ -1526,19 +1526,42 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         log.Info("Footprint: Accounts from touchedSlots", "count", len(touchedSlotAddrs), "accounts", addrStrs)
     }
     
-    // Log all accounts in stateObjects for comparison
+    // Log all accounts in stateObjects for comparison, with details about why they're there
     stateObjectAddrs := make([]common.Address, 0, len(s.stateObjects))
+    stateObjectDetails := make(map[common.Address]string)
     for addr, obj := range s.stateObjects {
         if !obj.deleted && !isMagicAddress(addr) {
             stateObjectAddrs = append(stateObjectAddrs, addr)
+            // Determine why this account is in stateObjects
+            reasons := make([]string, 0)
+            if _, inTouched := touched[addr]; inTouched {
+                reasons = append(reasons, "in_footprint")
+            } else {
+                reasons = append(reasons, "not_in_footprint")
+            }
+            if obj.code != nil {
+                reasons = append(reasons, "has_code_loaded")
+            }
+            if !obj.empty() {
+                reasons = append(reasons, "non_empty")
+            }
+            if len(obj.originStorage) > 0 || len(obj.pendingStorage) > 0 || len(obj.dirtyStorage) > 0 {
+                reasons = append(reasons, "has_storage")
+            }
+            stateObjectDetails[addr] = strings.Join(reasons, ",")
         }
     }
     if len(stateObjectAddrs) > 0 {
         addrStrs := make([]string, len(stateObjectAddrs))
+        detailsStrs := make([]string, len(stateObjectAddrs))
         for i, addr := range stateObjectAddrs {
             addrStrs[i] = addr.Hex()
+            detailsStrs[i] = stateObjectDetails[addr]
         }
-        log.Info("Footprint: All accounts in stateObjects", "count", len(stateObjectAddrs), "accounts", addrStrs)
+        log.Info("Footprint: All accounts in stateObjects", 
+            "count", len(stateObjectAddrs), 
+            "accounts", addrStrs,
+            "details", detailsStrs)
     }
 
     // build and sort address list
