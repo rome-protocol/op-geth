@@ -1484,6 +1484,34 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
             touched[*c.account] = struct{}{}
         }
     }
+    
+
+    codeLoadedAccounts := make([]common.Address, 0)
+    for addr, obj := range s.stateObjects {
+        if obj.deleted || isMagicAddress(addr) {
+            continue
+        }
+        // If already in touched set, skip
+        if _, alreadyTouched := touched[addr]; alreadyTouched {
+            continue
+        }
+        // Include if account has code loaded (indicates it was accessed via GetCode/GetCodeHash)
+        if obj.code != nil {
+            touched[addr] = struct{}{}
+            codeLoadedAccounts = append(codeLoadedAccounts, addr)
+        }
+    }
+    
+    // Log accounts added via code-loaded check for debugging
+    if len(codeLoadedAccounts) > 0 {
+        addrStrs := make([]string, len(codeLoadedAccounts))
+        for i, addr := range codeLoadedAccounts {
+            addrStrs[i] = addr.Hex()
+        }
+        log.Info("Footprint: Added accounts with loaded code (accessed but not modified)",
+            "count", len(codeLoadedAccounts),
+            "accounts", addrStrs)
+    }
 
     // build and sort address list
     addresses := make([]common.Address, 0, len(touched))
@@ -1495,6 +1523,17 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     sort.Slice(addresses, func(i, j int) bool {
         return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
     })
+    
+    // Log all accounts included in footprint for debugging
+    if len(addresses) > 0 {
+        addrStrs := make([]string, len(addresses))
+        for i, addr := range addresses {
+            addrStrs[i] = addr.Hex()
+        }
+        log.Info("Footprint: All accounts included",
+            "total_count", len(addresses),
+            "accounts", addrStrs)
+    }
 
     // 2) build slot-sets from touchedSlots and journal entries since start
     slots := make(map[common.Address]map[common.Hash]struct{}, len(addresses))
