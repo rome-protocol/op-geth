@@ -444,40 +444,64 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		num.Clear()
 		return nil, nil
 	}
-	if num64 == 0 {
+	var upper, lower uint64
+	upper = interpreter.evm.Context.BlockNumber.Uint64()
+	if upper < 257 {
+		lower = 0
+	} else {
+		lower = upper - 256
+	}
+	if num64 >= lower && num64 < upper {
+		num.SetBytes(interpreter.evm.Context.GetHash(num64).Bytes())
+	} else {
 		num.Clear()
-		return nil, nil
 	}
-	ethCurrent := interpreter.evm.Context.BlockNumber.Uint64()
-	solanaCurrent := ethCurrent
-	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		solanaCurrent = *interpreter.evm.Context.SolanaBlockNumber
-	}
-	log.Info("opBlockhash invoked", "requested", num64, "ethCurrent", ethCurrent, "solanaCurrent", solanaCurrent)
-	if num64 >= solanaCurrent {
-		log.Info("opBlockhash returning zero", "requested", num64, "solanaCurrent", solanaCurrent, "reason", "num>=current")
-		num.Clear()
-		return nil, nil
-	}
-	// If SolanaBlockNumber is set, use only Solana metadata
-	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		// When block.number returns Solana block number, blockhash(n) should return
-		// the Solana hash for Solana slot n. Since numbers are guaranteed to match,
-		// we can directly look up the Solana slot.
-		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
-			log.Info("opBlockhash using GetSolanaHash", "slot", num64, "hash", hash.Hex())
-			num.SetBytes(hash[:])
-			return nil, nil
-		}
-		// If not found, return zero
-		log.Warn("opBlockhash GetSolanaHash failed", "slot", num64, "solanaCurrent", solanaCurrent)
-		num.Clear()
-		return nil, nil
-	}
-	// Beyond 256 blocks, return zero (standard EVM behavior)
-	num.Clear()
 	return nil, nil
 }
+
+
+
+// func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+// 	num := scope.Stack.peek()
+// 	num64, overflow := num.Uint64WithOverflow()
+// 	if overflow {
+// 		num.Clear()
+// 		return nil, nil
+// 	}
+// 	if num64 == 0 {
+// 		num.Clear()
+// 		return nil, nil
+// 	}
+// 	ethCurrent := interpreter.evm.Context.BlockNumber.Uint64()
+// 	solanaCurrent := ethCurrent
+// 	if interpreter.evm.Context.SolanaBlockNumber != nil {
+// 		solanaCurrent = *interpreter.evm.Context.SolanaBlockNumber
+// 	}
+// 	log.Info("opBlockhash invoked", "requested", num64, "ethCurrent", ethCurrent, "solanaCurrent", solanaCurrent)
+// 	if num64 >= solanaCurrent {
+// 		log.Info("opBlockhash returning zero", "requested", num64, "solanaCurrent", solanaCurrent, "reason", "num>=current")
+// 		num.Clear()
+// 		return nil, nil
+// 	}
+// 	// If SolanaBlockNumber is set, use only Solana metadata
+// 	if interpreter.evm.Context.SolanaBlockNumber != nil {
+// 		// When block.number returns Solana block number, blockhash(n) should return
+// 		// the Solana hash for Solana slot n. Since numbers are guaranteed to match,
+// 		// we can directly look up the Solana slot.
+// 		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
+// 			log.Info("opBlockhash using GetSolanaHash", "slot", num64, "hash", hash.Hex())
+// 			num.SetBytes(hash[:])
+// 			return nil, nil
+// 		}
+// 		// If not found, return zero
+// 		log.Warn("opBlockhash GetSolanaHash failed", "slot", num64, "solanaCurrent", solanaCurrent)
+// 		num.Clear()
+// 		return nil, nil
+// 	}
+// 	// Beyond 256 blocks, return zero (standard EVM behavior)
+// 	num.Clear()
+// 	return nil, nil
+// }
 
 func opCoinbase(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	scope.Stack.push(new(uint256.Int).SetBytes(interpreter.evm.Context.Coinbase.Bytes()))
