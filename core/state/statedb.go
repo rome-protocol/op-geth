@@ -1493,6 +1493,10 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         case touchChange:
             touched[*c.account] = struct{}{}
             journalAccountsByType["touchChange"] = append(journalAccountsByType["touchChange"], *c.account)
+        case codeAccessChange:
+            // Track accounts whose code was accessed/loaded during this transaction
+            // Don't add to touched yet - we'll handle these separately to avoid duplicates
+            journalAccountsByType["codeAccessChange"] = append(journalAccountsByType["codeAccessChange"], *c.account)
         }
     }
     
@@ -1526,46 +1530,35 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         log.Info("Footprint: Accounts from touchedSlots", "count", len(touchedSlotAddrs), "accounts", addrStrs)
     }
     
-    // c) Also include accounts in stateObjects that have code loaded AND were added to access list
-    // during this transaction (have accessListAddAccountChange journal entry since start).
-    // This ensures we only include accounts that were actually accessed via CALL/GetCode during
-    // this transaction, not just pre-added in Prepare() or from previous transactions.
-    codeLoadedAccounts := make([]common.Address, 0)
-    accountsAddedToAccessList := make(map[common.Address]bool)
-    
-    // First, collect accounts that were added to access list during this transaction
-    if start >= 0 && start < len(s.journal.entries) {
-        for i := start; i < len(s.journal.entries); i++ {
-            if change, ok := s.journal.entries[i].(accessListAddAccountChange); ok {
-                accountsAddedToAccessList[*change.address] = true
+    // c) Include accounts whose code was accessed/loaded during this transaction
+    // (even if they weren't modified). This matches Solana's behavior of logging all accessed accounts.
+    codeAccessedAccounts := make([]common.Address, 0)
+    if codeAccessAddrs, ok := journalAccountsByType["codeAccessChange"]; ok {
+        for _, addr := range codeAccessAddrs {
+            // Skip if already in touched set (from journal entries or touchedSlots)
+            if _, alreadyTouched := touched[addr]; alreadyTouched {
+                continue
+            }
+            // Skip magic addresses
+            if isMagicAddress(addr) {
+                continue
+            }
+            // Check that account exists and has code
+            if obj := s.stateObjects[addr]; obj != nil && !obj.deleted && obj.code != nil {
+                touched[addr] = struct{}{}
+                codeAccessedAccounts = append(codeAccessedAccounts, addr)
             }
         }
     }
     
-    // Now include accounts with code loaded that were added to access list during this transaction
-    for addr, obj := range s.stateObjects {
-        if obj.deleted || isMagicAddress(addr) {
-            continue
-        }
-        // Skip if already in touched set
-        if _, alreadyTouched := touched[addr]; alreadyTouched {
-            continue
-        }
-        // Only include if account has code loaded AND was added to access list during this transaction
-        if obj.code != nil && accountsAddedToAccessList[addr] {
-            touched[addr] = struct{}{}
-            codeLoadedAccounts = append(codeLoadedAccounts, addr)
-        }
-    }
-    
-    // Log accounts added via code-loaded check
-    if len(codeLoadedAccounts) > 0 {
-        addrStrs := make([]string, len(codeLoadedAccounts))
-        for i, addr := range codeLoadedAccounts {
+    // Log accounts added via code access
+    if len(codeAccessedAccounts) > 0 {
+        addrStrs := make([]string, len(codeAccessedAccounts))
+        for i, addr := range codeAccessedAccounts {
             addrStrs[i] = addr.Hex()
         }
-        log.Info("Footprint: Added accounts with loaded code (accessed but not modified)",
-            "count", len(codeLoadedAccounts),
+        log.Info("Footprint: Added accounts with code accessed (loaded but not modified)",
+            "count", len(codeAccessedAccounts),
             "accounts", addrStrs)
     }
     
