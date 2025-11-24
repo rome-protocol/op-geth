@@ -1565,7 +1565,8 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         }
     }
     
-    // Also check accounts in stateObjects with code that were added to access list
+    // Also check accounts in stateObjects with code that are in the access list
+    // (either added during this transaction OR pre-added in Prepare() like transaction recipient)
     for addr, obj := range s.stateObjects {
         if obj.deleted || isMagicAddress(addr) {
             continue
@@ -1573,10 +1574,17 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         if _, alreadyTouched := touched[addr]; alreadyTouched {
             continue
         }
-        // Include if account has code AND was added to access list during this transaction
-        if obj.code != nil && len(obj.code) > 0 && accountsAddedToAccessList[addr] {
-            touched[addr] = struct{}{}
-            codeAccessedAccounts = append(codeAccessedAccounts, addr)
+        // Include if account has code AND is in the access list (accessed this transaction)
+        if obj.code != nil && len(obj.code) > 0 {
+            // Check if account is in access list (either added during transaction or pre-added)
+            inAccessList := accountsAddedToAccessList[addr]
+            if !inAccessList && s.accessList != nil {
+                inAccessList = s.accessList.ContainsAddress(addr)
+            }
+            if inAccessList {
+                touched[addr] = struct{}{}
+                codeAccessedAccounts = append(codeAccessedAccounts, addr)
+            }
         }
     }
     
