@@ -1464,116 +1464,27 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     if start > len(s.journal.entries) {
         start = len(s.journal.entries)
     }
-    
-    // Log all journal entries for debugging
-    journalAccountsByType := make(map[string][]common.Address)
     for i := start; i < len(s.journal.entries); i++ {
         switch c := s.journal.entries[i].(type) {
         case createObjectChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["createObjectChange"] = append(journalAccountsByType["createObjectChange"], *c.account)
         case resetObjectChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["resetObjectChange"] = append(journalAccountsByType["resetObjectChange"], *c.account)
         case selfDestructChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["selfDestructChange"] = append(journalAccountsByType["selfDestructChange"], *c.account)
         case balanceChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["balanceChange"] = append(journalAccountsByType["balanceChange"], *c.account)
         case nonceChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["nonceChange"] = append(journalAccountsByType["nonceChange"], *c.account)
         case storageChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["storageChange"] = append(journalAccountsByType["storageChange"], *c.account)
         case codeChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["codeChange"] = append(journalAccountsByType["codeChange"], *c.account)
         case touchChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["touchChange"] = append(journalAccountsByType["touchChange"], *c.account)
-        case accessListAddAccountChange:
-            journalAccountsByType["accessListAddAccountChange"] = append(journalAccountsByType["accessListAddAccountChange"], *c.address)
-        case accessListAddSlotChange:
-            journalAccountsByType["accessListAddSlotChange"] = append(journalAccountsByType["accessListAddSlotChange"], *c.address)
         }
-    }
-    
-    // Log all journal accounts by type
-    log.Info("Footprint: Journal analysis",
-        "start_index", start,
-        "total_journal_entries", len(s.journal.entries),
-        "entries_since_start", len(s.journal.entries)-start)
-    for entryType, addrs := range journalAccountsByType {
-        if len(addrs) > 0 {
-            addrStrs := make([]string, len(addrs))
-            for i, addr := range addrs {
-                addrStrs[i] = addr.Hex()
-            }
-            log.Info("Footprint: Journal accounts", "type", entryType, "count", len(addrs), "accounts", addrStrs)
-        }
-    }
-    
-    // Log accounts from touchedSlots
-    touchedSlotAddrs := make([]common.Address, 0, len(s.touchedSlots))
-    for addr := range s.touchedSlots {
-        if !isMagicAddress(addr) {
-            touchedSlotAddrs = append(touchedSlotAddrs, addr)
-        }
-    }
-    if len(touchedSlotAddrs) > 0 {
-        addrStrs := make([]string, len(touchedSlotAddrs))
-        for i, addr := range touchedSlotAddrs {
-            addrStrs[i] = addr.Hex()
-        }
-        log.Info("Footprint: Accounts from touchedSlots", "count", len(touchedSlotAddrs), "accounts", addrStrs)
     }
 
-    // Log all accounts in stateObjects with details
-    stateObjectAddrs := make([]common.Address, 0, len(s.stateObjects))
-    stateObjectDetails := make(map[common.Address]string)
-    for addr, obj := range s.stateObjects {
-        if !obj.deleted && !isMagicAddress(addr) {
-            stateObjectAddrs = append(stateObjectAddrs, addr)
-            // Determine why this account is in stateObjects and if it's in footprint
-            reasons := make([]string, 0)
-            if _, inTouched := touched[addr]; inTouched {
-                reasons = append(reasons, "in_footprint")
-            } else {
-                reasons = append(reasons, "NOT_in_footprint")
-            }
-            if obj.code != nil && len(obj.code) > 0 {
-                reasons = append(reasons, "has_code")
-                codeHash := obj.CodeHash()
-                reasons = append(reasons, fmt.Sprintf("code_hash:%x", codeHash))
-            }
-            if !obj.empty() {
-                reasons = append(reasons, "non_empty")
-            }
-            if len(obj.originStorage) > 0 || len(obj.pendingStorage) > 0 || len(obj.dirtyStorage) > 0 {
-                reasons = append(reasons, "has_storage")
-            }
-            // Check if in access list
-            if s.accessList != nil && s.accessList.ContainsAddress(addr) {
-                reasons = append(reasons, "in_access_list")
-            }
-            stateObjectDetails[addr] = strings.Join(reasons, ",")
-        }
-    }
-    if len(stateObjectAddrs) > 0 {
-        addrStrs := make([]string, len(stateObjectAddrs))
-        detailsStrs := make([]string, len(stateObjectAddrs))
-        for i, addr := range stateObjectAddrs {
-            addrStrs[i] = addr.Hex()
-            detailsStrs[i] = stateObjectDetails[addr]
-        }
-        log.Info("Footprint: All accounts in stateObjects",
-            "count", len(stateObjectAddrs),
-            "accounts", addrStrs,
-            "details", detailsStrs)
-    }
-    
     // build and sort address list
     addresses := make([]common.Address, 0, len(touched))
     for addr := range touched {
