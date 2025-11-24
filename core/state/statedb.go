@@ -1530,27 +1530,51 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         log.Info("Footprint: Accounts from touchedSlots", "count", len(touchedSlotAddrs), "accounts", addrStrs)
     }
     
-    // c) Include accounts whose code was accessed/loaded during this transaction
-    // (even if they weren't modified). This matches Solana's behavior of logging all accessed accounts.
-    // The codeAccessChange journal entry indicates code was loaded during this transaction.
+    // c) Include accounts that have code and were accessed during this transaction.
+    // We check accounts that:
+    // 1. Are in stateObjects with code loaded (indicates they were accessed)
+    // 2. Were added to access list during this transaction (accessListAddAccountChange journal entry)
+    // This matches Solana's behavior of logging all accessed accounts.
     codeAccessedAccounts := make([]common.Address, 0)
+    accountsAddedToAccessList := make(map[common.Address]bool)
+    
+    // Collect accounts added to access list during this transaction
+    if start >= 0 && start < len(s.journal.entries) {
+        for i := start; i < len(s.journal.entries); i++ {
+            if change, ok := s.journal.entries[i].(accessListAddAccountChange); ok {
+                accountsAddedToAccessList[*change.address] = true
+            }
+        }
+    }
+    
+    // Include accounts with code that were accessed this transaction
     if codeAccessAddrs, ok := journalAccountsByType["codeAccessChange"]; ok {
         for _, addr := range codeAccessAddrs {
-            // Skip if already in touched set (from journal entries or touchedSlots)
             if _, alreadyTouched := touched[addr]; alreadyTouched {
                 continue
             }
-            // Skip magic addresses
             if isMagicAddress(addr) {
                 continue
             }
-            // Check that account exists and has code
             obj := s.stateObjects[addr]
             if obj == nil || obj.deleted || obj.code == nil {
                 continue
             }
-            // Include all accounts with code access (codeAccessChange journal entry means
-            // code was loaded during this transaction, which Solana tracks)
+            touched[addr] = struct{}{}
+            codeAccessedAccounts = append(codeAccessedAccounts, addr)
+        }
+    }
+    
+    // Also check accounts in stateObjects with code that were added to access list
+    for addr, obj := range s.stateObjects {
+        if obj.deleted || isMagicAddress(addr) {
+            continue
+        }
+        if _, alreadyTouched := touched[addr]; alreadyTouched {
+            continue
+        }
+        // Include if account has code AND was added to access list during this transaction
+        if obj.code != nil && len(obj.code) > 0 && accountsAddedToAccessList[addr] {
             touched[addr] = struct{}{}
             codeAccessedAccounts = append(codeAccessedAccounts, addr)
         }
