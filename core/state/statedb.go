@@ -1482,10 +1482,6 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
             touched[*c.account] = struct{}{}
         case touchChange:
             touched[*c.account] = struct{}{}
-        case accessListAddAccountChange:
-            touched[*c.address] = struct{}{}
-        case accessListAddSlotChange:
-            touched[*c.address] = struct{}{}
         }
     }
 
