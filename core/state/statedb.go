@@ -1494,8 +1494,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
             touched[*c.account] = struct{}{}
             journalAccountsByType["touchChange"] = append(journalAccountsByType["touchChange"], *c.account)
         case codeAccessChange:
-            // Track accounts whose code was accessed/loaded during this transaction
-            // Don't add to touched yet - we'll handle these separately to avoid duplicates
+            // Track for logging only - we don't include these in footprint to match Solana behavior
             journalAccountsByType["codeAccessChange"] = append(journalAccountsByType["codeAccessChange"], *c.account)
         }
     }
@@ -1530,42 +1529,60 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         log.Info("Footprint: Accounts from touchedSlots", "count", len(touchedSlotAddrs), "accounts", addrStrs)
     }
     
-    // c) Include accounts that have code and were accessed, but only if they were also
-    // modified (have journal entries) or have storage touched. This matches Solana's behavior
-    // of logging accounts that were meaningfully accessed/executed, not just called.
-    codeAccessedAccounts := make([]common.Address, 0)
-    if codeAccessAddrs, ok := journalAccountsByType["codeAccessChange"]; ok {
-        for _, addr := range codeAccessAddrs {
-            // Skip if already in touched set (from journal entries or touchedSlots)
+    // c) Include accounts in the access list that have code, even if not modified.
+    // This handles cases where a transaction recipient contract has code but wasn't
+    // modified during execution (code may be cached from previous transactions).
+    // We only include accounts that:
+    // 1. Are in the access list (indicating they were part of the transaction)
+    // 2. Have code loaded (indicates they're contracts)
+    // 3. Weren't already included via journal entries or touchedSlots
+    accessListAccounts := make([]common.Address, 0)
+    accessListCandidates := make([]common.Address, 0) // For debugging
+    if s.accessList != nil {
+        for addr, obj := range s.stateObjects {
+            if obj.deleted || isMagicAddress(addr) {
+                continue
+            }
+            // Skip if already included
             if _, alreadyTouched := touched[addr]; alreadyTouched {
                 continue
             }
-            // Skip magic addresses
-            if isMagicAddress(addr) {
-                continue
+            // Track candidates for debugging
+            if obj.code != nil && len(obj.code) > 0 {
+                accessListCandidates = append(accessListCandidates, addr)
             }
-            // Check that account exists and has code
-            obj := s.stateObjects[addr]
-            if obj == nil || obj.deleted || obj.code == nil {
-                continue
-            }
-            // Only include if account has storage slots touched (indicates meaningful execution)
-            hasTouchedSlots := s.touchedSlots[addr] != nil && len(s.touchedSlots[addr]) > 0
-            if hasTouchedSlots {
+            // Check if account is in access list and has code
+            if s.accessList.ContainsAddress(addr) && obj.code != nil && len(obj.code) > 0 {
                 touched[addr] = struct{}{}
-                codeAccessedAccounts = append(codeAccessedAccounts, addr)
+                accessListAccounts = append(accessListAccounts, addr)
             }
         }
     }
     
-    // Log accounts added via code access with storage
-    if len(codeAccessedAccounts) > 0 {
-        addrStrs := make([]string, len(codeAccessedAccounts))
-        for i, addr := range codeAccessedAccounts {
+    // Log access list debugging info
+    if len(accessListCandidates) > 0 {
+        candidateStrs := make([]string, len(accessListCandidates))
+        inAccessListFlags := make([]bool, len(accessListCandidates))
+        for i, addr := range accessListCandidates {
+            candidateStrs[i] = addr.Hex()
+            if s.accessList != nil {
+                inAccessListFlags[i] = s.accessList.ContainsAddress(addr)
+            }
+        }
+        log.Info("Footprint: Accounts with code but not in footprint",
+            "count", len(accessListCandidates),
+            "accounts", candidateStrs,
+            "in_access_list", inAccessListFlags)
+    }
+    
+    // Log accounts added via access list
+    if len(accessListAccounts) > 0 {
+        addrStrs := make([]string, len(accessListAccounts))
+        for i, addr := range accessListAccounts {
             addrStrs[i] = addr.Hex()
         }
-        log.Info("Footprint: Added accounts with code accessed and storage touched",
-            "count", len(codeAccessedAccounts),
+        log.Info("Footprint: Added accounts from access list with code",
+            "count", len(accessListAccounts),
             "accounts", addrStrs)
     }
     
