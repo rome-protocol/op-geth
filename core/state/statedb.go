@@ -1464,10 +1464,6 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     if start > len(s.journal.entries) {
         start = len(s.journal.entries)
     }
-    
-    // Track code access changes separately
-    codeAccessAddrs := make(map[common.Address]bool)
-    
     for i := start; i < len(s.journal.entries); i++ {
         switch c := s.journal.entries[i].(type) {
         case createObjectChange:
@@ -1486,9 +1482,6 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
             touched[*c.account] = struct{}{}
         case touchChange:
             touched[*c.account] = struct{}{}
-        case codeAccessChange:
-            // Track code access separately - we'll process these after
-            codeAccessAddrs[*c.account] = true
         }
     }
 
@@ -1498,7 +1491,8 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     // 1. Code was accessed (codeAccessChange journal entry) - indicates code was executed
     // 2. Account is in access list - indicates it was part of the transaction scope
     codeAccessedAccounts := make([]common.Address, 0)
-    for addr := range codeAccessAddrs {
+    if codeAccessAddrs, ok := journalAccountsByType["codeAccessChange"]; ok {
+        for _, addr := range codeAccessAddrs {
             // Skip if already included
             if _, alreadyTouched := touched[addr]; alreadyTouched {
                 continue
@@ -1517,6 +1511,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
                 touched[addr] = struct{}{}
                 codeAccessedAccounts = append(codeAccessedAccounts, addr)
             }
+        }
     }
     
     // Log accounts added via code access
