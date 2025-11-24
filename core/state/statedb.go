@@ -1500,50 +1500,39 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         }
     }
     
-    // c) Include accounts that are in stateObjects with code, are in access list,
-    // but have no journal entries (accessed but not modified during this transaction).
-    // This handles cases like transaction recipients with code that were CALLed but not modified.
-    // Being in stateObjects means the account was accessed during the transaction,
-    // and being in access list means it was part of the transaction scope.
+    // c) Include accounts that were added to access list during transaction AND have code.
+    // This handles cases where a contract was CALLed during execution but wasn't modified.
+    // We only include accounts that were added during this transaction (via journal entries),
+    // not accounts pre-added in Prepare().
     accessListAccountsAdded := make([]common.Address, 0)
-    
-    // First, collect all accounts that have journal entries to exclude them
-    accountsWithJournalEntries := make(map[common.Address]bool)
-    for _, addrs := range journalAccountsByType {
-        for _, addr := range addrs {
-            accountsWithJournalEntries[addr] = true
-        }
-    }
-    
-    // Now check accounts in stateObjects
-    if s.accessList != nil {
-        for addr, obj := range s.stateObjects {
-            if obj.deleted || isMagicAddress(addr) {
-                continue
-            }
-            // Skip if already included via journal entries or touchedSlots
+    if accessListAddrs, ok := journalAccountsByType["accessListAddAccountChange"]; ok {
+        for _, addr := range accessListAddrs {
+            // Skip if already included
             if _, alreadyTouched := touched[addr]; alreadyTouched {
                 continue
             }
-            // Skip if account has journal entries (already handled)
-            if accountsWithJournalEntries[addr] {
+            // Skip magic addresses
+            if isMagicAddress(addr) {
                 continue
             }
-            // Include if: in access list, has code, but no journal entries (accessed but not modified)
-            if s.accessList.ContainsAddress(addr) && obj.code != nil && len(obj.code) > 0 {
-                touched[addr] = struct{}{}
-                accessListAccountsAdded = append(accessListAccountsAdded, addr)
+            // Check that account exists and has code
+            obj := s.stateObjects[addr]
+            if obj == nil || obj.deleted || obj.code == nil || len(obj.code) == 0 {
+                continue
             }
+            // Include account - it was added to access list during transaction and has code
+            touched[addr] = struct{}{}
+            accessListAccountsAdded = append(accessListAccountsAdded, addr)
         }
     }
     
-    // Log accounts added via access list
+    // Log accounts added via access list during transaction
     if len(accessListAccountsAdded) > 0 {
         addrStrs := make([]string, len(accessListAccountsAdded))
         for i, addr := range accessListAccountsAdded {
             addrStrs[i] = addr.Hex()
         }
-        log.Info("Footprint: Added accounts from access list with code (accessed but not modified)",
+        log.Info("Footprint: Added accounts added to access list during transaction with code",
             "count", len(accessListAccountsAdded),
             "accounts", addrStrs)
     }
