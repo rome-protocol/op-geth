@@ -1485,46 +1485,6 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         }
     }
 
-    // c) Include accounts whose code was accessed during this transaction AND are in access list.
-    // This handles cases like transaction recipients with code that were CALLed but not modified.
-    // We require both conditions to avoid over-inclusion:
-    // 1. Code was accessed (codeAccessChange journal entry) - indicates code was executed
-    // 2. Account is in access list - indicates it was part of the transaction scope
-    codeAccessedAccounts := make([]common.Address, 0)
-    if codeAccessAddrs, ok := journalAccountsByType["codeAccessChange"]; ok {
-        for _, addr := range codeAccessAddrs {
-            // Skip if already included
-            if _, alreadyTouched := touched[addr]; alreadyTouched {
-                continue
-            }
-            // Skip magic addresses
-            if isMagicAddress(addr) {
-                continue
-            }
-            // Check that account exists and has code
-            obj := s.stateObjects[addr]
-            if obj == nil || obj.deleted || obj.code == nil || len(obj.code) == 0 {
-                continue
-            }
-            // Only include if account is in access list (was part of transaction)
-            if s.accessList != nil && s.accessList.ContainsAddress(addr) {
-                touched[addr] = struct{}{}
-                codeAccessedAccounts = append(codeAccessedAccounts, addr)
-            }
-        }
-    }
-    
-    // Log accounts added via code access
-    if len(codeAccessedAccounts) > 0 {
-        addrStrs := make([]string, len(codeAccessedAccounts))
-        for i, addr := range codeAccessedAccounts {
-            addrStrs[i] = addr.Hex()
-        }
-        log.Info("Footprint: Added accounts with code accessed (in access list)",
-            "count", len(codeAccessedAccounts),
-            "accounts", addrStrs)
-    }
-    
     // build and sort address list
     addresses := make([]common.Address, 0, len(touched))
     for addr := range touched {
