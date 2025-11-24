@@ -1526,6 +1526,35 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         log.Info("Footprint: Accounts from touchedSlots", "count", len(touchedSlotAddrs), "accounts", addrStrs)
     }
     
+    // c) Also include accounts in stateObjects that have code loaded (accessed via CALL/GetCode)
+    // even if they weren't modified. This matches Solana's behavior of logging all accessed accounts.
+    codeLoadedAccounts := make([]common.Address, 0)
+    for addr, obj := range s.stateObjects {
+        if obj.deleted || isMagicAddress(addr) {
+            continue
+        }
+        // Skip if already in touched set
+        if _, alreadyTouched := touched[addr]; alreadyTouched {
+            continue
+        }
+        // Include if account has code loaded (indicates it was accessed during this transaction)
+        if obj.code != nil {
+            touched[addr] = struct{}{}
+            codeLoadedAccounts = append(codeLoadedAccounts, addr)
+        }
+    }
+    
+    // Log accounts added via code-loaded check
+    if len(codeLoadedAccounts) > 0 {
+        addrStrs := make([]string, len(codeLoadedAccounts))
+        for i, addr := range codeLoadedAccounts {
+            addrStrs[i] = addr.Hex()
+        }
+        log.Info("Footprint: Added accounts with loaded code (accessed but not modified)",
+            "count", len(codeLoadedAccounts),
+            "accounts", addrStrs)
+    }
+    
     // Log all accounts in stateObjects for comparison, with details about why they're there
     stateObjectAddrs := make([]common.Address, 0, len(s.stateObjects))
     stateObjectDetails := make(map[common.Address]string)
