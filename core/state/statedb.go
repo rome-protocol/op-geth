@@ -1526,8 +1526,10 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         log.Info("Footprint: Accounts from touchedSlots", "count", len(touchedSlotAddrs), "accounts", addrStrs)
     }
     
-    // c) Also include accounts in stateObjects that have code loaded (accessed via CALL/GetCode)
-    // even if they weren't modified. This matches Solana's behavior of logging all accessed accounts.
+    // c) Also include accounts in stateObjects that have code loaded AND are in the access list
+    // (accessed via CALL/GetCode in this transaction). This matches Solana's behavior of logging 
+    // all accessed accounts. We use the access list to ensure we only include accounts accessed
+    // in THIS transaction, not previous ones in the block.
     codeLoadedAccounts := make([]common.Address, 0)
     for addr, obj := range s.stateObjects {
         if obj.deleted || isMagicAddress(addr) {
@@ -1537,8 +1539,8 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         if _, alreadyTouched := touched[addr]; alreadyTouched {
             continue
         }
-        // Include if account has code loaded (indicates it was accessed during this transaction)
-        if obj.code != nil {
+        // Only include if account has code loaded AND is in the access list (accessed this transaction)
+        if obj.code != nil && s.accessList != nil && s.accessList.ContainsAddress(addr) {
             touched[addr] = struct{}{}
             codeLoadedAccounts = append(codeLoadedAccounts, addr)
         }
