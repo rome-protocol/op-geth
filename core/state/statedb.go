@@ -1500,6 +1500,43 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         }
     }
     
+    // c) Include accounts that were added to access list during transaction AND have code.
+    // This handles cases where a contract was CALLed during execution but wasn't modified.
+    // We only include accounts that were added during this transaction (via journal entries),
+    // not accounts pre-added in Prepare().
+    accessListAccountsAdded := make([]common.Address, 0)
+    if accessListAddrs, ok := journalAccountsByType["accessListAddAccountChange"]; ok {
+        for _, addr := range accessListAddrs {
+            // Skip if already included
+            if _, alreadyTouched := touched[addr]; alreadyTouched {
+                continue
+            }
+            // Skip magic addresses
+            if isMagicAddress(addr) {
+                continue
+            }
+            // Check that account exists and has code
+            obj := s.stateObjects[addr]
+            if obj == nil || obj.deleted || obj.code == nil || len(obj.code) == 0 {
+                continue
+            }
+            // Include account - it was added to access list during transaction and has code
+            touched[addr] = struct{}{}
+            accessListAccountsAdded = append(accessListAccountsAdded, addr)
+        }
+    }
+    
+    // Log accounts added via access list during transaction
+    if len(accessListAccountsAdded) > 0 {
+        addrStrs := make([]string, len(accessListAccountsAdded))
+        for i, addr := range accessListAccountsAdded {
+            addrStrs[i] = addr.Hex()
+        }
+        log.Info("Footprint: Added accounts added to access list during transaction with code",
+            "count", len(accessListAccountsAdded),
+            "accounts", addrStrs)
+    }
+    
     // Log all journal accounts by type
     log.Info("Footprint: Journal analysis",
         "start_index", start,
