@@ -145,6 +145,9 @@ type (
 		address *common.Address
 		slot    *common.Hash
 	}
+	codeAccessChange struct {
+		account *common.Address
+	}
 
 	transientStorageChange struct {
 		account       *common.Address
@@ -298,4 +301,12 @@ func (ch accessListAddSlotChange) revert(s *StateDB) {
 
 func (ch accessListAddSlotChange) dirtied() *common.Address {
 	return nil
+}
+
+func (ch codeAccessChange) revert(s *StateDB) {
+	// No state to revert for code access, it's just a marker
+}
+
+func (ch codeAccessChange) dirtied() *common.Address {
+	return ch.account
 }
