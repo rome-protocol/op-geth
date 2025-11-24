@@ -476,12 +476,11 @@ func (s *stateObject) Code() []byte {
 	if bytes.Equal(s.CodeHash(), types.EmptyCodeHash.Bytes()) {
 		return nil
 	}
-	// Code is being loaded for the first time - track this for footprint calculation
 	code, err := s.db.db.ContractCode(s.address, common.BytesToHash(s.CodeHash()))
 	if err != nil {
 		s.db.setError(fmt.Errorf("can't load code hash %x: %v", s.CodeHash(), err))
 	}
-	// Only journal code access if code actually exists (non-nil and non-empty)
+	// Track code access for footprint calculation - only if code actually exists
 	if code != nil && len(code) > 0 {
 		s.db.journal.append(codeAccessChange{account: &s.address})
 	}

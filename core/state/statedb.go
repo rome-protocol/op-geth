@@ -1530,8 +1530,9 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         log.Info("Footprint: Accounts from touchedSlots", "count", len(touchedSlotAddrs), "accounts", addrStrs)
     }
     
-    // c) Include accounts whose code was accessed/loaded during this transaction
-    // (even if they weren't modified). This matches Solana's behavior of logging all accessed accounts.
+    // c) Include accounts whose code was accessed/executed during this transaction,
+    // but only if they were meaningfully accessed (have storage slots touched or were modified).
+    // This matches Solana's behavior - accounts are only logged if they were actually executed meaningfully.
     codeAccessedAccounts := make([]common.Address, 0)
     if codeAccessAddrs, ok := journalAccountsByType["codeAccessChange"]; ok {
         for _, addr := range codeAccessAddrs {
@@ -1544,7 +1545,14 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
                 continue
             }
             // Check that account exists and has code
-            if obj := s.stateObjects[addr]; obj != nil && !obj.deleted && obj.code != nil {
+            obj := s.stateObjects[addr]
+            if obj == nil || obj.deleted || obj.code == nil {
+                continue
+            }
+            // Only include if account has storage slots touched (indicates meaningful execution)
+            // OR if it was modified in some way (but those are already in touched set)
+            hasTouchedSlots := s.touchedSlots[addr] != nil && len(s.touchedSlots[addr]) > 0
+            if hasTouchedSlots {
                 touched[addr] = struct{}{}
                 codeAccessedAccounts = append(codeAccessedAccounts, addr)
             }
