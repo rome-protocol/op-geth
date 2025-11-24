@@ -1464,25 +1464,81 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     if start > len(s.journal.entries) {
         start = len(s.journal.entries)
     }
+    
+    // Debug: Track accounts by journal entry type for logging
+    journalAccountsByType := make(map[string][]common.Address)
     for i := start; i < len(s.journal.entries); i++ {
         switch c := s.journal.entries[i].(type) {
         case createObjectChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["createObjectChange"] = append(journalAccountsByType["createObjectChange"], *c.account)
         case resetObjectChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["resetObjectChange"] = append(journalAccountsByType["resetObjectChange"], *c.account)
         case selfDestructChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["selfDestructChange"] = append(journalAccountsByType["selfDestructChange"], *c.account)
         case balanceChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["balanceChange"] = append(journalAccountsByType["balanceChange"], *c.account)
         case nonceChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["nonceChange"] = append(journalAccountsByType["nonceChange"], *c.account)
         case storageChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["storageChange"] = append(journalAccountsByType["storageChange"], *c.account)
         case codeChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["codeChange"] = append(journalAccountsByType["codeChange"], *c.account)
         case touchChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["touchChange"] = append(journalAccountsByType["touchChange"], *c.account)
         }
+    }
+    
+    // Log all journal accounts for debugging
+    log.Info("Footprint: Journal analysis",
+        "start_index", start,
+        "total_journal_entries", len(s.journal.entries),
+        "entries_since_start", len(s.journal.entries)-start)
+    for entryType, addrs := range journalAccountsByType {
+        if len(addrs) > 0 {
+            addrStrs := make([]string, len(addrs))
+            for i, addr := range addrs {
+                addrStrs[i] = addr.Hex()
+            }
+            log.Info("Footprint: Journal accounts", "type", entryType, "count", len(addrs), "accounts", addrStrs)
+        }
+    }
+    
+    // Log accounts from touchedSlots
+    touchedSlotAddrs := make([]common.Address, 0, len(s.touchedSlots))
+    for addr := range s.touchedSlots {
+        if !isMagicAddress(addr) {
+            touchedSlotAddrs = append(touchedSlotAddrs, addr)
+        }
+    }
+    if len(touchedSlotAddrs) > 0 {
+        addrStrs := make([]string, len(touchedSlotAddrs))
+        for i, addr := range touchedSlotAddrs {
+            addrStrs[i] = addr.Hex()
+        }
+        log.Info("Footprint: Accounts from touchedSlots", "count", len(touchedSlotAddrs), "accounts", addrStrs)
+    }
+    
+    // Log all accounts in stateObjects for comparison
+    stateObjectAddrs := make([]common.Address, 0, len(s.stateObjects))
+    for addr, obj := range s.stateObjects {
+        if !obj.deleted && !isMagicAddress(addr) {
+            stateObjectAddrs = append(stateObjectAddrs, addr)
+        }
+    }
+    if len(stateObjectAddrs) > 0 {
+        addrStrs := make([]string, len(stateObjectAddrs))
+        for i, addr := range stateObjectAddrs {
+            addrStrs[i] = addr.Hex()
+        }
+        log.Info("Footprint: All accounts in stateObjects", "count", len(stateObjectAddrs), "accounts", addrStrs)
     }
 
     // build and sort address list
