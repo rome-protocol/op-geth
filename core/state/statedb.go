@@ -1464,8 +1464,6 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     if start > len(s.journal.entries) {
         start = len(s.journal.entries)
     }
-    // First, collect all accounts with nonce changes from journal entries
-    accountsWithNonceChange := make(map[common.Address]struct{})
     for i := start; i < len(s.journal.entries); i++ {
         switch c := s.journal.entries[i].(type) {
         case createObjectChange:
@@ -1478,27 +1476,12 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
             touched[*c.account] = struct{}{}
         case nonceChange:
             touched[*c.account] = struct{}{}
-            accountsWithNonceChange[*c.account] = struct{}{}
         case storageChange:
             touched[*c.account] = struct{}{}
         case codeChange:
             touched[*c.account] = struct{}{}
         case touchChange:
             touched[*c.account] = struct{}{}
-        }
-    }
-    
-    // Track all state objects and include those whose nonce changed
-    for addr, obj := range s.stateObjects {
-        if obj == nil || obj.deleted {
-            continue
-        }
-        if isMagicAddress(addr) {
-            continue
-        }
-        // Check if this account's nonce changed during this transaction
-        if _, hasNonceChange := accountsWithNonceChange[addr]; hasNonceChange {
-            touched[addr] = struct{}{}
         }
     }
 
