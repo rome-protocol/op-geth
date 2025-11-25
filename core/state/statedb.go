@@ -1451,6 +1451,30 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     // 1) collect touched addresses from touchedSlots and journal entries since start
     touched := make(map[common.Address]struct{}, len(s.touchedSlots))
 
+    // Log all accounts in stateObjects
+    allStateObjectAddrs := make([]common.Address, 0, len(s.stateObjects))
+    for addr := range s.stateObjects {
+        if !isMagicAddress(addr) {
+            allStateObjectAddrs = append(allStateObjectAddrs, addr)
+        }
+    }
+    sort.Slice(allStateObjectAddrs, func(i, j int) bool {
+        return bytes.Compare(allStateObjectAddrs[i][:], allStateObjectAddrs[j][:]) < 0
+    })
+    log.Info("Footprint: All accounts in stateObjects", "count", len(allStateObjectAddrs), "accounts", allStateObjectAddrs)
+
+    // Log all accounts from touchedSlots
+    allTouchedSlotsAddrs := make([]common.Address, 0, len(s.touchedSlots))
+    for addr := range s.touchedSlots {
+        if !isMagicAddress(addr) {
+            allTouchedSlotsAddrs = append(allTouchedSlotsAddrs, addr)
+        }
+    }
+    sort.Slice(allTouchedSlotsAddrs, func(i, j int) bool {
+        return bytes.Compare(allTouchedSlotsAddrs[i][:], allTouchedSlotsAddrs[j][:]) < 0
+    })
+    log.Info("Footprint: All accounts from touchedSlots", "count", len(allTouchedSlotsAddrs), "accounts", allTouchedSlotsAddrs)
+
     // a) from touchedSlots (storage-only touches in this tx)
     for addr := range s.touchedSlots {
         if !isMagicAddress(addr) {
@@ -1464,37 +1488,85 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     if start > len(s.journal.entries) {
         start = len(s.journal.entries)
     }
+    
+    // Collect journal entries by type for logging
+    journalAccountsByType := make(map[string][]common.Address)
     for i := start; i < len(s.journal.entries); i++ {
         switch c := s.journal.entries[i].(type) {
         case createObjectChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["createObjectChange"] = append(journalAccountsByType["createObjectChange"], *c.account)
         case resetObjectChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["resetObjectChange"] = append(journalAccountsByType["resetObjectChange"], *c.account)
         case selfDestructChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["selfDestructChange"] = append(journalAccountsByType["selfDestructChange"], *c.account)
         case balanceChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["balanceChange"] = append(journalAccountsByType["balanceChange"], *c.account)
         case nonceChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["nonceChange"] = append(journalAccountsByType["nonceChange"], *c.account)
         case storageChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["storageChange"] = append(journalAccountsByType["storageChange"], *c.account)
         case codeChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["codeChange"] = append(journalAccountsByType["codeChange"], *c.account)
         case touchChange:
             touched[*c.account] = struct{}{}
+            journalAccountsByType["touchChange"] = append(journalAccountsByType["touchChange"], *c.account)
+        }
+    }
+    
+    // Log journal accounts by type
+    log.Info("Footprint: Journal analysis", "start_index", start, "total_journal_entries", len(s.journal.entries), "entries_since_start", len(s.journal.entries)-start)
+    for entryType, addrs := range journalAccountsByType {
+        // Remove duplicates
+        seen := make(map[common.Address]struct{})
+        uniqueAddrs := make([]common.Address, 0)
+        for _, addr := range addrs {
+            if !isMagicAddress(addr) {
+                if _, exists := seen[addr]; !exists {
+                    seen[addr] = struct{}{}
+                    uniqueAddrs = append(uniqueAddrs, addr)
+                }
+            }
+        }
+        if len(uniqueAddrs) > 0 {
+            sort.Slice(uniqueAddrs, func(i, j int) bool {
+                return bytes.Compare(uniqueAddrs[i][:], uniqueAddrs[j][:]) < 0
+            })
+            log.Info("Footprint: Journal accounts", "type", entryType, "count", len(uniqueAddrs), "accounts", uniqueAddrs)
         }
     }
 
-    // build and sort address list
-    addresses := make([]common.Address, 0, len(touched))
+    // Log all accounts that will be included in footprint
+    allTouchedAddrs := make([]common.Address, 0, len(touched))
     for addr := range touched {
         if !isMagicAddress(addr) {
-            addresses = append(addresses, addr)
+            allTouchedAddrs = append(allTouchedAddrs, addr)
         }
     }
-    sort.Slice(addresses, func(i, j int) bool {
-        return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
+    sort.Slice(allTouchedAddrs, func(i, j int) bool {
+        return bytes.Compare(allTouchedAddrs[i][:], allTouchedAddrs[j][:]) < 0
     })
+    log.Info("Footprint: All accounts in touched (will be included)", "count", len(allTouchedAddrs), "accounts", allTouchedAddrs)
+    
+    // Log accounts in stateObjects but NOT in touched
+    notInFootprint := make([]common.Address, 0)
+    for _, addr := range allStateObjectAddrs {
+        if _, inTouched := touched[addr]; !inTouched {
+            notInFootprint = append(notInFootprint, addr)
+        }
+    }
+    if len(notInFootprint) > 0 {
+        log.Info("Footprint: Accounts in stateObjects but NOT in footprint", "count", len(notInFootprint), "accounts", notInFootprint)
+    }
+    
+    // build and sort address list
+    addresses := allTouchedAddrs
 
     // 2) build slot-sets from touchedSlots and journal entries since start
     slots := make(map[common.Address]map[common.Hash]struct{}, len(addresses))
