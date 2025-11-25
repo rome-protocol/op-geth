@@ -269,6 +269,9 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			}
 			contract := NewContract(caller, AccountRef(addrCopy), value, executionGas)
 			contract.SetCallCode(&addrCopy, evm.StateDB.GetCodeHash(addrCopy), code)
+			// Track that this account's code is being executed for footprint calculation
+			// This ensures accounts that are CALLed are included even if no state changes occur
+			evm.StateDB.TouchAccountForFootprint(addrCopy)
 			ret, err = evm.interpreter.Run(contract, input, false)
 			gas = contract.Gas
 		}

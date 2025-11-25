@@ -78,6 +78,10 @@ type StateDB interface {
 
 	AddLog(*types.Log)
 	AddPreimage(common.Hash, []byte)
+
+	// TouchAccountForFootprint marks an account as touched for footprint calculation purposes.
+	// This is used to track accounts whose code is executed via CALL even if no state changes occur.
+	TouchAccountForFootprint(common.Address)
 }
 
 // CallContext provides a basic interface for the EVM calling conventions. The EVM

@@ -702,6 +702,15 @@ func (s *StateDB) CreateAccount(addr common.Address) {
 	}
 }
 
+// TouchAccountForFootprint marks an account as touched for footprint calculation purposes.
+// This is used to track accounts whose code is executed via CALL even if no state changes occur.
+func (s *StateDB) TouchAccountForFootprint(addr common.Address) {
+	obj := s.getStateObject(addr)
+	if obj != nil {
+		obj.touch()
+	}
+}
+
 // Copy creates a deep, independent copy of the state.
 // Snapshots of the copied state cannot be applied to the copy.
 func (s *StateDB) Copy() *StateDB {
