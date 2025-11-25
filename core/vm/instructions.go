@@ -498,12 +498,11 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		return nil, nil
 	}
 	
-	// Within valid range: return keccak256(num)
-	// Convert num64 to bytes and hash it
-	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], num64)
+	// Within valid range: return keccak256(num) - matching Solana's U256 big-endian format
+	var buf [32]byte
+	binary.BigEndian.PutUint64(buf[24:], num64)  // U256 big-endian, value in last 8 bytes
 	hash := crypto.Keccak256Hash(buf[:])
-	log.Info("opBlockhash: returning keccak256(num)", "num", num64, "hash", hash.Hex())
+	log.Info("opBlockhash: returning keccak256(num)", "num", num64, "current", current, "hash", hash.Hex())
 	num.SetBytes(hash[:])
 	return nil, nil
 }
