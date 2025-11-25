@@ -1621,6 +1621,19 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
                 }
             }
             
+            // Check if account was loaded in this transaction by checking if origin matches current state
+            // (if origin is nil, it means account was created, if origin matches current, it was loaded fresh)
+            wasLoadedInThisTx := false
+            if obj.origin == nil && obj.created {
+                wasLoadedInThisTx = false // Created accounts are in journal
+            } else if obj.origin != nil {
+                // Check if origin matches current state (meaning it was just loaded)
+                originMatches := obj.origin.Nonce == obj.data.Nonce &&
+                    obj.origin.Balance.Cmp(obj.data.Balance) == 0 &&
+                    bytes.Equal(obj.origin.CodeHash, obj.data.CodeHash)
+                wasLoadedInThisTx = originMatches && len(journalEntriesForAccount) == 0
+            }
+            
             log.Info("Footprint: Account detail (not in footprint)",
                 "address", addr.Hex(),
                 "nonce", nonce,
@@ -1633,6 +1646,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
                     }
                     return 0
                 }(),
+                "code_loaded", obj.code != nil,
                 "has_storage", hasStorage,
                 "dirty_storage_count", len(obj.dirtyStorage),
                 "pending_storage_count", len(obj.pendingStorage),
@@ -1644,6 +1658,15 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
                 "deleted", obj.deleted,
                 "created", obj.created,
                 "self_destructed", obj.selfDestructed,
+                "was_loaded_in_this_tx", wasLoadedInThisTx,
+                "origin_exists", obj.origin != nil,
+                "origin_nonce", func() uint64 {
+                    if obj.origin != nil {
+                        return obj.origin.Nonce
+                    }
+                    return 0
+                }(),
+                "current_nonce", obj.data.Nonce,
             )
         }
     }
