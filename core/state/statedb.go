@@ -1554,7 +1554,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     })
     log.Info("Footprint: All accounts in touched (will be included)", "count", len(allTouchedAddrs), "accounts", allTouchedAddrs)
     
-    // Log accounts in stateObjects but NOT in touched
+    // Log accounts in stateObjects but NOT in touched with detailed information
     notInFootprint := make([]common.Address, 0)
     for _, addr := range allStateObjectAddrs {
         if _, inTouched := touched[addr]; !inTouched {
@@ -1563,6 +1563,89 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     }
     if len(notInFootprint) > 0 {
         log.Info("Footprint: Accounts in stateObjects but NOT in footprint", "count", len(notInFootprint), "accounts", notInFootprint)
+        
+        // Detailed logging for each account not in footprint
+        for _, addr := range notInFootprint {
+            obj := s.stateObjects[addr]
+            if obj == nil {
+                log.Info("Footprint: Account detail", "address", addr.Hex(), "error", "stateObject is nil")
+                continue
+            }
+            
+            // Check various properties
+            hasCode := obj.code != nil && len(obj.code) > 0
+            codeHash := common.BytesToHash(obj.CodeHash())
+            nonce := obj.Nonce()
+            balance := obj.Balance()
+            hasStorage := len(obj.dirtyStorage) > 0 || len(obj.pendingStorage) > 0 || len(obj.originStorage) > 0
+            inTouchedSlots := false
+            touchedSlotCount := 0
+            if slots, exists := s.touchedSlots[addr]; exists {
+                inTouchedSlots = true
+                touchedSlotCount = len(slots)
+            }
+            
+            // Check journal entries for this account
+            journalEntriesForAccount := make([]string, 0)
+            for i := start; i < len(s.journal.entries); i++ {
+                var accountAddr *common.Address
+                entryType := ""
+                switch c := s.journal.entries[i].(type) {
+                case createObjectChange:
+                    accountAddr = c.account
+                    entryType = "createObjectChange"
+                case resetObjectChange:
+                    accountAddr = c.account
+                    entryType = "resetObjectChange"
+                case selfDestructChange:
+                    accountAddr = c.account
+                    entryType = "selfDestructChange"
+                case balanceChange:
+                    accountAddr = c.account
+                    entryType = "balanceChange"
+                case nonceChange:
+                    accountAddr = c.account
+                    entryType = "nonceChange"
+                case storageChange:
+                    accountAddr = c.account
+                    entryType = "storageChange"
+                case codeChange:
+                    accountAddr = c.account
+                    entryType = "codeChange"
+                case touchChange:
+                    accountAddr = c.account
+                    entryType = "touchChange"
+                }
+                if accountAddr != nil && *accountAddr == addr {
+                    journalEntriesForAccount = append(journalEntriesForAccount, entryType)
+                }
+            }
+            
+            log.Info("Footprint: Account detail (not in footprint)",
+                "address", addr.Hex(),
+                "nonce", nonce,
+                "balance", balance.String(),
+                "has_code", hasCode,
+                "code_hash", codeHash.Hex(),
+                "code_length", func() int {
+                    if obj.code != nil {
+                        return len(obj.code)
+                    }
+                    return 0
+                }(),
+                "has_storage", hasStorage,
+                "dirty_storage_count", len(obj.dirtyStorage),
+                "pending_storage_count", len(obj.pendingStorage),
+                "origin_storage_count", len(obj.originStorage),
+                "in_touched_slots", inTouchedSlots,
+                "touched_slot_count", touchedSlotCount,
+                "journal_entries", journalEntriesForAccount,
+                "journal_entry_count", len(journalEntriesForAccount),
+                "deleted", obj.deleted,
+                "created", obj.created,
+                "self_destructed", obj.selfDestructed,
+            )
+        }
     }
     
     // build and sort address list
