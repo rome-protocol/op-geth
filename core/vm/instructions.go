@@ -467,7 +467,6 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	num := scope.Stack.peek()
 	num64, overflow := num.Uint64WithOverflow()
 	if overflow {
-		log.Info("opBlockhash: overflow", "num", num.String())
 		num.Clear()
 		return nil, nil
 	}
@@ -477,32 +476,19 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		current = *interpreter.evm.Context.SolanaBlockNumber
 	}
 	
-	log.Info("opBlockhash invoked", "requested", num64, "current", current)
-	
-	// BLOCKHASH(num) returns:
-	// - 0 if num >= current_block_number (future or current block)
-	// - 0 if current_block_number - num > 256 (too old)
-	// - keccak256(num) otherwise (within valid range)
-	
 	if num64 >= current {
-		// num >= current: return 0
-		log.Info("opBlockhash: returning 0 (num >= current)", "num", num64, "current", current)
 		num.Clear()
 		return nil, nil
 	}
 	
 	if current - num64 > 256 {
-		// Too old (more than 256 blocks ago): return 0
-		log.Info("opBlockhash: returning 0 (too old)", "num", num64, "current", current, "diff", current-num64)
 		num.Clear()
 		return nil, nil
 	}
 	
-	// Within valid range: return keccak256(num) - matching Solana's U256 big-endian format
 	var buf [32]byte
-	binary.BigEndian.PutUint64(buf[24:], num64)  // U256 big-endian, value in last 8 bytes
+	binary.BigEndian.PutUint64(buf[24:], num64)  
 	hash := crypto.Keccak256Hash(buf[:])
-	log.Info("opBlockhash: returning keccak256(num)", "num", num64, "current", current, "hash", hash.Hex())
 	num.SetBytes(hash[:])
 	return nil, nil
 }
@@ -628,7 +614,7 @@ func opMsize(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]by
 }
 
 func opGas(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	gasValue := scope.Contract.initialGas
+	gasValue := interpreter.evm.Context.GasLimit
 	if gasValue == 0 || gasValue == ^uint64(0) {
 		scope.Stack.push(new(uint256.Int).SetAllOne())
 	} else {
