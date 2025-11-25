@@ -613,12 +613,7 @@ func opMsize(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]by
 }
 
 func opGas(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	gasValue := interpreter.evm.Context.GasLimit
-	if gasValue == 0 || gasValue == ^uint64(0) {
-		scope.Stack.push(new(uint256.Int).SetAllOne())
-	} else {
-		scope.Stack.push(new(uint256.Int).SetUint64(gasValue))
-	}
+	scope.Stack.push(new(uint256.Int).SetUint64(interpreter.evm.TxContext.GasLimit))
 	return nil, nil
 }
 
