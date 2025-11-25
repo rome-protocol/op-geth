@@ -1554,6 +1554,70 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     })
     log.Info("Footprint: All accounts in touched (will be included)", "count", len(allTouchedAddrs), "accounts", allTouchedAddrs)
     
+    // Check for accounts that might have been accessed but reverted (code executed but no journal entries)
+    // This handles the case where a transaction reverts after executing code but before committing state changes
+    for _, addr := range allStateObjectAddrs {
+        if _, inTouched := touched[addr]; !inTouched {
+            obj := s.stateObjects[addr]
+            if obj == nil {
+                continue
+            }
+            // Check if account has code and was loaded in this transaction but has no journal entries
+            // This suggests the transaction executed the code but then reverted
+            hasCode := obj.code != nil && len(obj.code) > 0
+            if hasCode {
+                // Check if account was loaded in this transaction (origin matches current state, no journal entries)
+                wasLoadedInThisTx := false
+                if obj.origin != nil {
+                    originMatches := obj.origin.Nonce == obj.data.Nonce &&
+                        obj.origin.Balance.Cmp(obj.data.Balance) == 0 &&
+                        bytes.Equal(obj.origin.CodeHash, obj.data.CodeHash)
+                    wasLoadedInThisTx = originMatches
+                }
+                
+                // If account has code and was loaded in this tx but has no journal entries,
+                // it likely means the code was executed but the transaction reverted.
+                // Include it in the footprint to match Solana's behavior.
+                if wasLoadedInThisTx {
+                    // Check if there are any journal entries for this account since start
+                    hasJournalEntries := false
+                    for i := start; i < len(s.journal.entries); i++ {
+                        var accountAddr *common.Address
+                        switch c := s.journal.entries[i].(type) {
+                        case createObjectChange:
+                            accountAddr = c.account
+                        case resetObjectChange:
+                            accountAddr = c.account
+                        case selfDestructChange:
+                            accountAddr = c.account
+                        case balanceChange:
+                            accountAddr = c.account
+                        case nonceChange:
+                            accountAddr = c.account
+                        case storageChange:
+                            accountAddr = c.account
+                        case codeChange:
+                            accountAddr = c.account
+                        case touchChange:
+                            accountAddr = c.account
+                        }
+                        if accountAddr != nil && *accountAddr == addr {
+                            hasJournalEntries = true
+                            break
+                        }
+                    }
+                    
+                    // If code was executed but no journal entries exist, include the account
+                    // This handles the case where code execution happened but transaction reverted
+                    if !hasJournalEntries {
+                        log.Info("Footprint: Including account with executed code (likely reverted tx)", "address", addr.Hex())
+                        touched[addr] = struct{}{}
+                    }
+                }
+            }
+        }
+    }
+    
     // Log accounts in stateObjects but NOT in touched with detailed information
     notInFootprint := make([]common.Address, 0)
     for _, addr := range allStateObjectAddrs {

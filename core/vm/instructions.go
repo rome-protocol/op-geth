@@ -17,6 +17,8 @@
 package vm
 
 import (
+	"encoding/binary"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -465,41 +467,44 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	num := scope.Stack.peek()
 	num64, overflow := num.Uint64WithOverflow()
 	if overflow {
+		log.Info("opBlockhash: overflow", "num", num.String())
 		num.Clear()
 		return nil, nil
 	}
-	if num64 == 0 {
-		num.Clear()
-		return nil, nil
-	}
-	ethCurrent := interpreter.evm.Context.BlockNumber.Uint64()
-	solanaCurrent := ethCurrent
+	
+	current := interpreter.evm.Context.BlockNumber.Uint64()
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		solanaCurrent = *interpreter.evm.Context.SolanaBlockNumber
+		current = *interpreter.evm.Context.SolanaBlockNumber
 	}
-	log.Info("opBlockhash invoked", "requested", num64, "ethCurrent", ethCurrent, "solanaCurrent", solanaCurrent)
-	if num64 >= solanaCurrent {
-		log.Info("opBlockhash returning zero", "requested", num64, "solanaCurrent", solanaCurrent, "reason", "num>=current")
+	
+	log.Info("opBlockhash invoked", "requested", num64, "current", current)
+	
+	// BLOCKHASH(num) returns:
+	// - 0 if num >= current_block_number (future or current block)
+	// - 0 if current_block_number - num > 256 (too old)
+	// - keccak256(num) otherwise (within valid range)
+	
+	if num64 >= current {
+		// num >= current: return 0
+		log.Info("opBlockhash: returning 0 (num >= current)", "num", num64, "current", current)
 		num.Clear()
 		return nil, nil
 	}
-	// If SolanaBlockNumber is set, use only Solana metadata
-	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		// When block.number returns Solana block number, blockhash(n) should return
-		// the Solana hash for Solana slot n. Since numbers are guaranteed to match,
-		// we can directly look up the Solana slot.
-		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
-			log.Info("opBlockhash using GetSolanaHash", "slot", num64, "hash", hash.Hex())
-			num.SetBytes(hash[:])
-			return nil, nil
-		}
-		// If not found, return zero
-		log.Warn("opBlockhash GetSolanaHash failed", "slot", num64, "solanaCurrent", solanaCurrent)
+	
+	if current - num64 > 256 {
+		// Too old (more than 256 blocks ago): return 0
+		log.Info("opBlockhash: returning 0 (too old)", "num", num64, "current", current, "diff", current-num64)
 		num.Clear()
 		return nil, nil
 	}
-	// Beyond 256 blocks, return zero (standard EVM behavior)
-	num.Clear()
+	
+	// Within valid range: return keccak256(num)
+	// Convert num64 to bytes and hash it
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], num64)
+	hash := crypto.Keccak256Hash(buf[:])
+	log.Info("opBlockhash: returning keccak256(num)", "num", num64, "hash", hash.Hex())
+	num.SetBytes(hash[:])
 	return nil, nil
 }
 
