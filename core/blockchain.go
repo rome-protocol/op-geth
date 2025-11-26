@@ -991,8 +991,7 @@ func (bc *BlockChain) GetFootprintManager() *footprint.Manager {
 	return bc.footprintManager
 }
 
-// GetSolanaMetadata returns the solana metadata for the given block hash. It
-// caches the most recent entries in memory to serve frequent lookups quickly.
+// GetSolanaMetadata returns the solana metadata for the given block hash.
 func (bc *BlockChain) GetSolanaMetadata(hash common.Hash) (uint64, common.Hash, bool) {
 	if bc.solanaCache != nil {
 		if slot, solHash, ok := bc.solanaCache.Get(hash); ok {

@@ -59,7 +59,7 @@ type Contract struct {
 	Input    []byte
 
 	Gas        uint64
-	initialGas uint64 // Track initial gas for GAS opcode (Solana-EVM)
+	initialGas uint64 
 	value      *big.Int
 }
 
@@ -77,7 +77,7 @@ func NewContract(caller ContractRef, object ContractRef, value *big.Int, gas uin
 	// Gas should be a pointer so it can safely be reduced through the run
 	// This pointer will be off the state transition
 	c.Gas = gas
-	c.initialGas = gas // Track initial gas for GAS opcode
+	c.initialGas = gas 
 	// ensures a value is set
 	c.value = value
 

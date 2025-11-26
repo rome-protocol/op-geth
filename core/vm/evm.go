@@ -75,7 +75,7 @@ type BlockContext struct {
 	GetHash GetHashFunc
 	// GetSolanaHash returns the solana hash for the given solana slot if available.
 	GetSolanaHash func(uint64) (common.Hash, bool)
-	// GetSolanaHashByEthBlock returns the solana hash for the given Ethereum block number if available.
+	// GetSolanaHashByEthBlock returns the solana block hash if available.
 	GetSolanaHashByEthBlock func(uint64) (common.Hash, bool)
 	// L1CostFunc returns the L1 cost of the rollup message, the function may be nil, or return nil
 	L1CostFunc types.L1CostFunc
@@ -89,8 +89,8 @@ type BlockContext struct {
 	BaseFee           *big.Int       // Provides information for BASEFEE (0 if vm runs with NoBaseFee flag and 0 gas price)
 	BlobBaseFee       *big.Int       // Provides information for BLOBBASEFEE (0 if vm runs with NoBaseFee flag and 0 blob gas price)
 	Random            *common.Hash   // Provides information for PREVRANDAO
-	SolanaBlockNumber *uint64        // Provides information for custom Solana block number opcode
-	SolanaBlockHash   *common.Hash   // Provides information for custom Solana block hash opcode
+	SolanaBlockNumber *uint64        // Provides information for custom Solana block number 
+	SolanaBlockHash   *common.Hash   // Provides information for custom Solana block hash
 }
 
 // TxContext provides the EVM with information about a transaction.
@@ -101,7 +101,7 @@ type TxContext struct {
 	GasPrice   *big.Int       // Provides information for GASPRICE (and is used to zero the basefee if NoBaseFee is set)
 	BlobHashes []common.Hash  // Provides information for BLOBHASH
 	BlobFeeCap *big.Int       // Is used to zero the blobbasefee if NoBaseFee is set
-	GasLimit   uint64         // Transaction gas limit for GAS opcode
+	GasLimit   uint64         // Transaction gas limit for GAS
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
