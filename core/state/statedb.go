@@ -1451,30 +1451,6 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     // 1) collect touched addresses from touchedSlots and journal entries since start
     touched := make(map[common.Address]struct{}, len(s.touchedSlots))
 
-    // Log all accounts in stateObjects
-    allStateObjectAddrs := make([]common.Address, 0, len(s.stateObjects))
-    for addr := range s.stateObjects {
-        if !isMagicAddress(addr) {
-            allStateObjectAddrs = append(allStateObjectAddrs, addr)
-        }
-    }
-    sort.Slice(allStateObjectAddrs, func(i, j int) bool {
-        return bytes.Compare(allStateObjectAddrs[i][:], allStateObjectAddrs[j][:]) < 0
-    })
-    log.Info("Footprint: All accounts in stateObjects", "count", len(allStateObjectAddrs), "accounts", allStateObjectAddrs)
-
-    // Log all accounts from touchedSlots
-    allTouchedSlotsAddrs := make([]common.Address, 0, len(s.touchedSlots))
-    for addr := range s.touchedSlots {
-        if !isMagicAddress(addr) {
-            allTouchedSlotsAddrs = append(allTouchedSlotsAddrs, addr)
-        }
-    }
-    sort.Slice(allTouchedSlotsAddrs, func(i, j int) bool {
-        return bytes.Compare(allTouchedSlotsAddrs[i][:], allTouchedSlotsAddrs[j][:]) < 0
-    })
-    log.Info("Footprint: All accounts from touchedSlots", "count", len(allTouchedSlotsAddrs), "accounts", allTouchedSlotsAddrs)
-
     // a) from touchedSlots (storage-only touches in this tx)
     for addr := range s.touchedSlots {
         if !isMagicAddress(addr) {
@@ -1488,255 +1464,37 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     if start > len(s.journal.entries) {
         start = len(s.journal.entries)
     }
-    
-    // Collect journal entries by type for logging
-    journalAccountsByType := make(map[string][]common.Address)
     for i := start; i < len(s.journal.entries); i++ {
         switch c := s.journal.entries[i].(type) {
         case createObjectChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["createObjectChange"] = append(journalAccountsByType["createObjectChange"], *c.account)
         case resetObjectChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["resetObjectChange"] = append(journalAccountsByType["resetObjectChange"], *c.account)
         case selfDestructChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["selfDestructChange"] = append(journalAccountsByType["selfDestructChange"], *c.account)
         case balanceChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["balanceChange"] = append(journalAccountsByType["balanceChange"], *c.account)
         case nonceChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["nonceChange"] = append(journalAccountsByType["nonceChange"], *c.account)
         case storageChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["storageChange"] = append(journalAccountsByType["storageChange"], *c.account)
         case codeChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["codeChange"] = append(journalAccountsByType["codeChange"], *c.account)
         case touchChange:
             touched[*c.account] = struct{}{}
-            journalAccountsByType["touchChange"] = append(journalAccountsByType["touchChange"], *c.account)
-        }
-    }
-    
-    // Log journal accounts by type
-    log.Info("Footprint: Journal analysis", "start_index", start, "total_journal_entries", len(s.journal.entries), "entries_since_start", len(s.journal.entries)-start)
-    for entryType, addrs := range journalAccountsByType {
-        // Remove duplicates
-        seen := make(map[common.Address]struct{})
-        uniqueAddrs := make([]common.Address, 0)
-        for _, addr := range addrs {
-            if !isMagicAddress(addr) {
-                if _, exists := seen[addr]; !exists {
-                    seen[addr] = struct{}{}
-                    uniqueAddrs = append(uniqueAddrs, addr)
-                }
-            }
-        }
-        if len(uniqueAddrs) > 0 {
-            sort.Slice(uniqueAddrs, func(i, j int) bool {
-                return bytes.Compare(uniqueAddrs[i][:], uniqueAddrs[j][:]) < 0
-            })
-            log.Info("Footprint: Journal accounts", "type", entryType, "count", len(uniqueAddrs), "accounts", uniqueAddrs)
         }
     }
 
-    // Log all accounts that will be included in footprint
-    allTouchedAddrs := make([]common.Address, 0, len(touched))
+    // build and sort address list
+    addresses := make([]common.Address, 0, len(touched))
     for addr := range touched {
         if !isMagicAddress(addr) {
-            allTouchedAddrs = append(allTouchedAddrs, addr)
+            addresses = append(addresses, addr)
         }
     }
-    sort.Slice(allTouchedAddrs, func(i, j int) bool {
-        return bytes.Compare(allTouchedAddrs[i][:], allTouchedAddrs[j][:]) < 0
+    sort.Slice(addresses, func(i, j int) bool {
+        return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
     })
-    log.Info("Footprint: All accounts in touched (will be included)", "count", len(allTouchedAddrs), "accounts", allTouchedAddrs)
-    
-    // Check for accounts that might have been accessed but reverted (code executed but no journal entries)
-    // This handles the case where a transaction reverts after executing code but before committing state changes
-    for _, addr := range allStateObjectAddrs {
-        if _, inTouched := touched[addr]; !inTouched {
-            obj := s.stateObjects[addr]
-            if obj == nil {
-                continue
-            }
-            // Check if account has code and was loaded in this transaction but has no journal entries
-            // This suggests the transaction executed the code but then reverted
-            hasCode := obj.code != nil && len(obj.code) > 0
-            if hasCode {
-                // Check if account was loaded in this transaction (origin matches current state, no journal entries)
-                wasLoadedInThisTx := false
-                if obj.origin != nil {
-                    originMatches := obj.origin.Nonce == obj.data.Nonce &&
-                        obj.origin.Balance.Cmp(obj.data.Balance) == 0 &&
-                        bytes.Equal(obj.origin.CodeHash, obj.data.CodeHash)
-                    wasLoadedInThisTx = originMatches
-                }
-                
-                // If account has code and was loaded in this tx but has no journal entries,
-                // it likely means the code was executed but the transaction reverted.
-                // Include it in the footprint to match Solana's behavior.
-                if wasLoadedInThisTx {
-                    // Check if there are any journal entries for this account since start
-                    hasJournalEntries := false
-                    for i := start; i < len(s.journal.entries); i++ {
-                        var accountAddr *common.Address
-                        switch c := s.journal.entries[i].(type) {
-                        case createObjectChange:
-                            accountAddr = c.account
-                        case resetObjectChange:
-                            accountAddr = c.account
-                        case selfDestructChange:
-                            accountAddr = c.account
-                        case balanceChange:
-                            accountAddr = c.account
-                        case nonceChange:
-                            accountAddr = c.account
-                        case storageChange:
-                            accountAddr = c.account
-                        case codeChange:
-                            accountAddr = c.account
-                        case touchChange:
-                            accountAddr = c.account
-                        }
-                        if accountAddr != nil && *accountAddr == addr {
-                            hasJournalEntries = true
-                            break
-                        }
-                    }
-                    
-                    // If code was executed but no journal entries exist, include the account
-                    // This handles the case where code execution happened but transaction reverted
-                    if !hasJournalEntries {
-                        log.Info("Footprint: Including account with executed code (likely reverted tx)", "address", addr.Hex())
-                        touched[addr] = struct{}{}
-                    }
-                }
-            }
-        }
-    }
-    
-    // Log accounts in stateObjects but NOT in touched with detailed information
-    notInFootprint := make([]common.Address, 0)
-    for _, addr := range allStateObjectAddrs {
-        if _, inTouched := touched[addr]; !inTouched {
-            notInFootprint = append(notInFootprint, addr)
-        }
-    }
-    if len(notInFootprint) > 0 {
-        log.Info("Footprint: Accounts in stateObjects but NOT in footprint", "count", len(notInFootprint), "accounts", notInFootprint)
-        
-        // Detailed logging for each account not in footprint
-        for _, addr := range notInFootprint {
-            obj := s.stateObjects[addr]
-            if obj == nil {
-                log.Info("Footprint: Account detail", "address", addr.Hex(), "error", "stateObject is nil")
-                continue
-            }
-            
-            // Check various properties
-            hasCode := obj.code != nil && len(obj.code) > 0
-            codeHash := common.BytesToHash(obj.CodeHash())
-            nonce := obj.Nonce()
-            balance := obj.Balance()
-            hasStorage := len(obj.dirtyStorage) > 0 || len(obj.pendingStorage) > 0 || len(obj.originStorage) > 0
-            inTouchedSlots := false
-            touchedSlotCount := 0
-            if slots, exists := s.touchedSlots[addr]; exists {
-                inTouchedSlots = true
-                touchedSlotCount = len(slots)
-            }
-            
-            // Check journal entries for this account
-            journalEntriesForAccount := make([]string, 0)
-            for i := start; i < len(s.journal.entries); i++ {
-                var accountAddr *common.Address
-                entryType := ""
-                switch c := s.journal.entries[i].(type) {
-                case createObjectChange:
-                    accountAddr = c.account
-                    entryType = "createObjectChange"
-                case resetObjectChange:
-                    accountAddr = c.account
-                    entryType = "resetObjectChange"
-                case selfDestructChange:
-                    accountAddr = c.account
-                    entryType = "selfDestructChange"
-                case balanceChange:
-                    accountAddr = c.account
-                    entryType = "balanceChange"
-                case nonceChange:
-                    accountAddr = c.account
-                    entryType = "nonceChange"
-                case storageChange:
-                    accountAddr = c.account
-                    entryType = "storageChange"
-                case codeChange:
-                    accountAddr = c.account
-                    entryType = "codeChange"
-                case touchChange:
-                    accountAddr = c.account
-                    entryType = "touchChange"
-                }
-                if accountAddr != nil && *accountAddr == addr {
-                    journalEntriesForAccount = append(journalEntriesForAccount, entryType)
-                }
-            }
-            
-            // Check if account was loaded in this transaction by checking if origin matches current state
-            // (if origin is nil, it means account was created, if origin matches current, it was loaded fresh)
-            wasLoadedInThisTx := false
-            if obj.origin == nil && obj.created {
-                wasLoadedInThisTx = false // Created accounts are in journal
-            } else if obj.origin != nil {
-                // Check if origin matches current state (meaning it was just loaded)
-                originMatches := obj.origin.Nonce == obj.data.Nonce &&
-                    obj.origin.Balance.Cmp(obj.data.Balance) == 0 &&
-                    bytes.Equal(obj.origin.CodeHash, obj.data.CodeHash)
-                wasLoadedInThisTx = originMatches && len(journalEntriesForAccount) == 0
-            }
-            
-            log.Info("Footprint: Account detail (not in footprint)",
-                "address", addr.Hex(),
-                "nonce", nonce,
-                "balance", balance.String(),
-                "has_code", hasCode,
-                "code_hash", codeHash.Hex(),
-                "code_length", func() int {
-                    if obj.code != nil {
-                        return len(obj.code)
-                    }
-                    return 0
-                }(),
-                "code_loaded", obj.code != nil,
-                "has_storage", hasStorage,
-                "dirty_storage_count", len(obj.dirtyStorage),
-                "pending_storage_count", len(obj.pendingStorage),
-                "origin_storage_count", len(obj.originStorage),
-                "in_touched_slots", inTouchedSlots,
-                "touched_slot_count", touchedSlotCount,
-                "journal_entries", journalEntriesForAccount,
-                "journal_entry_count", len(journalEntriesForAccount),
-                "deleted", obj.deleted,
-                "created", obj.created,
-                "self_destructed", obj.selfDestructed,
-                "was_loaded_in_this_tx", wasLoadedInThisTx,
-                "origin_exists", obj.origin != nil,
-                "origin_nonce", func() uint64 {
-                    if obj.origin != nil {
-                        return obj.origin.Nonce
-                    }
-                    return 0
-                }(),
-                "current_nonce", obj.data.Nonce,
-            )
-        }
-    }
-    
-    // build and sort address list
-    addresses := allTouchedAddrs
 
     // 2) build slot-sets from touchedSlots and journal entries since start
     slots := make(map[common.Address]map[common.Hash]struct{}, len(addresses))
