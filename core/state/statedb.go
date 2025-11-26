@@ -1464,11 +1464,14 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     if start > len(s.journal.entries) {
         start = len(s.journal.entries)
     }
+    log.Info("Journal scan", "start", start, "total", len(s.journal.entries))
     for i := start; i < len(s.journal.entries); i++ {
         switch c := s.journal.entries[i].(type) {
         case createObjectChange:
+            log.Info("Journal: createObjectChange", "addr", c.account.Hex())
             touched[*c.account] = struct{}{}
         case resetObjectChange:
+            log.Info("Journal: resetObjectChange", "addr", c.account.Hex())
             touched[*c.account] = struct{}{}
         case selfDestructChange:
             touched[*c.account] = struct{}{}
@@ -1479,6 +1482,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         case storageChange:
             touched[*c.account] = struct{}{}
         case codeChange:
+            log.Info("Journal: codeChange", "addr", c.account.Hex())
             touched[*c.account] = struct{}{}
         case touchChange:
             touched[*c.account] = struct{}{}
