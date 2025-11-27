@@ -20,11 +20,17 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+// DefaultMaxMismatchEntries is the default maximum number of known mismatch entries
+// to keep in the file and memory. This prevents unbounded disk and memory growth.
+const DefaultMaxMismatchEntries uint64 = 10000
 
 // Entry represents a cached state footprint entry
 type Entry struct {
@@ -36,11 +42,12 @@ type Entry struct {
 
 // Manager handles both footprint caching and mismatch tracking
 type Manager struct {
-	mu              sync.RWMutex
-	cache           map[common.Hash]*Entry       
-	knownMismatches map[common.Hash]bool        
-	mismatchFile    string                       
-	maxCacheAge     uint64                       
+	mu                 sync.RWMutex
+	cache              map[common.Hash]*Entry       
+	knownMismatches    map[common.Hash]bool        
+	mismatchFile       string                       
+	maxCacheAge        uint64                       
+	maxMismatchEntries uint64                       
 }
 
 var (
@@ -51,12 +58,22 @@ var (
 // GetManager returns the global footprint Manager.
 func GetManager(dataDir string) *Manager {
 	globalManagerOnce.Do(func() {
-		mismatchFile := filepath.Join(dataDir, "known_footprint_mismatches.txt")
+		mismatchFile := filepath.Join(dataDir, "known_footprint_mismatches.txt")		
+		maxMismatchEntries := DefaultMaxMismatchEntries
+		if envMax := os.Getenv("GETH_FOOTPRINT_MAX_MISMATCHES"); envMax != "" {
+			if parsed, err := strconv.ParseUint(envMax, 10, 64); err == nil && parsed > 0 {
+				maxMismatchEntries = parsed
+			} else {
+				log.Warn("Invalid GETH_FOOTPRINT_MAX_MISMATCHES value, using default", "value", envMax, "default", maxMismatchEntries)
+			}
+		}
+		
 		globalManager = &Manager{
-			cache:           make(map[common.Hash]*Entry),
-			knownMismatches: make(map[common.Hash]bool),
-			mismatchFile:    mismatchFile,
-			maxCacheAge:     12,
+			cache:              make(map[common.Hash]*Entry),
+			knownMismatches:    make(map[common.Hash]bool),
+			mismatchFile:       mismatchFile,
+			maxCacheAge:        12,
+			maxMismatchEntries: maxMismatchEntries,
 		}
 		globalManager.loadKnownMismatches()
 	})
@@ -68,32 +85,46 @@ func (m *Manager) loadKnownMismatches() {
 	file, err := os.Open(m.mismatchFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Info("No known footprint mismatches file found, starting fresh", "path", m.mismatchFile)
 			return
 		}
-		log.Warn("Failed to open known footprint mismatches file", "path", m.mismatchFile, "error", err)
 		return
 	}
 	defer file.Close()
 
+	// Read all valid entries first
+	var entries []common.Hash
 	scanner := bufio.NewScanner(file)
-	count := 0
+	totalCount := 0
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line == "" || line[0] == '#' {
 			continue
 		}
 		txHash := common.HexToHash(line)
-		m.knownMismatches[txHash] = true
-		count++
+		entries = append(entries, txHash)
+		totalCount++
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Warn("Error reading known footprint mismatches file", "path", m.mismatchFile, "error", err)
 		return
 	}
 
-	log.Info("Loaded known footprint mismatches", "count", count, "path", m.mismatchFile)
+	// Only keep the most recent maxMismatchEntries entries
+	loadedCount := len(entries)
+	if uint64(len(entries)) > m.maxMismatchEntries {
+		entries = entries[len(entries)-int(m.maxMismatchEntries):]
+		// Rewrite file with truncated entries
+		m.writeMismatchFile(entries)
+	}
+
+	// Load entries into memory map
+	for _, txHash := range entries {
+		m.knownMismatches[txHash] = true
+	}
+
+	if loadedCount > 0 {
+		log.Info("Loaded known footprint mismatches", "count", len(entries), "path", m.mismatchFile)
+	}
 }
 
 // IsKnownMismatch checks if a transaction hash is in the known mismatches list
@@ -103,7 +134,23 @@ func (m *Manager) IsKnownMismatch(txHash common.Hash) bool {
 	return m.knownMismatches[txHash]
 }
 
-// RecordMismatch adds a new mismatch to the known list and persists to disk
+// writeMismatchFile writes the given entries to the mismatch file, truncating it first.
+func (m *Manager) writeMismatchFile(entries []common.Hash) error {
+	file, err := os.OpenFile(m.mismatchFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	for _, txHash := range entries {
+		if _, err := file.WriteString(txHash.Hex() + "\n"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RecordMismatch adds a new mismatch to the known list and persists to disk.
 func (m *Manager) RecordMismatch(txHash common.Hash) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -116,16 +163,47 @@ func (m *Manager) RecordMismatch(txHash common.Hash) error {
 	// Add to in-memory map
 	m.knownMismatches[txHash] = true
 
-	// Append to file
-	file, err := os.OpenFile(m.mismatchFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	// Read existing entries from file to maintain order
+	var entries []common.Hash
+	file, err := os.Open(m.mismatchFile)
 	if err != nil {
-		log.Error("Failed to open known footprint mismatches file for writing", "path", m.mismatchFile, "error", err)
-		return err
+		if !os.IsNotExist(err) {
+			log.Warn("Failed to open known footprint mismatches file for reading", "path", m.mismatchFile, "error", err)
+		}
+	} else {
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line == "" || line[0] == '#' {
+				continue
+			}
+			entries = append(entries, common.HexToHash(line))
+		}
+		file.Close()
+		if err := scanner.Err(); err != nil {
+			log.Warn("Error reading known footprint mismatches file", "path", m.mismatchFile, "error", err)
+		}
 	}
-	defer file.Close()
 
-	if _, err := file.WriteString(txHash.Hex() + "\n"); err != nil {
-		log.Error("Failed to write to known footprint mismatches file", "path", m.mismatchFile, "error", err)
+	// Add new entry
+	entries = append(entries, txHash)
+
+	// Truncate if exceeding limit, keeping only the most recent entries
+	if uint64(len(entries)) > m.maxMismatchEntries {
+		entries = entries[len(entries)-int(m.maxMismatchEntries):]
+		m.knownMismatches = make(map[common.Hash]bool)
+		for _, h := range entries {
+			m.knownMismatches[h] = true
+		}
+		log.Warn("Truncated known footprint mismatches file",
+			"max_entries", m.maxMismatchEntries,
+			"kept_entries", len(entries),
+			"path", m.mismatchFile)
+	}
+
+	// Write all entries back to file
+	if err := m.writeMismatchFile(entries); err != nil {
+		log.Error("Failed to write known footprint mismatches file", "path", m.mismatchFile, "error", err)
 		return err
 	}
 
@@ -133,8 +211,16 @@ func (m *Manager) RecordMismatch(txHash common.Hash) error {
 	return nil
 }
 
-// Store stores a footprint entry in the cache
+// It validates footprint strings to prevent DoS attacks via arbitrarily large payloads.
 func (m *Manager) Store(txHash common.Hash, expectedFootprint, actualFootprint string, blockNumber uint64, mismatch bool) {
+	if !isValidFootprint(expectedFootprint) {
+		return
+	}
+
+	if !isValidFootprint(actualFootprint) {
+		return
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -185,10 +271,11 @@ func (m *Manager) GetStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"cache_size":               len(m.cache),
-		"cache_mismatch_count":     mismatchCount,
-		"known_mismatches_count":   len(m.knownMismatches),
-		"max_cache_age_blocks":     m.maxCacheAge,
+		"cache_size":                len(m.cache),
+		"cache_mismatch_count":      mismatchCount,
+		"known_mismatches_count":    len(m.knownMismatches),
+		"max_cache_age_blocks":      m.maxCacheAge,
+		"max_mismatch_entries":      m.maxMismatchEntries,
 	}
 }
 
@@ -204,4 +291,32 @@ func (m *Manager) ClearCache() {
 // ShouldPanic checks the environment variable to determine if we should panic on mismatch.
 func (m *Manager) ShouldPanic() bool {
 	return os.Getenv("GETH_FOOTPRINT_PANIC") == "true"
+}
+
+// isValidFootprint validates that a footprint string is a valid fixed-length hex hash.
+// A valid footprint must be:
+//   - Empty string (allowed, skipped in processing)
+//   - Exactly 64 hex characters (32 bytes) with optional "0x" prefix
+//   - All characters must be valid hex digits (0-9, a-f, A-F)
+func isValidFootprint(footprint string) bool {
+	if footprint == "" {
+		return true
+	}
+
+	hexPart := footprint
+	if strings.HasPrefix(footprint, "0x") || strings.HasPrefix(footprint, "0X") {
+		hexPart = footprint[2:]
+	}
+
+	if len(hexPart) != 64 {
+		return false
+	}
+
+	for _, r := range hexPart {
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+			return false
+		}
+	}
+
+	return true
 }
