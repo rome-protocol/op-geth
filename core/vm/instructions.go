@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -589,6 +590,7 @@ func opMsize(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]by
 }
 
 func opGas(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	log.Info("opGas", "TxContext.GasLimit", interpreter.evm.TxContext.GasLimit, "Contract.Gas", scope.Contract.Gas)
 	scope.Stack.push(new(uint256.Int).SetUint64(interpreter.evm.TxContext.GasLimit))
 	return nil, nil
 }
