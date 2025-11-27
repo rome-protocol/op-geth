@@ -72,14 +72,11 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	}
 	var getSolanaHash func(uint64) (common.Hash, bool)
 	var getSolanaHashByEthBlock func(uint64) (common.Hash, bool)
+	
 	if chain != nil {
 		getSolanaHash = func(slot uint64) (common.Hash, bool) {
 			for current := header; current != nil; {
 				if current.SolanaBlockNumber != nil && *current.SolanaBlockNumber == slot && current.SolanaBlockHash != nil {
-					log.Info("solana hash lookup hit",
-						"requestedSlot", slot,
-						"headerNumber", current.Number.String(),
-						"solanaHash", current.SolanaBlockHash.Hex())
 					return *current.SolanaBlockHash, true
 				}
 				if metaSlot, metaHash, ok := chain.GetSolanaMetadata(current.Hash()); ok {
@@ -92,10 +89,6 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 						current.SolanaBlockHash = &hashCopy
 					}
 					if metaSlot == slot {
-						log.Info("solana hash lookup hit",
-							"requestedSlot", slot,
-							"headerNumber", current.Number.String(),
-							"solanaHash", metaHash.Hex())
 						return metaHash, true
 					}
 				}
@@ -139,10 +132,8 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 			return common.Hash{}, false
 		}
 		getSolanaHashByEthBlock = func(ethBlockNum uint64) (common.Hash, bool) {
-			// Walk backwards from current header to find the target Ethereum block
 			offset := header.Number.Uint64() - ethBlockNum
 			if offset > header.Number.Uint64() || ethBlockNum > header.Number.Uint64() {
-				log.Warn("getSolanaHashByEthBlock invalid offset", "ethBlockNum", ethBlockNum, "headerNumber", header.Number.Uint64(), "offset", offset)
 				return common.Hash{}, false
 			}
 			for current := header; current != nil; {
@@ -152,14 +143,11 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 				number := current.Number.Uint64()
 				if number == ethBlockNum {
 					if current.SolanaBlockHash != nil {
-						log.Info("getSolanaHashByEthBlock found via header", "ethBlockNum", ethBlockNum, "hash", current.SolanaBlockHash.Hex())
 						return *current.SolanaBlockHash, true
 					}
 					if _, metaHash, ok := chain.GetSolanaMetadata(current.Hash()); ok {
-						log.Info("getSolanaHashByEthBlock found via metadata", "ethBlockNum", ethBlockNum, "hash", metaHash.Hex())
 						return metaHash, true
 					}
-					log.Warn("getSolanaHashByEthBlock block found but no Solana hash", "ethBlockNum", ethBlockNum)
 					return common.Hash{}, false
 				}
 				if number < ethBlockNum || number == 0 {
@@ -170,7 +158,6 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 				}
 				current = chain.GetHeader(current.ParentHash, number-1)
 			}
-			log.Warn("getSolanaHashByEthBlock block not found", "ethBlockNum", ethBlockNum, "headerNumber", header.Number.Uint64())
 			return common.Hash{}, false
 		}
 	}
