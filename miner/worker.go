@@ -1020,7 +1020,15 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		Time:       genParams.timestamp,
 		Coinbase:   genParams.coinbase,
 	}
-	// Solana metadata is stored separately in the database, not in headers
+	// Attach Solana metadata to the in-memory header.
+	if genParams.solanaBlockNumber != nil {
+		slot := *genParams.solanaBlockNumber
+		header.SolanaBlockNumber = &slot
+	}
+	if genParams.solanaBlockHash != nil {
+		hash := *genParams.solanaBlockHash
+		header.SolanaBlockHash = &hash
+	}
 	// Set the extra field.
 	if len(w.extra) != 0 && w.chainConfig.Optimism == nil { // Optimism chains must not set any extra data.
 		header.Extra = w.extra

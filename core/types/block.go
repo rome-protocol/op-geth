@@ -93,6 +93,10 @@ type Header struct {
 
 	// ParentBeaconRoot was added by EIP-4788 and is ignored in legacy headers.
 	ParentBeaconRoot *common.Hash `json:"parentBeaconBlockRoot" rlp:"optional"`
+
+	// Solana metadata used by Rome rollup
+	SolanaBlockNumber *uint64      `json:"-" rlp:"-"`
+	SolanaBlockHash   *common.Hash `json:"-" rlp:"-"`
 }
 
 // field type overrides for gencodec
@@ -303,6 +307,14 @@ func CopyHeader(h *Header) *Header {
 	if h.ParentBeaconRoot != nil {
 		cpy.ParentBeaconRoot = new(common.Hash)
 		*cpy.ParentBeaconRoot = *h.ParentBeaconRoot
+	}
+	if h.SolanaBlockNumber != nil {
+		cpy.SolanaBlockNumber = new(uint64)
+		*cpy.SolanaBlockNumber = *h.SolanaBlockNumber
+	}
+	if h.SolanaBlockHash != nil {
+		cpy.SolanaBlockHash = new(common.Hash)
+		*cpy.SolanaBlockHash = *h.SolanaBlockHash
 	}
 	return &cpy
 }
