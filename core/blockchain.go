@@ -248,6 +248,8 @@ type BlockChain struct {
 	// future blocks are blocks added for later processing
 	futureBlocks *lru.Cache[common.Hash, *types.Block]
 
+	solanaCache *solanaMetadataCache
+
 	wg            sync.WaitGroup //
 	quit          chan struct{}  // shutdown signal, closed in Stop.
 	stopping      atomic.Bool    // false if chain is running, true when stopped
@@ -308,6 +310,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		futureBlocks:  lru.NewCache[common.Hash, *types.Block](maxFutureBlocks),
 		engine:        engine,
 		vmConfig:      vmConfig,
+		solanaCache:   newSolanaMetadataCache(500),
 	}
 	bc.flushInterval.Store(int64(cacheConfig.TrieTimeLimit))
 	bc.forker = NewForkChoice(bc, shouldPreserve)
@@ -990,7 +993,19 @@ func (bc *BlockChain) GetFootprintManager() *footprint.Manager {
 
 // GetSolanaMetadata returns the solana metadata for the given block hash.
 func (bc *BlockChain) GetSolanaMetadata(hash common.Hash) (uint64, common.Hash, bool) {
-	return rawdb.ReadSolanaMetadata(bc.db, hash)
+	if bc.solanaCache != nil {
+		if slot, solHash, ok := bc.solanaCache.Get(hash); ok {
+			return slot, solHash, true
+		}
+	}
+	slot, solHash, ok := rawdb.ReadSolanaMetadata(bc.db, hash)
+	if !ok {
+		return 0, common.Hash{}, false
+	}
+	if bc.solanaCache != nil {
+		bc.solanaCache.Add(hash, slot, solHash)
+	}
+	return slot, solHash, true
 }
 
 // SetFootprintManager sets the footprint manager for this blockchain
@@ -1426,6 +1441,9 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	rawdb.WriteReceipts(blockBatch, block.Hash(), block.NumberU64(), receipts)
 	if block.Header().SolanaBlockNumber != nil && block.Header().SolanaBlockHash != nil {
 		rawdb.WriteSolanaMetadata(blockBatch, block.Hash(), *block.Header().SolanaBlockNumber, *block.Header().SolanaBlockHash)
+		if bc.solanaCache != nil {
+			bc.solanaCache.Add(block.Hash(), *block.Header().SolanaBlockNumber, *block.Header().SolanaBlockHash)
+		}
 	}
 	rawdb.WritePreimages(blockBatch, state.Preimages())
 	if err := blockBatch.Write(); err != nil {
