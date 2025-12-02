@@ -311,7 +311,16 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 		BlobGasUsed:      params.BlobGasUsed,
 		ParentBeaconRoot: beaconRoot,
 	}
-	// Solana metadata is stored separately in the database, not in headers
+	if params.SolanaBlockNumber != nil {
+		slot := new(uint64)
+		*slot = uint64(*params.SolanaBlockNumber)
+		header.SolanaBlockNumber = slot
+	}
+	if params.SolanaBlockHash != nil {
+		hash := new(common.Hash)
+		*hash = *params.SolanaBlockHash
+		header.SolanaBlockHash = hash
+	}
 	block := types.NewBlockWithHeader(header).WithBody(txs, nil /* uncles */).WithWithdrawals(params.Withdrawals)
 	if block.Hash() != params.BlockHash {
 		return nil, fmt.Errorf("blockhash mismatch, want %x, got %x", params.BlockHash, block.Hash())
@@ -341,7 +350,16 @@ func BlockToExecutableData(block *types.Block, fees *big.Int, sidecars []*types.
 		BlobGasUsed:   block.BlobGasUsed(),
 		ExcessBlobGas: block.ExcessBlobGas(),
 	}
-	// Solana metadata should be retrieved from database separately, not from headers
+	if header := block.Header(); header != nil {
+		if header.SolanaBlockNumber != nil {
+			val := hexutil.Uint64(*header.SolanaBlockNumber)
+			data.SolanaBlockNumber = &val
+		}
+		if header.SolanaBlockHash != nil {
+			hash := *header.SolanaBlockHash
+			data.SolanaBlockHash = &hash
+		}
+	}
 	bundle := BlobsBundleV1{
 		Commitments: make([]hexutil.Bytes, 0),
 		Blobs:       make([]hexutil.Bytes, 0),

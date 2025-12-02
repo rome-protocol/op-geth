@@ -36,6 +36,8 @@ func (h Header) MarshalJSON() ([]byte, error) {
 		BlobGasUsed       *hexutil.Uint64 `json:"blobGasUsed" rlp:"optional"`
 		ExcessBlobGas     *hexutil.Uint64 `json:"excessBlobGas" rlp:"optional"`
 		ParentBeaconRoot  *common.Hash    `json:"parentBeaconBlockRoot" rlp:"optional"`
+		SolanaBlockNumber *hexutil.Uint64 `json:"solanaBlockNumber,omitempty" rlp:"optional"`
+		SolanaBlockHash   *common.Hash    `json:"solanaBlockHash,omitempty" rlp:"optional"`
 		Hash              common.Hash     `json:"hash"`
 	}
 	var enc Header
@@ -59,6 +61,11 @@ func (h Header) MarshalJSON() ([]byte, error) {
 	enc.BlobGasUsed = (*hexutil.Uint64)(h.BlobGasUsed)
 	enc.ExcessBlobGas = (*hexutil.Uint64)(h.ExcessBlobGas)
 	enc.ParentBeaconRoot = h.ParentBeaconRoot
+	if h.SolanaBlockNumber != nil {
+		val := hexutil.Uint64(*h.SolanaBlockNumber)
+		enc.SolanaBlockNumber = &val
+	}
+	enc.SolanaBlockHash = h.SolanaBlockHash
 	enc.Hash = h.Hash()
 	return json.Marshal(&enc)
 }
@@ -86,6 +93,8 @@ func (h *Header) UnmarshalJSON(input []byte) error {
 		BlobGasUsed       *hexutil.Uint64 `json:"blobGasUsed" rlp:"optional"`
 		ExcessBlobGas     *hexutil.Uint64 `json:"excessBlobGas" rlp:"optional"`
 		ParentBeaconRoot  *common.Hash    `json:"parentBeaconBlockRoot" rlp:"optional"`
+		SolanaBlockNumber *hexutil.Uint64 `json:"solanaBlockNumber,omitempty" rlp:"optional"`
+		SolanaBlockHash   *common.Hash    `json:"solanaBlockHash,omitempty" rlp:"optional"`
 	}
 	var dec Header
 	if err := json.Unmarshal(input, &dec); err != nil {
@@ -163,5 +172,10 @@ func (h *Header) UnmarshalJSON(input []byte) error {
 	if dec.ParentBeaconRoot != nil {
 		h.ParentBeaconRoot = dec.ParentBeaconRoot
 	}
+	if dec.SolanaBlockNumber != nil {
+		val := uint64(*dec.SolanaBlockNumber)
+		h.SolanaBlockNumber = &val
+	}
+	h.SolanaBlockHash = dec.SolanaBlockHash
 	return nil
 }

@@ -90,7 +90,8 @@ type BlockContext struct {
 	BaseFee           *big.Int       // Provides information for BASEFEE (0 if vm runs with NoBaseFee flag and 0 gas price)
 	BlobBaseFee       *big.Int       // Provides information for BLOBBASEFEE (0 if vm runs with NoBaseFee flag and 0 blob gas price)
 	Random            *common.Hash   // Provides information for PREVRANDAO
-	SolanaBlockNumber *uint64        // Provides information for custom Solana block number (looked up from DB)
+	SolanaBlockNumber *uint64        // Provides information for custom Solana block number 
+	SolanaBlockHash   *common.Hash   // Provides information for custom Solana block hash
 }
 
 // TxContext provides the EVM with information about a transaction.
