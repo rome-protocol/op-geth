@@ -311,6 +311,15 @@ func ExecutableDataToBlock(params RomeExecutableData, versionedHashes []common.H
 		BlobGasUsed:      params.BlobGasUsed,
 		ParentBeaconRoot: beaconRoot,
 	}
+	// Attach Solana metadata to the in-memory header.
+	if params.SolanaBlockNumber != nil {
+		slot := uint64(*params.SolanaBlockNumber)
+		header.SolanaBlockNumber = &slot
+	}
+	if params.SolanaBlockHash != nil {
+		hash := *params.SolanaBlockHash
+		header.SolanaBlockHash = &hash
+	}
 	block := types.NewBlockWithHeader(header).WithBody(txs, nil /* uncles */).WithWithdrawals(params.Withdrawals)
 	if block.Hash() != params.BlockHash {
 		return nil, fmt.Errorf("blockhash mismatch, want %x, got %x", params.BlockHash, block.Hash())
