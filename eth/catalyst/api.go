@@ -702,13 +702,6 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 
 		return api.invalid(err, parent.Header()), nil
 	}
-	api.solanaLock.Lock()
-	if meta, ok := api.solanaMeta[block.Hash()]; ok && meta.number != nil && meta.hash != nil {
-		if err := api.eth.BlockChain().WriteSolanaMetadata(block.Hash(), *meta.number, *meta.hash); err != nil {
-			log.Error("Failed to write Solana metadata to database", "err", err)
-		}
-	}
-	api.solanaLock.Unlock()
 	// We've accepted a valid payload from the beacon client. Mark the local
 	// chain transitions to notify other subsystems (e.g. downloader) of the
 	// behavioral change.

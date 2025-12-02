@@ -993,13 +993,6 @@ func (bc *BlockChain) GetSolanaMetadata(hash common.Hash) (uint64, common.Hash, 
 	return rawdb.ReadSolanaMetadata(bc.db, hash)
 }
 
-// WriteSolanaMetadata writes the solana metadata for the given block hash to the database.
-func (bc *BlockChain) WriteSolanaMetadata(blockHash common.Hash, slot uint64, solanaHash common.Hash) error {
-	batch := bc.db.NewBatch()
-	rawdb.WriteSolanaMetadata(batch, blockHash, slot, solanaHash)
-	return batch.Write()
-}
-
 // SetFootprintManager sets the footprint manager for this blockchain
 func (bc *BlockChain) SetFootprintManager(manager *footprint.Manager) {
 	bc.footprintManager = manager
