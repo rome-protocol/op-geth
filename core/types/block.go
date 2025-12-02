@@ -93,10 +93,6 @@ type Header struct {
 
 	// ParentBeaconRoot was added by EIP-4788 and is ignored in legacy headers.
 	ParentBeaconRoot *common.Hash `json:"parentBeaconBlockRoot" rlp:"optional"`
-
-	// Solana metadata used by Rome rollup, excluded from consensus encoding.
-	SolanaBlockNumber *uint64      `json:"solanaBlockNumber,omitempty" rlp:"-"`
-	SolanaBlockHash   *common.Hash `json:"solanaBlockHash,omitempty" rlp:"-"`
 }
 
 // field type overrides for gencodec
@@ -111,7 +107,6 @@ type headerMarshaling struct {
 	Hash              common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
 	BlobGasUsed       *hexutil.Uint64
 	ExcessBlobGas     *hexutil.Uint64
-	SolanaBlockNumber *hexutil.Uint64
 }
 
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
@@ -308,14 +303,6 @@ func CopyHeader(h *Header) *Header {
 	if h.ParentBeaconRoot != nil {
 		cpy.ParentBeaconRoot = new(common.Hash)
 		*cpy.ParentBeaconRoot = *h.ParentBeaconRoot
-	}
-	if h.SolanaBlockNumber != nil {
-		cpy.SolanaBlockNumber = new(uint64)
-		*cpy.SolanaBlockNumber = *h.SolanaBlockNumber
-	}
-	if h.SolanaBlockHash != nil {
-		cpy.SolanaBlockHash = new(common.Hash)
-		*cpy.SolanaBlockHash = *h.SolanaBlockHash
 	}
 	return &cpy
 }
