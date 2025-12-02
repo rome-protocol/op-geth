@@ -1424,9 +1424,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	rawdb.WriteTd(blockBatch, block.Hash(), block.NumberU64(), externTd)
 	rawdb.WriteBlock(blockBatch, block)
 	rawdb.WriteReceipts(blockBatch, block.Hash(), block.NumberU64(), receipts)
-	if block.Header().SolanaBlockNumber != nil && block.Header().SolanaBlockHash != nil {
-		rawdb.WriteSolanaMetadata(blockBatch, block.Hash(), *block.Header().SolanaBlockNumber, *block.Header().SolanaBlockHash)
-	}
+	// Solana metadata is written separately, not from headers
 	rawdb.WritePreimages(blockBatch, state.Preimages())
 	if err := blockBatch.Write(); err != nil {
 		log.Crit("Failed to write block into disk", "err", err)
