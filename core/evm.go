@@ -71,7 +71,7 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	}
 	var getSolanaHash func(uint64) (common.Hash, bool)
 	var getSolanaHashByEthBlock func(uint64) (common.Hash, bool)
-	
+
 	if chain != nil {
 		getSolanaHash = func(slot uint64) (common.Hash, bool) {
 			for current := header; current != nil; {
@@ -141,6 +141,14 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		}
 	}
 
+	// Look up Solana block number from database
+	var solanaBlockNumber *uint64
+	if chain != nil {
+		if slot, _, ok := chain.GetSolanaMetadata(header.Hash()); ok {
+			solanaBlockNumber = &slot
+		}
+	}
+
 	return vm.BlockContext{
 		CanTransfer:          CanTransfer,
 		Transfer:             Transfer,
@@ -156,7 +164,7 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		GasLimit:             header.GasLimit,
 		Random:               random,
 		L1CostFunc:           types.NewL1CostFunc(config, statedb),
-		SolanaBlockNumber:    header.SolanaBlockNumber,
+		SolanaBlockNumber:    solanaBlockNumber,
 	}
 }
 
