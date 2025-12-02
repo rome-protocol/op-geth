@@ -139,12 +139,10 @@ func (env *environment) discard() {
 
 // task contains all information for consensus engine sealing and result submitting.
 type task struct {
-	receipts          []*types.Receipt
-	state             *state.StateDB
-	block             *types.Block
-	createdAt         time.Time
-	solanaBlockNumber *uint64
-	solanaBlockHash   *common.Hash
+	receipts  []*types.Receipt
+	state     *state.StateDB
+	block     *types.Block
+	createdAt time.Time
 }
 
 const (
@@ -1020,14 +1018,15 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		Time:       genParams.timestamp,
 		Coinbase:   genParams.coinbase,
 	}
-	// Attach Solana metadata to the in-memory header.
 	if genParams.solanaBlockNumber != nil {
-		slot := *genParams.solanaBlockNumber
-		header.SolanaBlockNumber = &slot
+		slot := new(uint64)
+		*slot = *genParams.solanaBlockNumber
+		header.SolanaBlockNumber = slot
 	}
 	if genParams.solanaBlockHash != nil {
-		hash := *genParams.solanaBlockHash
-		header.SolanaBlockHash = &hash
+		hash := new(common.Hash)
+		*hash = *genParams.solanaBlockHash
+		header.SolanaBlockHash = hash
 	}
 	// Set the extra field.
 	if len(w.extra) != 0 && w.chainConfig.Optimism == nil { // Optimism chains must not set any extra data.
