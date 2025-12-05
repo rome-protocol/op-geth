@@ -50,6 +50,7 @@ type BuildPayloadArgs struct {
 	GasUsed      []uint64             // The provided gas used while executing these transactions
 	GasLimit     *uint64              // Optimism addition: override gas limit of the block to build
 	Footprints   []string             // Tx footprints for state comparison
+	TxStatus     []uint64             // Transaction status (1 = success, 0 = failure)
 }
 
 // Id computes an 8-byte identifier by hashing the components of the payload arguments.
@@ -101,6 +102,7 @@ type Payload struct {
 	err       error
 	stopOnce  sync.Once
 	interrupt *atomic.Int32 // interrupt signal shared with worker
+	txStatus  []uint64       // Transaction status (1 = success, 0 = failure)
 }
 
 // newPayload initializes the payload object.
@@ -216,9 +218,17 @@ func (payload *Payload) resolve(onlyFull bool) *engine.ExecutionPayloadEnvelope 
 	payload.stopBuilding()
 
 	if payload.full != nil {
-		return engine.BlockToExecutableData(payload.full, payload.fullFees, payload.sidecars)
+		envelope := engine.BlockToExecutableData(payload.full, payload.fullFees, payload.sidecars)
+		if envelope.ExecutionPayload != nil {
+			envelope.ExecutionPayload.RomeTxStatus = payload.txStatus
+		}
+		return envelope
 	} else if !onlyFull && payload.empty != nil {
-		return engine.BlockToExecutableData(payload.empty, big.NewInt(0), nil)
+		envelope := engine.BlockToExecutableData(payload.empty, big.NewInt(0), nil)
+		if envelope.ExecutionPayload != nil {
+			envelope.ExecutionPayload.RomeTxStatus = payload.txStatus
+		}
+		return envelope
 	} else if err := payload.err; err != nil {
 		log.Error("Error building any payload", "id", payload.id, "err", err)
 	}
@@ -276,6 +286,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 			gasUsed:     args.GasUsed,
 			footPrints:  args.Footprints,
 			gasPrice:    args.GasPrice,
+			txStatus:    args.TxStatus,
 		}
 		empty := w.getSealingBlock(emptyParams)
 		if empty.err != nil {
@@ -285,6 +296,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 		// make sure to make it appear as full, otherwise it will wait indefinitely for payload building to complete.
 		payload.full = empty.block
 		payload.fullFees = empty.fees
+		payload.txStatus = args.TxStatus
 		payload.cond.Broadcast() // unblocks Resolve
 		return payload, nil
 	}
@@ -303,6 +315,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 		gasUsed:     args.GasUsed,
 		footPrints:  args.Footprints,
 		gasPrice:    args.GasPrice,
+		txStatus:    args.TxStatus,
 	}
 
 	// Since we skip building the empty block when using the tx pool, we need to explicitly
@@ -315,6 +328,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 	payload := newPayload(nil, args.Id())
 	// set shared interrupt
 	fullParams.interrupt = payload.interrupt
+	payload.txStatus = args.TxStatus
 
 	// Spin up a routine for updating the payload in background. This strategy
 	// can maximum the revenue for including transactions with highest fee.

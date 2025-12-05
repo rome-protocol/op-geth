@@ -392,6 +392,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			GasUsed:      payloadAttributes.GasUsed,
 			GasPrice:     payloadAttributes.GasPrice,
 			Footprints:   payloadAttributes.TxFootprints,
+			TxStatus:     payloadAttributes.TxStatus,
 		}
 		id := args.Id()
 		// If we already are busy generating this work, then we do not need
@@ -590,7 +591,7 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 		return engine.PayloadStatusV1{Status: engine.ACCEPTED}, nil
 	}
 	log.Trace("Inserting block without sethead", "hash", block.Hash(), "number", block.Number)
-	if err := api.eth.BlockChain().InsertBlockWithoutSetHead(block, params.RomeGasUsed, params.TxFootprints, params.RomeGasPrice); err != nil {
+	if err := api.eth.BlockChain().InsertBlockWithoutSetHead(block, params.RomeGasUsed, params.TxFootprints, params.RomeGasPrice, params.RomeTxStatus); err != nil {
 		log.Warn("NewPayloadV1: inserting block failed", "error", err)
 
 		api.invalidLock.Lock()

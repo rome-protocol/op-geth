@@ -378,6 +378,21 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64, romeGasPrice ui
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, msg.Value)
 	}
 
+	// Compare romeTxStatus with actual execution result
+	// romeTxStatus: 0 = failure (from rome-evm), 1 = success (from rome-evm)
+	// vmerr: nil = success (from op-geth), != nil = failure (from op-geth)
+	actualSuccess := vmerr == nil
+	expectedSuccess := romeTxStatus == 1
+	if actualSuccess != expectedSuccess {
+		if expectedSuccess {
+			// Expected success but got failure
+			panic(fmt.Sprintf("Transaction status mismatch: expected success (romeTxStatus=1) but transaction failed with error: %v", vmerr))
+		} else {
+			// Expected failure but got success
+			panic(fmt.Sprintf("Transaction status mismatch: expected failure (romeTxStatus=0) but transaction succeeded"))
+		}
+	}
+
 	// if deposit: skip refunds, skip tipping coinbase
 	// Regolith changes this behaviour to report the actual gasUsed instead of always reporting all gas used.
 	if st.msg.IsDepositTx && !rules.IsOptimismRegolith {
