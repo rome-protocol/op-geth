@@ -65,6 +65,8 @@ type RomePayloadAttributes struct {
 	GasLimit *uint64 `json:"gasLimit,omitempty" gencodec:"optional"`
 	// TxFootprints is a field which allows Rome indexer to push hash of rome-evm state for comparison with evm.
 	TxFootprints []string `json:"txFootprints,omitempty" gencodec:"optional"`
+	// TxStatus is a field for rollups: transaction status (1 = success, 0 = failure)
+	TxStatus []uint64 `json:"txStatus,omitempty" gencodec:"optional"`
 }
 
 // JSON type overrides for PayloadAttributes.
@@ -136,6 +138,7 @@ type RomeExecutableData struct {
 	ExcessBlobGas *uint64             `json:"excessBlobGas"`
 	TxFootprints  []string            `json:"txFootprints,omitempty" gencodec:"optional"`
 	RomeGasPrice  []uint64            `json:"romeGasPrice"   gencodec:"required"`
+	RomeTxStatus  []uint64            `json:"romeTxStatus"   gencodec:"required"`
 }
 
 // JSON type overrides for RomeExecutableData.

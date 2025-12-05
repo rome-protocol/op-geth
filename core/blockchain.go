@@ -1608,7 +1608,7 @@ func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 // racey behaviour. If a sidechain import is in progress, and the historic state
 // is imported, but then new canon-head is added before the actual sidechain
 // completes, then the historic state could be pruned again
-func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, romeGasUsed []uint64, footPrints []string, romeGasPrice []uint64) (int, error) {
+func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, romeGasUsed []uint64, footPrints []string, romeGasPrice []uint64, romeTxStatus []uint64) (int, error) {
 	// If the chain is terminating, don't even bother starting up.
 	if bc.insertStopped() {
 		return 0, nil
@@ -1824,7 +1824,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, romeGasUsed 
 
 		// Process block using the parent state as reference point
 		pstart := time.Now()
-		receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig, romeGasUsed, romeGasPrice, footPrints)
+		receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig, romeGasUsed, romeGasPrice, footPrints, romeTxStatus)
 
 		if err != nil {
 			bc.reportBlock(block, receipts, err)
@@ -2330,13 +2330,13 @@ func (bc *BlockChain) reorg(oldHead *types.Header, newHead *types.Block) error {
 // The key difference between the InsertChain is it won't do the canonical chain
 // updating. It relies on the additional SetCanonical call to finalize the entire
 // procedure.
-func (bc *BlockChain) InsertBlockWithoutSetHead(block *types.Block, gasUsed []uint64, footPrints []string, gasPrice []uint64) error {
+func (bc *BlockChain) InsertBlockWithoutSetHead(block *types.Block, gasUsed []uint64, footPrints []string, gasPrice []uint64, txStatus []uint64) error {
 	if !bc.chainmu.TryLock() {
 		return errChainStopped
 	}
 	defer bc.chainmu.Unlock()
 
-	_, err := bc.insertChain(types.Blocks{block}, false, gasUsed, footPrints, gasPrice)
+	_, err := bc.insertChain(types.Blocks{block}, false, gasUsed, footPrints, gasPrice, txStatus)
 	return err
 }
 

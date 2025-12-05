@@ -99,6 +99,7 @@ type environment struct {
 	receipts []*types.Receipt
 	gasPrice []uint64
 	gasUsed  []uint64
+	txStatus []uint64
 	sidecars []*types.BlobTxSidecar
 	blobs    int
 }
@@ -112,6 +113,7 @@ func (env *environment) copy() *environment {
 		coinbase: env.coinbase,
 		gasPrice: env.gasPrice,
 		gasUsed:  env.gasUsed,
+		txStatus: env.txStatus,
 		header:   types.CopyHeader(env.header),
 		receipts: copyReceipts(env.receipts),
 	}
@@ -768,6 +770,8 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, genParams *
 		coinbase: genParams.coinbase,
 		header:   header,
 		gasUsed:  genParams.gasUsed,
+		gasPrice: genParams.gasPrice,
+		txStatus: genParams.txStatus,
 	}
 	// Keep track of transactions which return errors so they can be removed
 	env.tcount = 0
@@ -790,11 +794,11 @@ func (w *worker) updateSnapshot(env *environment) {
 	w.snapshotState = env.state.Copy()
 }
 
-func (w *worker) commitTransaction(env *environment, tx *types.Transaction, index int, romeGasUsed uint64, footPrint string, romeGasPrice uint64) ([]*types.Log, error) {
+func (w *worker) commitTransaction(env *environment, tx *types.Transaction, index int, romeGasUsed uint64, footPrint string, romeGasPrice uint64, romeTxStatus uint64) ([]*types.Log, error) {
 	if tx.Type() == types.BlobTxType {
 		return w.commitBlobTransaction(env, tx)
 	}
-	receipt, err := w.applyTransaction(env, tx, index, romeGasUsed, footPrint, romeGasPrice)
+	receipt, err := w.applyTransaction(env, tx, index, romeGasUsed, footPrint, romeGasPrice, romeTxStatus)
 	if err != nil {
 		return nil, err
 	}
@@ -828,13 +832,13 @@ func (w *worker) commitBlobTransaction(env *environment, tx *types.Transaction) 
 }
 
 // applyTransaction runs the transaction. If execution fails, state and gas pool are reverted.
-func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index int, romeGasUsed uint64, footPrint string, romeGasPrice uint64) (*types.Receipt, error) {
+func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index int, romeGasUsed uint64, footPrint string, romeGasPrice uint64, romeTxStatus uint64) (*types.Receipt, error) {
 	var (
 		snap = env.state.Snapshot()
 		gp   = env.gasPool.Gas()
 	)
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed, footPrint, romeGasPrice)
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed, footPrint, romeGasPrice, romeTxStatus)
 
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
@@ -901,15 +905,19 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 
 		var gasUsed uint64
 		var gasPrice uint64
+		var txStatus uint64
 		if len(env.gasUsed) < index+1 {
 			return errBlockInterruptedByWrongGasUsed
 		} else {
 			gasUsed = env.gasUsed[index]
 			gasPrice = env.gasPrice[index]
+			if len(env.txStatus) > index {
+				txStatus = env.txStatus[index]
+			}
 		}
 
 		index++
-		logs, err := w.commitTransaction(env, tx, index, gasUsed, "", gasPrice)
+		logs, err := w.commitTransaction(env, tx, index, gasUsed, "", gasPrice, txStatus)
 		switch {
 		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
@@ -953,6 +961,7 @@ type generateParams struct {
 	gasPrice    []uint64          // Rome gas price override
 	gasUsed     []uint64          // Rome gas used override
 	footPrints  []string          // footPrints for the state comparison
+	txStatus    []uint64          // Transaction status (1 = success, 0 = failure)
 	forceTime   bool              // Flag whether the given timestamp is immutable or not
 	parentHash  common.Hash       // Parent block hash, empty means the latest chain head
 	coinbase    common.Address    // The fee recipient address for including transaction
@@ -1148,7 +1157,15 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 			gasPrice = 0
 		}
 
-		_, err := w.commitTransaction(work, tx, idx, gasUsed, footprint, gasPrice)
+		var txStatus uint64
+		if idx < len(genParams.txStatus) {
+			txStatus = genParams.txStatus[idx]
+		} else {
+			log.Warn("Fallback: txStatus missing", "idx", idx, "txHash", tx.Hash())
+			txStatus = 1 // Default to success if not provided
+		}
+
+		_, err := w.commitTransaction(work, tx, idx, gasUsed, footprint, gasPrice, txStatus)
 		if err != nil {
 			return &newPayloadResult{
 				err: fmt.Errorf("failed to force-include tx: %s type: %d sender: %s nonce: %d, err: %w",

@@ -134,8 +134,8 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.In
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg *Message, gp *GasPool, romeGasUsed uint64, romeGasPrice uint64) (*ExecutionResult, error) {
-	return NewStateTransition(evm, msg, gp).TransitionDb(romeGasUsed, romeGasPrice)
+func ApplyMessage(evm *vm.EVM, msg *Message, gp *GasPool, romeGasUsed uint64, romeGasPrice uint64, romeTxStatus uint64) (*ExecutionResult, error) {
+	return NewStateTransition(evm, msg, gp).TransitionDb(romeGasUsed, romeGasPrice, romeTxStatus)
 }
 
 // StateTransition represents a state transition.
@@ -289,13 +289,13 @@ func (st *StateTransition) preCheck(romeGasUsed uint64, romeGasPrice uint64) err
 //
 // However if any consensus issue encountered, return the error directly with
 // nil evm execution result.
-func (st *StateTransition) TransitionDb(romeGasUsed uint64, romeGasPrice uint64) (*ExecutionResult, error) {
+func (st *StateTransition) TransitionDb(romeGasUsed uint64, romeGasPrice uint64, romeTxStatus uint64) (*ExecutionResult, error) {
 	if mint := st.msg.Mint; mint != nil {
 		st.state.AddBalance(st.msg.From, mint)
 	}
 	snap := st.state.Snapshot()
 
-	result, err := st.innerTransitionDb(romeGasUsed, romeGasPrice)
+	result, err := st.innerTransitionDb(romeGasUsed, romeGasPrice, romeTxStatus)
 	// Failed deposits must still be included. Unless we cannot produce the block at all due to the gas limit.
 	// On deposit failure, we rewind any state changes from after the minting, and increment the nonce.
 	if err != nil && err != ErrGasLimitReached && st.msg.IsDepositTx {
@@ -321,7 +321,7 @@ func (st *StateTransition) TransitionDb(romeGasUsed uint64, romeGasPrice uint64)
 	return result, err
 }
 
-func (st *StateTransition) innerTransitionDb(romeGasUsed uint64, romeGasPrice uint64) (*ExecutionResult, error) {
+func (st *StateTransition) innerTransitionDb(romeGasUsed uint64, romeGasPrice uint64, romeTxStatus uint64) (*ExecutionResult, error) {
 	// First check this message satisfies all consensus rules before
 	// applying the message. The rules include these clauses
 	//
@@ -376,6 +376,15 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64, romeGasPrice ui
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From, st.state.GetNonce(sender.Address())+1)
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, msg.Value)
+	}
+
+	// Compare romeTxStatus with actual execution result
+	actualSuccess := vmerr == nil
+	expectedSuccess := romeTxStatus == 1
+	if actualSuccess != expectedSuccess {
+		if !expectedSuccess {
+			panic(fmt.Sprintf("Transaction status mismatch: expected failure (romeTxStatus=0) but transaction succeeded"))
+		}
 	}
 
 	// if deposit: skip refunds, skip tipping coinbase

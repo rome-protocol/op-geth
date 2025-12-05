@@ -68,7 +68,7 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 // Process returns the receipts and logs accumulated during the process and
 // returns the amount of gas that was used in the process. If any of the
 // transactions failed to execute due to insufficient gas it will return an error.
-func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg vm.Config, romeGasUsed []uint64, romeGasPrice []uint64, footPrints []string) (types.Receipts, []*types.Log, uint64, error) {
+func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg vm.Config, romeGasUsed []uint64, romeGasPrice []uint64, footPrints []string, romeTxStatus []uint64) (types.Receipts, []*types.Log, uint64, error) {
 	var (
 		receipts    types.Receipts
 		usedGas     = new(uint64)
@@ -98,7 +98,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
 		statedb.SetTxContext(tx.Hash(), i)
-		receipt, err := applyTransaction(msg, p.config, p.bc, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, romeGasUsed[i], "", romeGasPrice[i])
+		receipt, err := applyTransaction(msg, p.config, p.bc, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, romeGasUsed[i], "", romeGasPrice[i], romeTxStatus[i])
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
@@ -120,7 +120,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	return receipts, allLogs, *usedGas, nil
 }
 
-func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, romeGasUsed uint64, footPrint string, romeGasPrice uint64) (*types.Receipt, error) {
+func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, romeGasUsed uint64, footPrint string, romeGasPrice uint64, romeTxStatus uint64) (*types.Receipt, error) {
 	tracer := log.GetTracer()
 	_, span := tracer.Start(context.Background(), "applyTransaction",
 		trace.WithAttributes(
@@ -140,8 +140,12 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
     // Snapshot journal start to scope footprint to this tx
     start := statedb.JournalLength()
 
+    if romeTxStatus == 0 {
+        panic(fmt.Sprintf("Transaction failed: tx_status is 0 (failure) for tx %v", tx.Hash().Hex()))
+    }
+
     // Apply the transaction to the current state 
-    result, err := ApplyMessage(evm, msg, gp, romeGasUsed, romeGasPrice)
+    result, err := ApplyMessage(evm, msg, gp, romeGasUsed, romeGasPrice, romeTxStatus)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +245,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
-func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, romeGasUsed uint64, footPrint string, romeGasPrice uint64) (*types.Receipt, error) {
+func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, romeGasUsed uint64, footPrint string, romeGasPrice uint64, romeTxStatus uint64) (*types.Receipt, error) {
 	msg, err := TransactionToMessage(tx, types.MakeSigner(config, header.Number, header.Time), header.BaseFee)
 	if err != nil {
 		return nil, err
@@ -250,7 +254,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	blockContext := NewEVMBlockContext(header, bc, author, config, statedb)
 	txContext := NewEVMTxContext(msg)
 	vmenv := vm.NewEVM(blockContext, txContext, statedb, config, cfg)
-	return applyTransaction(msg, config, bc, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, romeGasUsed, footPrint, romeGasPrice)
+	return applyTransaction(msg, config, bc, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, romeGasUsed, footPrint, romeGasPrice, romeTxStatus)
 }
 
 // ProcessBeaconBlockRoot applies the EIP-4788 system call to the beacon block root
