@@ -379,16 +379,10 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64, romeGasPrice ui
 	}
 
 	// Compare romeTxStatus with actual execution result
-	// romeTxStatus: 0 = failure (from rome-evm), 1 = success (from rome-evm)
-	// vmerr: nil = success (from op-geth), != nil = failure (from op-geth)
 	actualSuccess := vmerr == nil
 	expectedSuccess := romeTxStatus == 1
 	if actualSuccess != expectedSuccess {
-		if expectedSuccess {
-			// Expected success but got failure
-			panic(fmt.Sprintf("Transaction status mismatch: expected success (romeTxStatus=1) but transaction failed with error: %v", vmerr))
-		} else {
-			// Expected failure but got success
+		if !expectedSuccess {
 			panic(fmt.Sprintf("Transaction status mismatch: expected failure (romeTxStatus=0) but transaction succeeded"))
 		}
 	}
