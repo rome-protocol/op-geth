@@ -471,6 +471,16 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 	})
 	stateObject.markSelfdestructed()
 	stateObject.data.Balance = new(big.Int)
+
+	if stateObject.created {
+		var prevNonce uint64
+		if stateObject.origin == nil {
+			prevNonce = 0
+		} else {
+			prevNonce = stateObject.origin.Nonce
+		}
+		s.SetNonce(addr, prevNonce)
+	}
 }
 
 // Selfdestruct6780 conditionally selfdestructs if the object was newly created.
