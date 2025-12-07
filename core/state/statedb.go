@@ -1494,6 +1494,10 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     addresses := make([]common.Address, 0, len(touched))
     for addr := range touched {
         if !isMagicAddress(addr) {
+            obj := s.getDeletedStateObject(addr)
+            if obj != nil && obj.created && obj.selfDestructed {
+                continue
+            }
             addresses = append(addresses, addr)
         }
     }
