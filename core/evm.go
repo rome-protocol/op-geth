@@ -77,15 +77,15 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		if chain != nil {
 			// Look up Solana metadata from database for current block
 			if metaSlot, metaHash, ok := chain.GetSolanaMetadata(header.Hash()); ok {
-				log.Debug("NewEVMBlockContext: retrieved Solana metadata from chain", "blockHash", header.Hash().Hex(), "slot", metaSlot, "solanaHash", metaHash.Hex(), "blockNumber", header.Number.Uint64())
+				log.Info("NewEVMBlockContext: retrieved Solana metadata from chain", "blockHash", header.Hash().Hex(), "slot", metaSlot, "solanaHash", metaHash.Hex(), "blockNumber", header.Number.Uint64())
 				solanaBlockNumber = &metaSlot
 				solanaBlockHash = &metaHash
 			} else {
-				log.Debug("NewEVMBlockContext: Solana metadata not found in chain", "blockHash", header.Hash().Hex(), "blockNumber", header.Number.Uint64())
+				log.Warn("NewEVMBlockContext: Solana metadata not found in chain", "blockHash", header.Hash().Hex(), "blockNumber", header.Number.Uint64())
 			}
 		}
 	} else {
-		log.Debug("NewEVMBlockContext: using provided Solana metadata", "blockHash", header.Hash().Hex(), "slot", *solanaBlockNumber, "solanaHash", solanaBlockHash.Hex(), "blockNumber", header.Number.Uint64())
+		log.Info("NewEVMBlockContext: using provided Solana metadata", "blockHash", header.Hash().Hex(), "slot", *solanaBlockNumber, "solanaHash", solanaBlockHash.Hex(), "blockNumber", header.Number.Uint64())
 	}
 	
 	if chain != nil {

@@ -449,12 +449,12 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	}
 	
 	if interpreter.evm.Context.SolanaBlockNumber == nil {
-		log.Debug("opBlockhash: SolanaBlockNumber is nil, clearing result", "requestedSlot", num64)
+		log.Warn("opBlockhash: SolanaBlockNumber is nil, clearing result", "requestedSlot", num64)
 		num.Clear()
 		return nil, nil
 	}
 	current := *interpreter.evm.Context.SolanaBlockNumber
-	log.Debug("opBlockhash", "requestedSlot", num64, "currentSolanaSlot", current, "ethBlockNumber", interpreter.evm.Context.BlockNumber.Uint64())
+	log.Info("opBlockhash", "requestedSlot", num64, "currentSolanaSlot", current, "ethBlockNumber", interpreter.evm.Context.BlockNumber.Uint64())
 	
 	if num64 >= current {
 		log.Debug("opBlockhash: requested slot >= current, clearing result", "requestedSlot", num64, "currentSlot", current)
@@ -470,7 +470,7 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	
 	if interpreter.evm.Context.GetSolanaHash != nil {
 		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
-			log.Debug("opBlockhash: found Solana hash", "requestedSlot", num64, "hash", hash.Hex())
+			log.Info("opBlockhash: found Solana hash", "requestedSlot", num64, "hash", hash.Hex())
 			num.SetBytes(hash[:])
 			return nil, nil
 		}
@@ -498,10 +498,10 @@ func opTimestamp(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 func opNumber(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
 		solanaNum := *interpreter.evm.Context.SolanaBlockNumber
-		log.Debug("opNumber: using Solana block number", "solanaBlockNumber", solanaNum, "ethBlockNumber", interpreter.evm.Context.BlockNumber.Uint64())
+		log.Info("opNumber: using Solana block number", "solanaBlockNumber", solanaNum, "ethBlockNumber", interpreter.evm.Context.BlockNumber.Uint64())
 		scope.Stack.push(new(uint256.Int).SetUint64(solanaNum))
 	} else {
-		log.Debug("opNumber: SolanaBlockNumber is nil, pushing 0", "ethBlockNumber", interpreter.evm.Context.BlockNumber.Uint64())
+		log.Warn("opNumber: SolanaBlockNumber is nil, pushing 0", "ethBlockNumber", interpreter.evm.Context.BlockNumber.Uint64())
 		scope.Stack.push(new(uint256.Int))
 	}
 	return nil, nil

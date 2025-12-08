@@ -715,12 +715,20 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 	}
 	
 	if solanaSlot != nil && solanaHash != nil {
-		log.Trace("Writing Solana metadata before block insertion", "hash", block.Hash(), "slot", *solanaSlot, "solanaHash", solanaHash.Hex())
+		log.Info("Writing Solana metadata before block insertion", "blockHash", block.Hash().Hex(), "blockNumber", block.NumberU64(), "solanaSlot", *solanaSlot, "solanaHash", solanaHash.Hex())
 		if err := api.eth.BlockChain().WriteSolanaMetadata(block.Hash(), *solanaSlot, *solanaHash); err != nil {
+			log.Error("Failed to write Solana metadata", "err", err, "blockHash", block.Hash().Hex())
 			return api.invalid(fmt.Errorf("failed to write Solana metadata: %w", err), parent.Header()), nil
 		}
+		log.Info("Successfully wrote Solana metadata", "blockHash", block.Hash().Hex(), "blockNumber", block.NumberU64())
 	} else {
-		log.Warn("Solana metadata not available for block", "hash", block.Hash(), "number", block.NumberU64(), "hasMeta", api.solanaMeta[block.Hash()] != solanaMetadata{}, "hasParamsNumber", params.SolanaBlockNumber != nil, "hasParamsHash", params.SolanaBlockHash != nil)
+		api.solanaLock.Lock()
+		hasMeta := false
+		if _, ok := api.solanaMeta[block.Hash()]; ok {
+			hasMeta = true
+		}
+		api.solanaLock.Unlock()
+		log.Warn("Solana metadata not available for block", "hash", block.Hash().Hex(), "number", block.NumberU64(), "hasMeta", hasMeta, "hasParamsNumber", params.SolanaBlockNumber != nil, "hasParamsHash", params.SolanaBlockHash != nil, "solanaSlot", solanaSlot != nil, "solanaHash", solanaHash != nil)
 	}
 	
 	log.Trace("Inserting block without sethead", "hash", block.Hash(), "number", block.Number)
