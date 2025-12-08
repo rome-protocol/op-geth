@@ -86,11 +86,8 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	var solanaBlockNumber *uint64
 	var solanaBlockHash *common.Hash
 	if metaSlot, metaHash, ok := p.bc.GetSolanaMetadata(blockHash); ok {
-		log.Info("StateProcessor.Process: retrieved Solana metadata", "blockHash", blockHash.Hex(), "slot", metaSlot, "solanaHash", metaHash.Hex(), "blockNumber", blockNumber.Uint64())
 		solanaBlockNumber = &metaSlot
 		solanaBlockHash = &metaHash
-	} else {
-		log.Warn("StateProcessor.Process: Solana metadata not found", "blockHash", blockHash.Hex(), "blockNumber", blockNumber.Uint64())
 	}
 	
 	var (
