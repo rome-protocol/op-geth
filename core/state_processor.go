@@ -252,12 +252,16 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
 func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, romeGasUsed uint64, footPrint string, romeGasPrice uint64) (*types.Receipt, error) {
+	return ApplyTransactionWithSolana(config, bc, author, gp, statedb, header, tx, usedGas, cfg, romeGasUsed, footPrint, romeGasPrice, nil, nil)
+}
+
+func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, romeGasUsed uint64, footPrint string, romeGasPrice uint64, solanaBlockNumber *uint64, solanaBlockHash *common.Hash) (*types.Receipt, error) {
 	msg, err := TransactionToMessage(tx, types.MakeSigner(config, header.Number, header.Time), header.BaseFee)
 	if err != nil {
 		return nil, err
 	}
 	// Create a new context to be used in the EVM environment
-	blockContext := NewEVMBlockContext(header, bc, author, config, statedb, nil, nil)
+	blockContext := NewEVMBlockContext(header, bc, author, config, statedb, solanaBlockNumber, solanaBlockHash)
 	txContext := NewEVMTxContext(msg)
 	vmenv := vm.NewEVM(blockContext, txContext, statedb, config, cfg)
 	return applyTransaction(msg, config, bc, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, romeGasUsed, footPrint, romeGasPrice)

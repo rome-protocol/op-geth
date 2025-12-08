@@ -848,7 +848,7 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 		gp   = env.gasPool.Gas()
 	)
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed, footPrint, romeGasPrice)
+	receipt, err := core.ApplyTransactionWithSolana(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed, footPrint, romeGasPrice, env.solanaBlockNumber, env.solanaBlockHash)
 
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
@@ -1193,6 +1193,13 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 	block, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, nil, work.receipts, genParams.withdrawals)
 	if err != nil {
 		return &newPayloadResult{err: err}
+	}
+	if work.solanaBlockNumber != nil && work.solanaBlockHash != nil {
+		if err := w.chain.WriteSolanaMetadata(block.Hash(), *work.solanaBlockNumber, *work.solanaBlockHash); err != nil {
+			log.Error("Failed to write Solana metadata after block building", "err", err, "blockHash", block.Hash().Hex(), "blockNumber", block.NumberU64())
+		} else {
+			log.Info("Wrote Solana metadata after block building", "blockHash", block.Hash().Hex(), "blockNumber", block.NumberU64(), "slot", *work.solanaBlockNumber)
+		}
 	}
 	return &newPayloadResult{
 		block:    block,
