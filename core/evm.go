@@ -90,12 +90,17 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	
 	if chain != nil {
 		getSolanaHash = func(slot uint64) (common.Hash, bool) {
-			for current := header; current != nil; {
-				if metaSlot, metaHash, ok := chain.GetSolanaMetadata(current.Hash()); ok {
-					if metaSlot == slot {
-						return metaHash, true
-					}
+			if solanaBlockNumber != nil && *solanaBlockNumber == slot && solanaBlockHash != nil {
+				log.Debug("GetSolanaHash: found in current block being built", "slot", slot, "hash", solanaBlockHash.Hex())
+				return *solanaBlockHash, true
+			}
+			if metaSlot, metaHash, ok := chain.GetSolanaMetadata(header.Hash()); ok {
+				if metaSlot == slot {
+					log.Debug("GetSolanaHash: found in current header", "slot", slot, "hash", metaHash.Hex())
+					return metaHash, true
 				}
+			}
+			for current := header; current != nil; {
 				if current.ParentHash == (common.Hash{}) || current.Number == nil {
 					break
 				}
@@ -107,6 +112,14 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 					break
 				}
 				current = chain.GetHeader(current.ParentHash, number-1)
+				if current == nil {
+					break
+				}
+				if metaSlot, metaHash, ok := chain.GetSolanaMetadata(current.Hash()); ok {
+					if metaSlot == slot {
+						return metaHash, true
+					}
+				}
 			}
 			return common.Hash{}, false
 		}

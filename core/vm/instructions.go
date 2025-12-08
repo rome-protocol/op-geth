@@ -498,10 +498,10 @@ func opTimestamp(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 func opNumber(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
 		solanaNum := *interpreter.evm.Context.SolanaBlockNumber
-		log.Info("opNumber: using Solana block number", "solanaBlockNumber", solanaNum, "ethBlockNumber", interpreter.evm.Context.BlockNumber.Uint64())
+		log.Info("opNumber: using Solana block number", "solanaBlockNumber", solanaNum, "ethBlockNumber", interpreter.evm.Context.BlockNumber.Uint64(), "pc", *pc)
 		scope.Stack.push(new(uint256.Int).SetUint64(solanaNum))
 	} else {
-		log.Warn("opNumber: SolanaBlockNumber is nil, pushing 0", "ethBlockNumber", interpreter.evm.Context.BlockNumber.Uint64())
+		log.Warn("opNumber: SolanaBlockNumber is nil, pushing 0", "ethBlockNumber", interpreter.evm.Context.BlockNumber.Uint64(), "pc", *pc)
 		scope.Stack.push(new(uint256.Int))
 	}
 	return nil, nil
