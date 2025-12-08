@@ -45,7 +45,8 @@ type ChainContext interface {
 }
 
 // NewEVMBlockContext creates a new context for use in the EVM.
-func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common.Address, config *params.ChainConfig, statedb types.StateGetter) vm.BlockContext {
+// If solanaBlockNumber and solanaBlockHash are provided, they take precedence over hash lookup.
+func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common.Address, config *params.ChainConfig, statedb types.StateGetter, solanaBlockNumber *uint64, solanaBlockHash *common.Hash) vm.BlockContext {
 	var (
 		beneficiary common.Address
 		baseFee     *big.Int
@@ -70,16 +71,18 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	}
 	var getSolanaHash func(uint64) (common.Hash, bool)
 	var getSolanaHashByEthBlock func(uint64) (common.Hash, bool)
-	var solanaBlockNumber *uint64
-	var solanaBlockHash *common.Hash
+	
+	if solanaBlockNumber == nil || solanaBlockHash == nil {
+		if chain != nil {
+			// Look up Solana metadata from database for current block
+			if metaSlot, metaHash, ok := chain.GetSolanaMetadata(header.Hash()); ok {
+				solanaBlockNumber = &metaSlot
+				solanaBlockHash = &metaHash
+			}
+		}
+	}
 	
 	if chain != nil {
-		// Look up Solana metadata from database for current block
-		if metaSlot, metaHash, ok := chain.GetSolanaMetadata(header.Hash()); ok {
-			solanaBlockNumber = &metaSlot
-			solanaBlockHash = &metaHash
-		}
-		
 		getSolanaHash = func(slot uint64) (common.Hash, bool) {
 			for current := header; current != nil; {
 				if metaSlot, metaHash, ok := chain.GetSolanaMetadata(current.Hash()); ok {
