@@ -1494,6 +1494,10 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     addresses := make([]common.Address, 0, len(touched))
     for addr := range touched {
         if !isMagicAddress(addr) {
+            obj := s.getDeletedStateObject(addr)
+            if obj != nil && obj.created && obj.selfDestructed {
+                continue
+            }
             addresses = append(addresses, addr)
         }
     }
@@ -1574,13 +1578,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
                 pre = append(pre, bb[:]...)
                 b.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(bb[:]).String(), bb))
 
-                obj := s.getDeletedStateObject(addr)
-                var code []byte
-                if obj != nil && obj.created && obj.selfDestructed {
-                    code = nil // Empty code for ephemeral contracts
-                } else {
-                    code = s.GetCode(addr)
-                }
+                code := s.GetCode(addr)
                 pre = append(pre, code...)
                 b.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
