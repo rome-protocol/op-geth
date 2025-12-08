@@ -90,37 +90,53 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	
 	if chain != nil {
 		getSolanaHash = func(slot uint64) (common.Hash, bool) {
+			log.Info("GetSolanaHash: searching for slot", "requestedSlot", slot, "currentSolanaSlot", solanaBlockNumber, "headerHash", header.Hash().Hex(), "headerNumber", header.Number.Uint64())
 			if solanaBlockNumber != nil && *solanaBlockNumber == slot && solanaBlockHash != nil {
-				log.Debug("GetSolanaHash: found in current block being built", "slot", slot, "hash", solanaBlockHash.Hex())
+				log.Info("GetSolanaHash: found in current block being built", "slot", slot, "hash", solanaBlockHash.Hex())
 				return *solanaBlockHash, true
 			}
 			if metaSlot, metaHash, ok := chain.GetSolanaMetadata(header.Hash()); ok {
+				log.Info("GetSolanaHash: current header metadata", "headerSlot", metaSlot, "requestedSlot", slot, "match", metaSlot == slot)
 				if metaSlot == slot {
-					log.Debug("GetSolanaHash: found in current header", "slot", slot, "hash", metaHash.Hex())
+					log.Info("GetSolanaHash: found in current header", "slot", slot, "hash", metaHash.Hex())
 					return metaHash, true
 				}
+			} else {
+				log.Info("GetSolanaHash: no metadata for current header", "headerHash", header.Hash().Hex())
 			}
-			for current := header; current != nil; {
+			// Start from parent since current block might not be inserted yet
+			current := header
+			for i := 0; i < 256; i++ {
 				if current.ParentHash == (common.Hash{}) || current.Number == nil {
+					log.Info("GetSolanaHash: reached genesis or invalid block", "i", i)
 					break
 				}
 				if !current.Number.IsUint64() {
+					log.Info("GetSolanaHash: block number overflow", "i", i)
 					break
 				}
 				number := current.Number.Uint64()
 				if number == 0 {
+					log.Info("GetSolanaHash: reached genesis block", "i", i)
 					break
 				}
-				current = chain.GetHeader(current.ParentHash, number-1)
-				if current == nil {
+				parent := chain.GetHeader(current.ParentHash, number-1)
+				if parent == nil {
+					log.Info("GetSolanaHash: parent not found", "parentHash", current.ParentHash.Hex(), "parentNumber", number-1, "i", i)
 					break
 				}
-				if metaSlot, metaHash, ok := chain.GetSolanaMetadata(current.Hash()); ok {
+				if metaSlot, metaHash, ok := chain.GetSolanaMetadata(parent.Hash()); ok {
+					log.Info("GetSolanaHash: checking parent", "parentSlot", metaSlot, "requestedSlot", slot, "parentHash", parent.Hash().Hex(), "parentNumber", parent.Number.Uint64(), "i", i)
 					if metaSlot == slot {
+						log.Info("GetSolanaHash: found in parent block", "slot", slot, "hash", metaHash.Hex(), "parentNumber", parent.Number.Uint64())
 						return metaHash, true
 					}
+				} else {
+					log.Info("GetSolanaHash: no metadata for parent", "parentHash", parent.Hash().Hex(), "parentNumber", parent.Number.Uint64(), "i", i)
 				}
+				current = parent
 			}
+			log.Warn("GetSolanaHash: not found after searching", "requestedSlot", slot, "currentSolanaSlot", solanaBlockNumber)
 			return common.Hash{}, false
 		}
 		getSolanaHashByEthBlock = func(ethBlockNum uint64) (common.Hash, bool) {
