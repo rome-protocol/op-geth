@@ -700,7 +700,7 @@ func (b testBackend) GetEVM(ctx context.Context, msg *core.Message, state *state
 		vmConfig = b.chain.GetVMConfig()
 	}
 	txContext := core.NewEVMTxContext(msg)
-	context := core.NewEVMBlockContext(header, b.chain, nil, b.ChainConfig(), state)
+	context := core.NewEVMBlockContext(header, b.chain, nil, b.ChainConfig(), state, nil, nil)
 	if blockContext != nil {
 		context = *blockContext
 	}
