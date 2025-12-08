@@ -548,17 +548,23 @@ func (api *ConsensusAPI) populateSolanaMetadata(params *engine.RomeExecutableDat
 	api.solanaLock.Lock()
 	defer api.solanaLock.Unlock()
 
+	log.Info("populateSolanaMetadata called", "blockHash", params.BlockHash.Hex(), "paramsHasNumber", params.SolanaBlockNumber != nil, "paramsHasHash", params.SolanaBlockHash != nil)
+	
 	meta, ok := api.solanaMeta[params.BlockHash]
 	if !ok {
+		log.Info("populateSolanaMetadata: no metadata in api.solanaMeta", "blockHash", params.BlockHash.Hex())
 		return
 	}
+	log.Info("populateSolanaMetadata: found metadata", "blockHash", params.BlockHash.Hex(), "hasNumber", meta.number != nil, "hasHash", meta.hash != nil)
 	if params.SolanaBlockNumber == nil && meta.number != nil {
 		val := hexutil.Uint64(*meta.number)
 		params.SolanaBlockNumber = &val
+		log.Info("populateSolanaMetadata: populated SolanaBlockNumber", "blockHash", params.BlockHash.Hex(), "number", *meta.number)
 	}
 	if params.SolanaBlockHash == nil && meta.hash != nil {
 		hash := *meta.hash
 		params.SolanaBlockHash = &hash
+		log.Info("populateSolanaMetadata: populated SolanaBlockHash", "blockHash", params.BlockHash.Hex(), "hash", hash.Hex())
 	}
 }
 
@@ -697,20 +703,31 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 	var solanaSlot *uint64
 	var solanaHash *common.Hash
 	
+	log.Info("Checking Solana metadata sources", "blockHash", block.Hash().Hex(), "blockNumber", block.NumberU64(), "paramsHasNumber", params.SolanaBlockNumber != nil, "paramsHasHash", params.SolanaBlockHash != nil)
+	
 	api.solanaLock.Lock()
-	if meta, ok := api.solanaMeta[block.Hash()]; ok && meta.number != nil && meta.hash != nil {
+	meta, hasMeta := api.solanaMeta[block.Hash()]
+	if hasMeta && meta.number != nil && meta.hash != nil {
+		log.Info("Found Solana metadata in api.solanaMeta", "blockHash", block.Hash().Hex(), "slot", *meta.number, "hash", meta.hash.Hex())
 		solanaSlot = meta.number
 		solanaHash = meta.hash
+	} else {
+		log.Info("No metadata in api.solanaMeta", "blockHash", block.Hash().Hex(), "hasMeta", hasMeta)
+		if hasMeta {
+			log.Info("Metadata exists but incomplete", "hasNumber", meta.number != nil, "hasHash", meta.hash != nil)
+		}
 	}
 	api.solanaLock.Unlock()
 	
 	// Also check params directly (may have been populated by populateSolanaMetadata or from payload)
 	if solanaSlot == nil && params.SolanaBlockNumber != nil {
 		slot := uint64(*params.SolanaBlockNumber)
+		log.Info("Using Solana metadata from params.SolanaBlockNumber", "blockHash", block.Hash().Hex(), "slot", slot)
 		solanaSlot = &slot
 	}
 	if solanaHash == nil && params.SolanaBlockHash != nil {
 		hash := *params.SolanaBlockHash
+		log.Info("Using Solana metadata from params.SolanaBlockHash", "blockHash", block.Hash().Hex(), "hash", hash.Hex())
 		solanaHash = &hash
 	}
 	
