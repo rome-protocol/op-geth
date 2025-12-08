@@ -691,14 +691,31 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 		log.Warn("State not available, ignoring new payload")
 		return engine.PayloadStatusV1{Status: engine.ACCEPTED}, nil
 	}
+
+	var solanaSlot *uint64
+	var solanaHash *common.Hash
+	
 	api.solanaLock.Lock()
 	if meta, ok := api.solanaMeta[block.Hash()]; ok && meta.number != nil && meta.hash != nil {
-		if err := api.eth.BlockChain().WriteSolanaMetadata(block.Hash(), *meta.number, *meta.hash); err != nil {
-			api.solanaLock.Unlock()
+		solanaSlot = meta.number
+		solanaHash = meta.hash
+	}
+	api.solanaLock.Unlock()
+	
+	if solanaSlot == nil && params.SolanaBlockNumber != nil {
+		slot := uint64(*params.SolanaBlockNumber)
+		solanaSlot = &slot
+	}
+	if solanaHash == nil && params.SolanaBlockHash != nil {
+		hash := *params.SolanaBlockHash
+		solanaHash = &hash
+	}
+	
+	if solanaSlot != nil && solanaHash != nil {
+		if err := api.eth.BlockChain().WriteSolanaMetadata(block.Hash(), *solanaSlot, *solanaHash); err != nil {
 			return api.invalid(fmt.Errorf("failed to write Solana metadata: %w", err), parent.Header()), nil
 		}
 	}
-	api.solanaLock.Unlock()
 	
 	log.Trace("Inserting block without sethead", "hash", block.Hash(), "number", block.Number)
 	if err := api.eth.BlockChain().InsertBlockWithoutSetHead(block, params.RomeGasUsed, params.TxFootprints, params.RomeGasPrice); err != nil {
