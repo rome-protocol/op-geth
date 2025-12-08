@@ -432,9 +432,6 @@ func opExtCodeHash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext)
 func opGasprice(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	if interpreter.evm.GasPrice == nil || interpreter.evm.GasPrice.Sign() == 0 {
 		scope.Stack.push(new(uint256.Int))
-	} else {
-		v, _ := uint256.FromBig(interpreter.evm.GasPrice)
-		scope.Stack.push(v)
 	}
 	return nil, nil
 }
@@ -482,9 +479,6 @@ func opTimestamp(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 func opNumber(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
 		scope.Stack.push(new(uint256.Int).SetUint64(*interpreter.evm.Context.SolanaBlockNumber))
-	} else {
-		v, _ := uint256.FromBig(interpreter.evm.Context.BlockNumber)
-		scope.Stack.push(v)
 	}
 	return nil, nil
 }
@@ -676,10 +670,9 @@ func opCreate2(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	stack := scope.Stack
 	// Pop gas. The actual gas in interpreter.evm.callGasTemp.
-	// We can use this as a temporary value
+	// We use it as a temporary value
 	temp := stack.pop()
-	gas := uint64(math.MaxInt64) 
-	_ = interpreter.evm.callGasTemp // suppress unused
+	gas := uint64(math.MaxInt64)
 	// Pop other call parameters.
 	addr, value, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
 	toAddr := common.Address(addr.Bytes20())
@@ -721,7 +714,6 @@ func opCallCode(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([
 	// We use it as a temporary value
 	temp := stack.pop()
 	gas := uint64(math.MaxInt64) 
-	_ = interpreter.evm.callGasTemp 
 	// Pop other call parameters.
 	addr, value, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
 	toAddr := common.Address(addr.Bytes20())
@@ -756,8 +748,7 @@ func opDelegateCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
 	// We use it as a temporary value
 	temp := stack.pop()
-	gas := uint64(math.MaxInt64) 
-	_ = interpreter.evm.callGasTemp
+	gas := uint64(math.MaxInt64)
 	// Pop other call parameters.
 	addr, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
 	toAddr := common.Address(addr.Bytes20())
@@ -785,8 +776,7 @@ func opStaticCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) 
 	stack := scope.Stack
 	// We use it as a temporary value
 	temp := stack.pop()
-	gas := uint64(math.MaxInt64) 
-	_ = interpreter.evm.callGasTemp
+	gas := uint64(math.MaxInt64)
 	// Pop other call parameters.
 	addr, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
 	toAddr := common.Address(addr.Bytes20())

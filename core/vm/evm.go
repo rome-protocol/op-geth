@@ -447,11 +447,9 @@ func (c *codeAndHash) Hash() common.Hash {
 
 // create creates a new contract using code as deployment code.
 func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *big.Int, address common.Address, typ OpCode) ([]byte, common.Address, uint64, error) {
-	log.Info("EVM.create called", "depth", evm.depth, "gas", gas, "caller", caller.Address().Hex(), "newAddr", address.Hex(), "codeLen", len(codeAndHash.code))
 	// Depth check execution. Fail if we're trying to execute above the
 	// limit.
 	if evm.depth > int(params.CallCreateDepth) {
-		log.Info("EVM.create failed: depth exceeded", "depth", evm.depth)
 		return nil, common.Address{}, gas, ErrDepth
 	}
 	nonce := evm.StateDB.GetNonce(caller.Address())
@@ -527,13 +525,10 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	// above we revert to the snapshot and consume any gas remaining. Additionally
 	// when we're in homestead this also counts for code storage gas errors.
 	if err != nil && (evm.chainRules.IsHomestead || err != ErrCodeStoreOutOfGas) {
-		log.Info("EVM.create reverting", "depth", evm.depth, "err", err)
 		evm.StateDB.RevertToSnapshot(snapshot)
 		if err != ErrExecutionReverted {
 			contract.UseGas(contract.Gas)
 		}
-	} else {
-		log.Info("EVM.create succeeded", "depth", evm.depth, "newAddr", address.Hex(), "retLen", len(ret))
 	}
 
 	if evm.Config.Tracer != nil {

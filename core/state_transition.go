@@ -370,14 +370,12 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64, romeGasPrice ui
 		ret   []byte
 		vmerr error // vm errors do not effect consensus and are therefore not assigned to err
 	)
-	// Give contracts effectively infinite gas for execution (matches Solana behavior)
-	infiniteGas := uint64(math.MaxInt64)
 	if contractCreation {
-		ret, _, st.gasRemaining, vmerr = st.evm.Create(sender, msg.Data, infiniteGas, msg.Value)
+		ret, _, st.gasRemaining, vmerr = st.evm.Create(sender, msg.Data, st.gasRemaining, msg.Value)
 	} else {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From, st.state.GetNonce(sender.Address())+1)
-		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, infiniteGas, msg.Value)
+		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, msg.Value)
 	}
 
 	// if deposit: skip refunds, skip tipping coinbase
@@ -440,7 +438,7 @@ func (st *StateTransition) innerTransitionDb(romeGasUsed uint64, romeGasPrice ui
 	// Check that we are post bedrock to enable op-geth to be able to create pseudo pre-bedrock blocks (these are pre-bedrock, but don't follow l2 geth rules)
 	// Note optimismConfig will not be nil if rules.IsOptimismBedrock is true
 	if optimismConfig := st.evm.ChainConfig().Optimism; optimismConfig != nil && rules.IsOptimismBedrock && !st.msg.IsDepositTx {
-		st.state.AddBalance(params.OptimismBaseFeeRecipient, new(big.Int).Mul(new(big.Int).SetUint64(gasUsedForFee), st.evm.Context.BaseFee))
+		st.state.AddBalance(params.OptimismBaseFeeRecipient, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.evm.Context.BaseFee))
 		if cost := st.evm.Context.L1CostFunc(st.msg.RollupCostData, st.evm.Context.Time); cost != nil {
 			st.state.AddBalance(params.OptimismL1FeeRecipient, cost)
 		}
