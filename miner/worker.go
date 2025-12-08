@@ -100,19 +100,24 @@ type environment struct {
 	gasUsed  []uint64
 	sidecars []*types.BlobTxSidecar
 	blobs    int
+
+	solanaBlockNumber *uint64
+	solanaBlockHash   *common.Hash
 }
 
 // copy creates a deep copy of environment.
 func (env *environment) copy() *environment {
 	cpy := &environment{
-		signer:   env.signer,
-		state:    env.state.Copy(),
-		tcount:   env.tcount,
-		coinbase: env.coinbase,
-		gasPrice: env.gasPrice,
-		gasUsed:  env.gasUsed,
-		header:   types.CopyHeader(env.header),
-		receipts: copyReceipts(env.receipts),
+		signer:            env.signer,
+		state:             env.state.Copy(),
+		tcount:            env.tcount,
+		coinbase:          env.coinbase,
+		gasPrice:          env.gasPrice,
+		gasUsed:           env.gasUsed,
+		header:            types.CopyHeader(env.header),
+		receipts:          copyReceipts(env.receipts),
+		solanaBlockNumber: env.solanaBlockNumber,
+		solanaBlockHash:   env.solanaBlockHash,
 	}
 	if env.gasPool != nil {
 		gasPool := *env.gasPool
@@ -139,10 +144,12 @@ func (env *environment) discard() {
 
 // task contains all information for consensus engine sealing and result submitting.
 type task struct {
-	receipts  []*types.Receipt
-	state     *state.StateDB
-	block     *types.Block
-	createdAt time.Time
+	receipts          []*types.Receipt
+	state             *state.StateDB
+	block             *types.Block
+	createdAt         time.Time
+	solanaBlockNumber *uint64
+	solanaBlockHash   *common.Hash
 }
 
 const (
@@ -729,6 +736,12 @@ func (w *worker) resultLoop() {
 				log.Error("Failed writing block to chain", "err", err)
 				continue
 			}
+			// Write Solana metadata to database if available
+			if task.solanaBlockNumber != nil && task.solanaBlockHash != nil {
+				if err := w.chain.WriteSolanaMetadata(hash, *task.solanaBlockNumber, *task.solanaBlockHash); err != nil {
+					log.Error("Failed to write Solana metadata to database", "err", err)
+				}
+			}
 			log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealhash, "hash", hash,
 				"elapsed", common.PrettyDuration(time.Since(task.createdAt)))
 
@@ -762,11 +775,13 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, genParams *
 
 	// Note the passed coinbase may be different with header.Coinbase.
 	env := &environment{
-		signer:   types.MakeSigner(w.chainConfig, header.Number, header.Time),
-		state:    state,
-		coinbase: genParams.coinbase,
-		header:   header,
-		gasUsed:  genParams.gasUsed,
+		signer:            types.MakeSigner(w.chainConfig, header.Number, header.Time),
+		state:             state,
+		coinbase:          genParams.coinbase,
+		header:            header,
+		gasUsed:           genParams.gasUsed,
+		solanaBlockNumber: genParams.solanaBlockNumber,
+		solanaBlockHash:   genParams.solanaBlockHash,
 	}
 	// Keep track of transactions which return errors so they can be removed
 	env.tcount = 0
@@ -1017,16 +1032,6 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		GasLimit:   math.MaxUint64,
 		Time:       genParams.timestamp,
 		Coinbase:   genParams.coinbase,
-	}
-	if genParams.solanaBlockNumber != nil {
-		slot := new(uint64)
-		*slot = *genParams.solanaBlockNumber
-		header.SolanaBlockNumber = slot
-	}
-	if genParams.solanaBlockHash != nil {
-		hash := new(common.Hash)
-		*hash = *genParams.solanaBlockHash
-		header.SolanaBlockHash = hash
 	}
 	// Set the extra field.
 	if len(w.extra) != 0 && w.chainConfig.Optimism == nil { // Optimism chains must not set any extra data.
@@ -1281,7 +1286,14 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		// If we're post merge, just ignore
 		if !w.isTTDReached(block.Header()) {
 			select {
-			case w.taskCh <- &task{receipts: env.receipts, state: env.state, block: block, createdAt: time.Now()}:
+			case w.taskCh <- &task{
+				receipts:          env.receipts,
+				state:             env.state,
+				block:             block,
+				createdAt:         time.Now(),
+				solanaBlockNumber: env.solanaBlockNumber,
+				solanaBlockHash:   env.solanaBlockHash,
+			}:
 				fees := totalFees(block, env.receipts)
 				feesInEther := new(big.Float).Quo(new(big.Float).SetInt(fees), big.NewFloat(params.Ether))
 				log.Info("Commit new sealing work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
