@@ -473,7 +473,7 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 	stateObject.data.Balance = new(big.Int)
 
 	// If the account was created in the same transaction and selfdestructs,
-	if stateObject.created {
+	if stateObject.created && stateObject.origin == nil {
 		s.SetNonce(addr, 0)
 	}
 }
