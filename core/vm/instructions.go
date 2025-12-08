@@ -447,10 +447,11 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		return nil, nil
 	}
 	
-	current := interpreter.evm.Context.BlockNumber.Uint64()
-	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		current = *interpreter.evm.Context.SolanaBlockNumber
+	if interpreter.evm.Context.SolanaBlockNumber == nil {
+		num.Clear()
+		return nil, nil
 	}
+	current := *interpreter.evm.Context.SolanaBlockNumber
 	
 	if num64 >= current {
 		num.Clear()
@@ -460,6 +461,13 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	if current - num64 > 256 {
 		num.Clear()
 		return nil, nil
+	}
+	
+	if interpreter.evm.Context.GetSolanaHash != nil {
+		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
+			num.SetBytes(hash[:])
+			return nil, nil
+		}
 	}
 	
 	var buf [32]byte
