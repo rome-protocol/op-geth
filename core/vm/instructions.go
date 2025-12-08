@@ -672,7 +672,6 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byt
 	// Pop gas. The actual gas in interpreter.evm.callGasTemp.
 	// We use it as a temporary value
 	temp := stack.pop()
-	_ = interpreter.evm.callGasTemp
 	gas := uint64(math.MaxInt64)
 	// Pop other call parameters.
 	addr, value, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
@@ -749,7 +748,6 @@ func opDelegateCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
 	// We use it as a temporary value
 	temp := stack.pop()
-	_ = interpreter.evm.callGasTemp
 	gas := uint64(math.MaxInt64)
 	// Pop other call parameters.
 	addr, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
@@ -778,7 +776,6 @@ func opStaticCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) 
 	stack := scope.Stack
 	// We use it as a temporary value
 	temp := stack.pop()
-	_ = interpreter.evm.callGasTemp
 	gas := uint64(math.MaxInt64)
 	// Pop other call parameters.
 	addr, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
