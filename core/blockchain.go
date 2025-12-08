@@ -261,13 +261,6 @@ type BlockChain struct {
 	vmConfig   vm.Config
 
 	footprintManager *footprint.Manager // Manages footprint caching and mismatch tracking
-	
-	// In-memory cache for Solana metadata (used before it's written to database)
-	solanaMetaCache map[common.Hash]struct {
-		slot uint64
-		hash common.Hash
-	}
-	solanaMetaCacheMu sync.RWMutex
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -300,25 +293,21 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	}
 
 	bc := &BlockChain{
-		chainConfig:     chainConfig,
-		cacheConfig:     cacheConfig,
-		db:              db,
-		triedb:          triedb,
-		triegc:          prque.New[int64, common.Hash](nil),
-		quit:            make(chan struct{}),
-		chainmu:         syncx.NewClosableMutex(),
-		bodyCache:       lru.NewCache[common.Hash, *types.Body](bodyCacheLimit),
-		bodyRLPCache:    lru.NewCache[common.Hash, rlp.RawValue](bodyCacheLimit),
-		receiptsCache:   lru.NewCache[common.Hash, []*types.Receipt](receiptsCacheLimit),
-		blockCache:      lru.NewCache[common.Hash, *types.Block](blockCacheLimit),
-		txLookupCache:   lru.NewCache[common.Hash, *rawdb.LegacyTxLookupEntry](txLookupCacheLimit),
-		futureBlocks:    lru.NewCache[common.Hash, *types.Block](maxFutureBlocks),
-		engine:          engine,
-		vmConfig:        vmConfig,
-		solanaMetaCache: make(map[common.Hash]struct {
-			slot uint64
-			hash common.Hash
-		}),
+		chainConfig:   chainConfig,
+		cacheConfig:   cacheConfig,
+		db:            db,
+		triedb:        triedb,
+		triegc:        prque.New[int64, common.Hash](nil),
+		quit:          make(chan struct{}),
+		chainmu:       syncx.NewClosableMutex(),
+		bodyCache:     lru.NewCache[common.Hash, *types.Body](bodyCacheLimit),
+		bodyRLPCache:  lru.NewCache[common.Hash, rlp.RawValue](bodyCacheLimit),
+		receiptsCache: lru.NewCache[common.Hash, []*types.Receipt](receiptsCacheLimit),
+		blockCache:    lru.NewCache[common.Hash, *types.Block](blockCacheLimit),
+		txLookupCache: lru.NewCache[common.Hash, *rawdb.LegacyTxLookupEntry](txLookupCacheLimit),
+		futureBlocks:  lru.NewCache[common.Hash, *types.Block](maxFutureBlocks),
+		engine:        engine,
+		vmConfig:      vmConfig,
 	}
 	bc.flushInterval.Store(int64(cacheConfig.TrieTimeLimit))
 	bc.forker = NewForkChoice(bc, shouldPreserve)
@@ -999,38 +988,16 @@ func (bc *BlockChain) GetFootprintManager() *footprint.Manager {
 	return bc.footprintManager
 }
 
+// GetSolanaMetadata returns the solana metadata for the given block hash.
 func (bc *BlockChain) GetSolanaMetadata(hash common.Hash) (uint64, common.Hash, bool) {
-	bc.solanaMetaCacheMu.RLock()
-	if meta, ok := bc.solanaMetaCache[hash]; ok {
-		bc.solanaMetaCacheMu.RUnlock()
-		return meta.slot, meta.hash, true
-	}
-	bc.solanaMetaCacheMu.RUnlock()
-	
 	return rawdb.ReadSolanaMetadata(bc.db, hash)
 }
 
+// WriteSolanaMetadata writes the solana metadata for the given block hash to the database.
 func (bc *BlockChain) WriteSolanaMetadata(blockHash common.Hash, slot uint64, solanaHash common.Hash) error {
-	bc.solanaMetaCacheMu.Lock()
-	bc.solanaMetaCache[blockHash] = struct {
-		slot uint64
-		hash common.Hash
-	}{slot: slot, hash: solanaHash}
-	bc.solanaMetaCacheMu.Unlock()
-	
-	// Write to database
 	batch := bc.db.NewBatch()
 	rawdb.WriteSolanaMetadata(batch, blockHash, slot, solanaHash)
 	return batch.Write()
-}
-
-func (bc *BlockChain) SetSolanaMetadataCache(blockHash common.Hash, slot uint64, solanaHash common.Hash) {
-	bc.solanaMetaCacheMu.Lock()
-	bc.solanaMetaCache[blockHash] = struct {
-		slot uint64
-		hash common.Hash
-	}{slot: slot, hash: solanaHash}
-	bc.solanaMetaCacheMu.Unlock()
 }
 
 // SetFootprintManager sets the footprint manager for this blockchain
