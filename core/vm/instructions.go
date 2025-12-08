@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -448,28 +449,35 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	}
 	
 	if interpreter.evm.Context.SolanaBlockNumber == nil {
+		log.Debug("opBlockhash: SolanaBlockNumber is nil, clearing result", "requestedSlot", num64)
 		num.Clear()
 		return nil, nil
 	}
 	current := *interpreter.evm.Context.SolanaBlockNumber
+	log.Debug("opBlockhash", "requestedSlot", num64, "currentSolanaSlot", current, "ethBlockNumber", interpreter.evm.Context.BlockNumber.Uint64())
 	
 	if num64 >= current {
+		log.Debug("opBlockhash: requested slot >= current, clearing result", "requestedSlot", num64, "currentSlot", current)
 		num.Clear()
 		return nil, nil
 	}
 	
 	if current - num64 > 256 {
+		log.Debug("opBlockhash: requested slot too far in past, clearing result", "requestedSlot", num64, "currentSlot", current, "diff", current-num64)
 		num.Clear()
 		return nil, nil
 	}
 	
 	if interpreter.evm.Context.GetSolanaHash != nil {
 		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
+			log.Debug("opBlockhash: found Solana hash", "requestedSlot", num64, "hash", hash.Hex())
 			num.SetBytes(hash[:])
 			return nil, nil
 		}
+		log.Debug("opBlockhash: GetSolanaHash returned false", "requestedSlot", num64)
 	}
 	
+	log.Debug("opBlockhash: falling back to Keccak256 hash", "requestedSlot", num64)
 	var buf [32]byte
 	binary.BigEndian.PutUint64(buf[24:], num64)  
 	hash := crypto.Keccak256Hash(buf[:])
@@ -489,7 +497,12 @@ func opTimestamp(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 
 func opNumber(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		scope.Stack.push(new(uint256.Int).SetUint64(*interpreter.evm.Context.SolanaBlockNumber))
+		solanaNum := *interpreter.evm.Context.SolanaBlockNumber
+		log.Debug("opNumber: using Solana block number", "solanaBlockNumber", solanaNum, "ethBlockNumber", interpreter.evm.Context.BlockNumber.Uint64())
+		scope.Stack.push(new(uint256.Int).SetUint64(solanaNum))
+	} else {
+		log.Debug("opNumber: SolanaBlockNumber is nil, pushing 0", "ethBlockNumber", interpreter.evm.Context.BlockNumber.Uint64())
+		scope.Stack.push(new(uint256.Int))
 	}
 	return nil, nil
 }

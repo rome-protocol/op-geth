@@ -692,6 +692,8 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 		return engine.PayloadStatusV1{Status: engine.ACCEPTED}, nil
 	}
 
+	// Write Solana metadata to database BEFORE block insertion to ensure it's available
+	// during block execution (e.g., for opNumber and opBlockhash opcodes)
 	var solanaSlot *uint64
 	var solanaHash *common.Hash
 	
@@ -702,6 +704,7 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 	}
 	api.solanaLock.Unlock()
 	
+	// Also check params directly (may have been populated by populateSolanaMetadata or from payload)
 	if solanaSlot == nil && params.SolanaBlockNumber != nil {
 		slot := uint64(*params.SolanaBlockNumber)
 		solanaSlot = &slot
@@ -712,9 +715,12 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 	}
 	
 	if solanaSlot != nil && solanaHash != nil {
+		log.Trace("Writing Solana metadata before block insertion", "hash", block.Hash(), "slot", *solanaSlot, "solanaHash", solanaHash.Hex())
 		if err := api.eth.BlockChain().WriteSolanaMetadata(block.Hash(), *solanaSlot, *solanaHash); err != nil {
 			return api.invalid(fmt.Errorf("failed to write Solana metadata: %w", err), parent.Header()), nil
 		}
+	} else {
+		log.Warn("Solana metadata not available for block", "hash", block.Hash(), "number", block.NumberU64(), "hasMeta", api.solanaMeta[block.Hash()] != solanaMetadata{}, "hasParamsNumber", params.SolanaBlockNumber != nil, "hasParamsHash", params.SolanaBlockHash != nil)
 	}
 	
 	log.Trace("Inserting block without sethead", "hash", block.Hash(), "number", block.Number)
