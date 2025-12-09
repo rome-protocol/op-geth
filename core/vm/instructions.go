@@ -490,8 +490,6 @@ func opNumber(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
 		solanaNum := *interpreter.evm.Context.SolanaBlockNumber
 		scope.Stack.push(new(uint256.Int).SetUint64(solanaNum))
-	} else {
-		scope.Stack.push(new(uint256.Int))
 	}
 	return nil, nil
 }
