@@ -462,12 +462,6 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		num.Clear()
 		return nil, nil
 	}
-	if interpreter.evm.Context.GetSolanaHash != nil {
-		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
-			num.SetBytes(hash[:])
-			return nil, nil
-		}
-	}
 
 	var buf [32]byte
 	binary.BigEndian.PutUint64(buf[24:], num64)
