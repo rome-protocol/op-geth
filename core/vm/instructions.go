@@ -17,7 +17,6 @@
 package vm
 
 import (
-	"encoding/binary"
 	"math"
 
 	"github.com/ethereum/go-ethereum/common"
