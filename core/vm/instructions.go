@@ -432,9 +432,6 @@ func opExtCodeHash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext)
 func opGasprice(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	if interpreter.evm.GasPrice == nil || interpreter.evm.GasPrice.Sign() == 0 {
 		scope.Stack.push(new(uint256.Int))
-	} else {
-		v, _ := uint256.FromBig(interpreter.evm.GasPrice)
-		scope.Stack.push(v)
 	}
 	return nil, nil
 }
@@ -446,35 +443,31 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		num.Clear()
 		return nil, nil
 	}
-	
+
 	if interpreter.evm.Context.SolanaBlockNumber == nil {
 		num.Clear()
 		return nil, nil
 	}
 	current := *interpreter.evm.Context.SolanaBlockNumber
-	
+
 	if num64 >= current {
 		num.Clear()
 		return nil, nil
 	}
-	
-	if current - num64 > 256 {
+
+	if current-num64 > 256 {
 		num.Clear()
 		return nil, nil
 	}
-	
+
 	if interpreter.evm.Context.GetSolanaHash != nil {
 		if hash, ok := interpreter.evm.Context.GetSolanaHash(num64); ok {
 			num.SetBytes(hash[:])
 			return nil, nil
 		}
 	}
-	
-	// Fallback to Keccak256 hash if Solana hash not found
-	var buf [32]byte
-	binary.BigEndian.PutUint64(buf[24:], num64)  
-	hash := crypto.Keccak256Hash(buf[:])
-	num.SetBytes(hash[:])
+
+	num.Clear()
 	return nil, nil
 }
 
