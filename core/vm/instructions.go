@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -483,7 +484,14 @@ func opTimestamp(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 func opNumber(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	if interpreter.evm.Context.SolanaBlockNumber != nil {
 		solanaNum := *interpreter.evm.Context.SolanaBlockNumber
+		// Debug: log the Solana slot used as block.number in this EVM context
+		log.Info("opNUMBER Solana slot",
+			"solanaSlot", solanaNum,
+			"ethBlock", interpreter.evm.Context.BlockNumber,
+		)
 		scope.Stack.push(new(uint256.Int).SetUint64(solanaNum))
+	} else {
+		scope.Stack.push(new(uint256.Int))
 	}
 	return nil, nil
 }

@@ -375,6 +375,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			return engine.STATUS_INVALID, engine.InvalidPayloadAttributes.With(errors.New("gasLimit parameter is required"))
 		}
 		transactions := make(types.Transactions, 0, len(payloadAttributes.Transactions))
+		var txHashes []common.Hash
 		tracer := log.GetTracer()
 		for i, otx := range payloadAttributes.Transactions {
 			var tx types.Transaction
@@ -387,6 +388,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 					attribute.String("timestamp", time.Now().Format(time.RFC3339Nano)),
 				))
 			transactions = append(transactions, &tx)
+			txHashes = append(txHashes, tx.Hash())
 			span.End()
 		}
 		args := &miner.BuildPayloadArgs{
@@ -406,6 +408,25 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			Footprints:   payloadAttributes.TxFootprints,
 		}
 		id := args.Id()
+		if payloadAttributes.SolanaBlockNumber != nil || payloadAttributes.SolanaBlockHash != nil {
+			var slot uint64
+			if payloadAttributes.SolanaBlockNumber != nil {
+				slot = uint64(*payloadAttributes.SolanaBlockNumber)
+			}
+			log.Info("forkchoiceUpdated Solana metadata",
+				"payloadId", id,
+				"slot", slot,
+				"slotPresent", payloadAttributes.SolanaBlockNumber != nil,
+				"hashPresent", payloadAttributes.SolanaBlockHash != nil,
+				"txCount", len(txHashes),
+				"firstTxHash", func() string {
+					if len(txHashes) > 0 {
+						return txHashes[0].Hex()
+					}
+					return ""
+				}(),
+			)
+		}
 		api.storePendingSolanaAttributes(id, payloadAttributes)
 		// If we already are busy generating this work, then we do not need
 		// to start a second process.
