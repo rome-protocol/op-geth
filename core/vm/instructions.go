@@ -449,7 +449,11 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 
 	if interpreter.evm.Context.GetHash != nil {
 		hash := interpreter.evm.Context.GetHash(num64)
-		num.SetBytes(hash[:])
+		if hash == (common.Hash{}) {
+			num.Clear()
+		} else {
+			num.SetBytes(hash[:])
+		}
 		return nil, nil
 	}
 

@@ -140,21 +140,26 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash
 	var cache []common.Hash
 
 	return func(n uint64) common.Hash {
-		if ref.Number.Uint64() <= n {
-			// This situation can happen if we're doing tracing and using
-			// block overrides.
+		currentBlock := ref.Number.Uint64()
+		if currentBlock <= n {
+			// Current block or future block - return zero
+			return common.Hash{}
+		}
+		// Check if block is more than 256 blocks in the past
+		if currentBlock-n > 256 {
+			// Out of range - return zero
 			return common.Hash{}
 		}
 		// If there's no hash cache yet, make one
 		if len(cache) == 0 {
 			cache = append(cache, ref.ParentHash)
 		}
-		if idx := ref.Number.Uint64() - n - 1; idx < uint64(len(cache)) {
+		if idx := currentBlock - n - 1; idx < uint64(len(cache)) {
 			return cache[idx]
 		}
 		// No luck in the cache, but we can start iterating from the last element we already know
 		lastKnownHash := cache[len(cache)-1]
-		lastKnownNumber := ref.Number.Uint64() - uint64(len(cache))
+		lastKnownNumber := currentBlock - uint64(len(cache))
 
 		for {
 			header := chain.GetHeader(lastKnownHash, lastKnownNumber)
@@ -168,7 +173,9 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash
 				return lastKnownHash
 			}
 		}
-		return common.Hash{}
+		var buf [32]byte
+		binary.BigEndian.PutUint64(buf[24:], n)
+		return crypto.Keccak256Hash(buf[:])
 	}
 }
 
