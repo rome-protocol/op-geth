@@ -253,8 +253,8 @@ func (d *dummyChain) GetFootprintManager() *footprint.Manager {
 	return nil
 }
 
-func (d *dummyChain) GetSolanaMetadata(common.Hash) (uint64, common.Hash, bool) {
-	return 0, common.Hash{}, false
+func (d *dummyChain) GetSolanaMetadata(common.Hash) (uint64, bool) {
+	return 0, false
 }
 
 // TestBlockhash tests the blockhash operation. It's a bit special, since it internally

@@ -102,7 +102,6 @@ type environment struct {
 	blobs    int
 
 	solanaBlockNumber *uint64
-	solanaBlockHash   *common.Hash
 }
 
 // copy creates a deep copy of environment.
@@ -117,7 +116,6 @@ func (env *environment) copy() *environment {
 		header:            types.CopyHeader(env.header),
 		receipts:          copyReceipts(env.receipts),
 		solanaBlockNumber: env.solanaBlockNumber,
-		solanaBlockHash:   env.solanaBlockHash,
 	}
 	if env.gasPool != nil {
 		gasPool := *env.gasPool
@@ -149,7 +147,6 @@ type task struct {
 	block             *types.Block
 	createdAt         time.Time
 	solanaBlockNumber *uint64
-	solanaBlockHash   *common.Hash
 }
 
 const (
@@ -737,8 +734,8 @@ func (w *worker) resultLoop() {
 				continue
 			}
 			// Write Solana metadata to database if available
-			if task.solanaBlockNumber != nil && task.solanaBlockHash != nil {
-				if err := w.chain.WriteSolanaMetadata(hash, *task.solanaBlockNumber, *task.solanaBlockHash); err != nil {
+			if task.solanaBlockNumber != nil {
+				if err := w.chain.WriteSolanaMetadata(hash, *task.solanaBlockNumber); err != nil {
 					log.Error("Failed to write Solana metadata to database", "err", err)
 				}
 			}
@@ -781,7 +778,6 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, genParams *
 		header:            header,
 		gasUsed:           genParams.gasUsed,
 		solanaBlockNumber: genParams.solanaBlockNumber,
-		solanaBlockHash:   genParams.solanaBlockHash,
 	}
 	// Keep track of transactions which return errors so they can be removed
 	env.tcount = 0
@@ -848,7 +844,7 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 		gp   = env.gasPool.Gas()
 	)
 
-	receipt, err := core.ApplyTransactionWithSolana(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed, footPrint, romeGasPrice, env.solanaBlockNumber, env.solanaBlockHash)
+	receipt, err := core.ApplyTransactionWithSolana(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed, footPrint, romeGasPrice, env.solanaBlockNumber)
 
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
@@ -974,7 +970,6 @@ type generateParams struct {
 	withdrawals       types.Withdrawals // List of withdrawals to include in block.
 	beaconRoot        *common.Hash      // The beacon root (cancun field).
 	solanaBlockNumber *uint64           // Optional Solana block number metadata
-	solanaBlockHash   *common.Hash      // Optional Solana block hash metadata
 	noTxs             bool              // Flag whether an empty block without any transaction is expected
 
 	txs       types.Transactions // Deposit transactions to include at the start of the block
@@ -1074,7 +1069,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		return nil, err
 	}
 	if header.ParentBeaconRoot != nil {
-		context := core.NewEVMBlockContext(header, w.chain, nil, w.chainConfig, env.state, env.solanaBlockNumber, env.solanaBlockHash)
+		context := core.NewEVMBlockContext(header, w.chain, nil, w.chainConfig, env.state, env.solanaBlockNumber)
 		vmenv := vm.NewEVM(context, vm.TxContext{}, env.state, w.chainConfig, vm.Config{})
 		core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv, env.state)
 	}
@@ -1194,8 +1189,8 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 	if err != nil {
 		return &newPayloadResult{err: err}
 	}
-	if work.solanaBlockNumber != nil && work.solanaBlockHash != nil {
-		if err := w.chain.WriteSolanaMetadata(block.Hash(), *work.solanaBlockNumber, *work.solanaBlockHash); err != nil {
+	if work.solanaBlockNumber != nil {
+		if err := w.chain.WriteSolanaMetadata(block.Hash(), *work.solanaBlockNumber); err != nil {
 			log.Error("Failed to write Solana metadata after block building", "err", err, "blockHash", block.Hash().Hex(), "blockNumber", block.NumberU64())
 		} else {
 			log.Info("Wrote Solana metadata after block building", "blockHash", block.Hash().Hex(), "blockNumber", block.NumberU64(), "slot", *work.solanaBlockNumber)
@@ -1299,7 +1294,6 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 				block:             block,
 				createdAt:         time.Now(),
 				solanaBlockNumber: env.solanaBlockNumber,
-				solanaBlockHash:   env.solanaBlockHash,
 			}:
 				fees := totalFees(block, env.receipts)
 				feesInEther := new(big.Float).Quo(new(big.Float).SetInt(fees), big.NewFloat(params.Ether))

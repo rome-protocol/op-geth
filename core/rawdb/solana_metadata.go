@@ -17,24 +17,19 @@ func solanaMetadataKey(blockHash common.Hash) []byte {
 	return key
 }
 
-// WriteSolanaMetadata stores the solana slot and hash associated with a block hash.
-func WriteSolanaMetadata(db ethdb.KeyValueWriter, blockHash common.Hash, slot uint64, solanaHash common.Hash) {
-	var enc [8 + common.HashLength]byte
-	binary.BigEndian.PutUint64(enc[:8], slot)
-	copy(enc[8:], solanaHash.Bytes())
+// WriteSolanaMetadata stores the solana slot associated with a block hash.
+func WriteSolanaMetadata(db ethdb.KeyValueWriter, blockHash common.Hash, slot uint64) {
+	var enc [8]byte
+	binary.BigEndian.PutUint64(enc[:], slot)
 	db.Put(solanaMetadataKey(blockHash), enc[:])
 }
 
-// ReadSolanaMetadata retrieves the solana slot and hash associated with a block hash.
-func ReadSolanaMetadata(db ethdb.Reader, blockHash common.Hash) (uint64, common.Hash, bool) {
+// ReadSolanaMetadata retrieves the solana slot associated with a block hash.
+func ReadSolanaMetadata(db ethdb.Reader, blockHash common.Hash) (uint64, bool) {
 	data, err := db.Get(solanaMetadataKey(blockHash))
 	if err != nil || len(data) < 8 {
-		return 0, common.Hash{}, false
+		return 0, false
 	}
 	slot := binary.BigEndian.Uint64(data[:8])
-	var solanaHash common.Hash
-	if len(data) >= 8+common.HashLength {
-		copy(solanaHash[:], data[8:8+common.HashLength])
-	}
-	return slot, solanaHash, true
+	return slot, true
 }

@@ -56,7 +56,6 @@ type RomePayloadAttributes struct {
 	Withdrawals           []*types.Withdrawal `json:"withdrawals"`
 	BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
 	SolanaBlockNumber     *uint64             `json:"solanaBlockNumber,omitempty" gencodec:"optional"`
-	SolanaBlockHash       *common.Hash        `json:"solanaBlockHash,omitempty" gencodec:"optional"`
 
 	// Transactions is a field for rollups: the transactions list is forced into the block
 	Transactions [][]byte `json:"transactions,omitempty"  gencodec:"optional"`
@@ -140,7 +139,6 @@ type RomeExecutableData struct {
 	TxFootprints      []string            `json:"txFootprints,omitempty" gencodec:"optional"`
 	RomeGasPrice      []uint64            `json:"romeGasPrice"   gencodec:"required"`
 	SolanaBlockNumber *hexutil.Uint64     `json:"solanaBlockNumber,omitempty" gencodec:"optional"`
-	SolanaBlockHash   *common.Hash        `json:"solanaBlockHash,omitempty" gencodec:"optional"`
 }
 
 // JSON type overrides for RomeExecutableData.

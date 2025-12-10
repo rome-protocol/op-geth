@@ -44,7 +44,6 @@ type BuildPayloadArgs struct {
 	Withdrawals  types.Withdrawals // The provided withdrawals
 	BeaconRoot   *common.Hash      // The provided beaconRoot (Cancun)
 	SolanaBlockNumber *uint64      // The Solana slot associated with this block
-	SolanaBlockHash   *common.Hash // The Solana block hash associated with this block
 
 	NoTxPool     bool                 // Optimism addition: option to disable tx pool contents from being included
 	Transactions []*types.Transaction // Optimism addition: txs forced into the block via engine API
@@ -81,9 +80,6 @@ func (args *BuildPayloadArgs) Id() engine.PayloadID {
 	binary.Write(hasher, binary.BigEndian, args.GasPrice)
 	if args.SolanaBlockNumber != nil {
 		binary.Write(hasher, binary.BigEndian, *args.SolanaBlockNumber)
-	}
-	if args.SolanaBlockHash != nil {
-		hasher.Write(args.SolanaBlockHash[:])
 	}
 
 	var out engine.PayloadID
@@ -279,7 +275,6 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 			withdrawals: args.Withdrawals,
 			beaconRoot:  args.BeaconRoot,
 			solanaBlockNumber: args.SolanaBlockNumber,
-			solanaBlockHash:   args.SolanaBlockHash,
 			noTxs:       true,
 			txs:         args.Transactions,
 			gasLimit:    args.GasLimit,
@@ -308,7 +303,6 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 		withdrawals: args.Withdrawals,
 		beaconRoot:  args.BeaconRoot,
 		solanaBlockNumber: args.SolanaBlockNumber,
-		solanaBlockHash:   args.SolanaBlockHash,
 		noTxs:       false,
 		txs:         args.Transactions,
 		gasLimit:    args.GasLimit,

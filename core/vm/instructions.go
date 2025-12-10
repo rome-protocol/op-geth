@@ -447,22 +447,6 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		return nil, nil
 	}
 
-	if interpreter.evm.Context.SolanaBlockNumber == nil {
-		num.Clear()
-		return nil, nil
-	}
-	current := *interpreter.evm.Context.SolanaBlockNumber
-
-	if num64 >= current {
-		num.Clear()
-		return nil, nil
-	}
-
-	if current-num64 > 256 {
-		num.Clear()
-		return nil, nil
-	}
-
 	var buf [32]byte
 	binary.BigEndian.PutUint64(buf[24:], num64)
 	hash := crypto.Keccak256Hash(buf[:])

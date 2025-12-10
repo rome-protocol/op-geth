@@ -17,6 +17,7 @@
 package core
 
 import (
+	"encoding/binary"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -25,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/footprint"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -40,13 +42,12 @@ type ChainContext interface {
 	// GetFootprintManager returns the footprint manager.
 	GetFootprintManager() *footprint.Manager
 
-	// GetSolanaMetadata retrieves the solana slot and hash recorded for a block hash.
-	GetSolanaMetadata(common.Hash) (uint64, common.Hash, bool)
+	// GetSolanaMetadata retrieves the solana slot recorded for a block hash.
+	GetSolanaMetadata(common.Hash) (uint64, bool)
 }
 
 // NewEVMBlockContext creates a new context for use in the EVM.
-// If solanaBlockNumber and solanaBlockHash are provided, they take precedence over hash lookup.
-func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common.Address, config *params.ChainConfig, statedb types.StateGetter, solanaBlockNumber *uint64, solanaBlockHash *common.Hash) vm.BlockContext {
+func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common.Address, config *params.ChainConfig, statedb types.StateGetter, solanaBlockNumber *uint64) vm.BlockContext {
 	var (
 		beneficiary common.Address
 		baseFee     *big.Int
@@ -72,79 +73,29 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	var getSolanaHash func(uint64) (common.Hash, bool)
 	var getSolanaHashByEthBlock func(uint64) (common.Hash, bool)
 	
-	if solanaBlockNumber == nil || solanaBlockHash == nil {
+	if solanaBlockNumber == nil {
 		if chain != nil {
 			// Look up Solana metadata from database for current block
-			if metaSlot, metaHash, ok := chain.GetSolanaMetadata(header.Hash()); ok {
+			if metaSlot, ok := chain.GetSolanaMetadata(header.Hash()); ok {
 				solanaBlockNumber = &metaSlot
-				solanaBlockHash = &metaHash
 			}
 		}
 	}
 	
 	if chain != nil {
 		getSolanaHash = func(slot uint64) (common.Hash, bool) {
-			// First check if the requested slot matches the current block being built
-			if solanaBlockNumber != nil && *solanaBlockNumber == slot && solanaBlockHash != nil {
-				return *solanaBlockHash, true
-			}
-			// Check if metadata is available for the current header (already inserted blocks)
-			if metaSlot, metaHash, ok := chain.GetSolanaMetadata(header.Hash()); ok {
-				if metaSlot == slot {
-					return metaHash, true
-				}
-			}
-			// Walk backwards through parent blocks to find the matching Solana slot
-			current := header
-			for i := 0; i < 256; i++ {
-				if current.ParentHash == (common.Hash{}) || current.Number == nil {
-					break
-				}
-				if !current.Number.IsUint64() {
-					break
-				}
-				number := current.Number.Uint64()
-				if number == 0 {
-					break
-				}
-				parent := chain.GetHeader(current.ParentHash, number-1)
-				if parent == nil {
-					break
-				}
-				if metaSlot, metaHash, ok := chain.GetSolanaMetadata(parent.Hash()); ok {
-					if metaSlot == slot {
-						return metaHash, true
-					}
-				}
-				current = parent
-			}
-			return common.Hash{}, false
+			// Use keccak256 of the slot number as the blockhash
+			var buf [32]byte
+			binary.BigEndian.PutUint64(buf[24:], slot)
+			hash := crypto.Keccak256Hash(buf[:])
+			return hash, true
 		}
 		getSolanaHashByEthBlock = func(ethBlockNum uint64) (common.Hash, bool) {
-			offset := header.Number.Uint64() - ethBlockNum
-			if offset > header.Number.Uint64() || ethBlockNum > header.Number.Uint64() {
-				return common.Hash{}, false
-			}
-			for current := header; current != nil; {
-				if !current.Number.IsUint64() {
-					break
-				}
-				number := current.Number.Uint64()
-				if number == ethBlockNum {
-					if _, metaHash, ok := chain.GetSolanaMetadata(current.Hash()); ok {
-						return metaHash, true
-					}
-					return common.Hash{}, false
-				}
-				if number < ethBlockNum || number == 0 {
-					break
-				}
-				if current.ParentHash == (common.Hash{}) {
-					break
-				}
-				current = chain.GetHeader(current.ParentHash, number-1)
-			}
-			return common.Hash{}, false
+			// Use keccak256 of the eth block number as the blockhash
+			var buf [32]byte
+			binary.BigEndian.PutUint64(buf[24:], ethBlockNum)
+			hash := crypto.Keccak256Hash(buf[:])
+			return hash, true
 		}
 	}
 
@@ -164,7 +115,6 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		Random:               random,
 		L1CostFunc:           types.NewL1CostFunc(config, statedb),
 		SolanaBlockNumber:    solanaBlockNumber,
-		SolanaBlockHash:      solanaBlockHash,
 	}
 	return blockCtx
 }

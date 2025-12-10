@@ -19,6 +19,7 @@ package catalyst
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/big"
@@ -30,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/log"
@@ -141,7 +143,6 @@ type ConsensusAPI struct {
 
 type solanaMetadata struct {
 	number *uint64
-	hash   *common.Hash
 }
 
 // NewConsensusAPI creates a new consensus api for the given backend.
@@ -397,7 +398,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			Withdrawals:  payloadAttributes.Withdrawals,
 			BeaconRoot:   payloadAttributes.BeaconRoot,
 			SolanaBlockNumber: payloadAttributes.SolanaBlockNumber,
-			SolanaBlockHash:   payloadAttributes.SolanaBlockHash,
 			NoTxPool:     payloadAttributes.NoTxPool,
 			Transactions: transactions,
 			GasLimit:     payloadAttributes.GasLimit,
@@ -493,10 +493,6 @@ func (api *ConsensusAPI) storeSolanaMetadata(id engine.PayloadID, payload *engin
 		num := uint64(*payload.SolanaBlockNumber)
 		meta.number = &num
 	}
-	if payload.SolanaBlockHash != nil {
-		hash := *payload.SolanaBlockHash
-		meta.hash = &hash
-	}
 	api.solanaLock.Lock()
 	defer api.solanaLock.Unlock()
 
@@ -504,21 +500,14 @@ func (api *ConsensusAPI) storeSolanaMetadata(id engine.PayloadID, payload *engin
 		if meta.number == nil && pending.number != nil {
 			meta.number = pending.number
 		}
-		if meta.hash == nil && pending.hash != nil {
-			meta.hash = pending.hash
-		}
 		delete(api.solanaPending, id)
 	}
-	if meta.number == nil && meta.hash == nil {
+	if meta.number == nil {
 		return
 	}
 	if payload.SolanaBlockNumber == nil && meta.number != nil {
 		val := hexutil.Uint64(*meta.number)
 		payload.SolanaBlockNumber = &val
-	}
-	if payload.SolanaBlockHash == nil && meta.hash != nil {
-		hash := *meta.hash
-		payload.SolanaBlockHash = &hash
 	}
 	api.solanaMeta[payload.BlockHash] = meta
 }
@@ -532,11 +521,7 @@ func (api *ConsensusAPI) storePendingSolanaAttributes(id engine.PayloadID, attr 
 		num := *attr.SolanaBlockNumber
 		meta.number = &num
 	}
-	if attr.SolanaBlockHash != nil {
-		hash := *attr.SolanaBlockHash
-		meta.hash = &hash
-	}
-	if meta.number == nil && meta.hash == nil {
+	if meta.number == nil {
 		return
 	}
 	api.solanaLock.Lock()
@@ -548,23 +533,18 @@ func (api *ConsensusAPI) populateSolanaMetadata(params *engine.RomeExecutableDat
 	api.solanaLock.Lock()
 	defer api.solanaLock.Unlock()
 
-	log.Info("populateSolanaMetadata called", "blockHash", params.BlockHash.Hex(), "paramsHasNumber", params.SolanaBlockNumber != nil, "paramsHasHash", params.SolanaBlockHash != nil)
+	log.Info("populateSolanaMetadata called", "blockHash", params.BlockHash.Hex(), "paramsHasNumber", params.SolanaBlockNumber != nil)
 	
 	meta, ok := api.solanaMeta[params.BlockHash]
 	if !ok {
 		log.Info("populateSolanaMetadata: no metadata in api.solanaMeta", "blockHash", params.BlockHash.Hex())
 		return
 	}
-	log.Info("populateSolanaMetadata: found metadata", "blockHash", params.BlockHash.Hex(), "hasNumber", meta.number != nil, "hasHash", meta.hash != nil)
+	log.Info("populateSolanaMetadata: found metadata", "blockHash", params.BlockHash.Hex(), "hasNumber", meta.number != nil)
 	if params.SolanaBlockNumber == nil && meta.number != nil {
 		val := hexutil.Uint64(*meta.number)
 		params.SolanaBlockNumber = &val
 		log.Info("populateSolanaMetadata: populated SolanaBlockNumber", "blockHash", params.BlockHash.Hex(), "number", *meta.number)
-	}
-	if params.SolanaBlockHash == nil && meta.hash != nil {
-		hash := *meta.hash
-		params.SolanaBlockHash = &hash
-		log.Info("populateSolanaMetadata: populated SolanaBlockHash", "blockHash", params.BlockHash.Hex(), "hash", hash.Hex())
 	}
 }
 
@@ -701,20 +681,18 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 	// Write Solana metadata to database BEFORE block insertion to ensure it's available
 	// during block execution (e.g., for opNumber and opBlockhash opcodes)
 	var solanaSlot *uint64
-	var solanaHash *common.Hash
 	
-	log.Info("Checking Solana metadata sources", "blockHash", block.Hash().Hex(), "blockNumber", block.NumberU64(), "paramsHasNumber", params.SolanaBlockNumber != nil, "paramsHasHash", params.SolanaBlockHash != nil)
+	log.Info("Checking Solana metadata sources", "blockHash", block.Hash().Hex(), "blockNumber", block.NumberU64(), "paramsHasNumber", params.SolanaBlockNumber != nil)
 	
 	api.solanaLock.Lock()
 	meta, hasMeta := api.solanaMeta[block.Hash()]
-	if hasMeta && meta.number != nil && meta.hash != nil {
-		log.Info("Found Solana metadata in api.solanaMeta", "blockHash", block.Hash().Hex(), "slot", *meta.number, "hash", meta.hash.Hex())
+	if hasMeta && meta.number != nil {
+		log.Info("Found Solana metadata in api.solanaMeta", "blockHash", block.Hash().Hex(), "slot", *meta.number)
 		solanaSlot = meta.number
-		solanaHash = meta.hash
 	} else {
 		log.Info("No metadata in api.solanaMeta", "blockHash", block.Hash().Hex(), "hasMeta", hasMeta)
 		if hasMeta {
-			log.Info("Metadata exists but incomplete", "hasNumber", meta.number != nil, "hasHash", meta.hash != nil)
+			log.Info("Metadata exists but incomplete", "hasNumber", meta.number != nil)
 		}
 	}
 	api.solanaLock.Unlock()
@@ -725,15 +703,9 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 		log.Info("Using Solana metadata from params.SolanaBlockNumber", "blockHash", block.Hash().Hex(), "slot", slot)
 		solanaSlot = &slot
 	}
-	if solanaHash == nil && params.SolanaBlockHash != nil {
-		hash := *params.SolanaBlockHash
-		log.Info("Using Solana metadata from params.SolanaBlockHash", "blockHash", block.Hash().Hex(), "hash", hash.Hex())
-		solanaHash = &hash
-	}
-	
-	if solanaSlot != nil && solanaHash != nil {
-		log.Info("Writing Solana metadata before block insertion", "blockHash", block.Hash().Hex(), "blockNumber", block.NumberU64(), "solanaSlot", *solanaSlot, "solanaHash", solanaHash.Hex())
-		if err := api.eth.BlockChain().WriteSolanaMetadata(block.Hash(), *solanaSlot, *solanaHash); err != nil {
+	if solanaSlot != nil {
+		log.Info("Writing Solana metadata before block insertion", "blockHash", block.Hash().Hex(), "blockNumber", block.NumberU64(), "solanaSlot", *solanaSlot)
+		if err := api.eth.BlockChain().WriteSolanaMetadata(block.Hash(), *solanaSlot); err != nil {
 			log.Error("Failed to write Solana metadata", "err", err, "blockHash", block.Hash().Hex())
 			return api.invalid(fmt.Errorf("failed to write Solana metadata: %w", err), parent.Header()), nil
 		}
@@ -745,7 +717,7 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 			hasMeta = true
 		}
 		api.solanaLock.Unlock()
-		log.Warn("Solana metadata not available for block", "hash", block.Hash().Hex(), "number", block.NumberU64(), "hasMeta", hasMeta, "hasParamsNumber", params.SolanaBlockNumber != nil, "hasParamsHash", params.SolanaBlockHash != nil, "solanaSlot", solanaSlot != nil, "solanaHash", solanaHash != nil)
+		log.Warn("Solana metadata not available for block", "hash", block.Hash().Hex(), "number", block.NumberU64(), "hasMeta", hasMeta, "hasParamsNumber", params.SolanaBlockNumber != nil, "solanaSlot", solanaSlot != nil)
 	}
 	
 	log.Trace("Inserting block without sethead", "hash", block.Hash(), "number", block.Number)

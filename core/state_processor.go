@@ -84,14 +84,12 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 	misc.EnsureCreate2Deployer(p.config, block.Time(), statedb)
 	var solanaBlockNumber *uint64
-	var solanaBlockHash *common.Hash
-	if metaSlot, metaHash, ok := p.bc.GetSolanaMetadata(blockHash); ok {
+	if metaSlot, ok := p.bc.GetSolanaMetadata(blockHash); ok {
 		solanaBlockNumber = &metaSlot
-		solanaBlockHash = &metaHash
 	}
 	
 	var (
-		context = NewEVMBlockContext(header, p.bc, nil, p.config, statedb, solanaBlockNumber, solanaBlockHash)
+		context = NewEVMBlockContext(header, p.bc, nil, p.config, statedb, solanaBlockNumber)
 		vmenv   = vm.NewEVM(context, vm.TxContext{}, statedb, p.config, cfg)
 		signer  = types.MakeSigner(p.config, header.Number, header.Time)
 	)
@@ -249,16 +247,16 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
 func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, romeGasUsed uint64, footPrint string, romeGasPrice uint64) (*types.Receipt, error) {
-	return ApplyTransactionWithSolana(config, bc, author, gp, statedb, header, tx, usedGas, cfg, romeGasUsed, footPrint, romeGasPrice, nil, nil)
+	return ApplyTransactionWithSolana(config, bc, author, gp, statedb, header, tx, usedGas, cfg, romeGasUsed, footPrint, romeGasPrice, nil)
 }
 
-func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, romeGasUsed uint64, footPrint string, romeGasPrice uint64, solanaBlockNumber *uint64, solanaBlockHash *common.Hash) (*types.Receipt, error) {
+func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, romeGasUsed uint64, footPrint string, romeGasPrice uint64, solanaBlockNumber *uint64) (*types.Receipt, error) {
 	msg, err := TransactionToMessage(tx, types.MakeSigner(config, header.Number, header.Time), header.BaseFee)
 	if err != nil {
 		return nil, err
 	}
 	// Create a new context to be used in the EVM environment
-	blockContext := NewEVMBlockContext(header, bc, author, config, statedb, solanaBlockNumber, solanaBlockHash)
+	blockContext := NewEVMBlockContext(header, bc, author, config, statedb, solanaBlockNumber)
 	txContext := NewEVMTxContext(msg)
 	vmenv := vm.NewEVM(blockContext, txContext, statedb, config, cfg)
 	return applyTransaction(msg, config, bc, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, romeGasUsed, footPrint, romeGasPrice)

@@ -262,10 +262,7 @@ type BlockChain struct {
 
 	footprintManager *footprint.Manager // Manages footprint caching and mismatch tracking
 	
-	solanaMetaCache map[common.Hash]struct {
-		slot uint64
-		hash common.Hash
-	}
+	solanaMetaCache map[common.Hash]uint64
 	solanaMetaCacheMu sync.RWMutex
 }
 
@@ -314,10 +311,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		futureBlocks:    lru.NewCache[common.Hash, *types.Block](maxFutureBlocks),
 		engine:          engine,
 		vmConfig:        vmConfig,
-		solanaMetaCache: make(map[common.Hash]struct {
-			slot uint64
-			hash common.Hash
-		}),
+		solanaMetaCache: make(map[common.Hash]uint64),
 	}
 	bc.flushInterval.Store(int64(cacheConfig.TrieTimeLimit))
 	bc.forker = NewForkChoice(bc, shouldPreserve)
@@ -998,37 +992,31 @@ func (bc *BlockChain) GetFootprintManager() *footprint.Manager {
 	return bc.footprintManager
 }
 
-func (bc *BlockChain) GetSolanaMetadata(hash common.Hash) (uint64, common.Hash, bool) {
+func (bc *BlockChain) GetSolanaMetadata(hash common.Hash) (uint64, bool) {
 	bc.solanaMetaCacheMu.RLock()
-	if meta, ok := bc.solanaMetaCache[hash]; ok {
+	if slot, ok := bc.solanaMetaCache[hash]; ok {
 		bc.solanaMetaCacheMu.RUnlock()
-		return meta.slot, meta.hash, true
+		return slot, true
 	}
 	bc.solanaMetaCacheMu.RUnlock()
 	
 	return rawdb.ReadSolanaMetadata(bc.db, hash)
 }
 
-func (bc *BlockChain) WriteSolanaMetadata(blockHash common.Hash, slot uint64, solanaHash common.Hash) error {
+func (bc *BlockChain) WriteSolanaMetadata(blockHash common.Hash, slot uint64) error {
 	bc.solanaMetaCacheMu.Lock()
-	bc.solanaMetaCache[blockHash] = struct {
-		slot uint64
-		hash common.Hash
-	}{slot: slot, hash: solanaHash}
+	bc.solanaMetaCache[blockHash] = slot
 	bc.solanaMetaCacheMu.Unlock()
 	
 	// Write to database
 	batch := bc.db.NewBatch()
-	rawdb.WriteSolanaMetadata(batch, blockHash, slot, solanaHash)
+	rawdb.WriteSolanaMetadata(batch, blockHash, slot)
 	return batch.Write()
 }
 
-func (bc *BlockChain) SetSolanaMetadataCache(blockHash common.Hash, slot uint64, solanaHash common.Hash) {
+func (bc *BlockChain) SetSolanaMetadataCache(blockHash common.Hash, slot uint64) {
 	bc.solanaMetaCacheMu.Lock()
-	bc.solanaMetaCache[blockHash] = struct {
-		slot uint64
-		hash common.Hash
-	}{slot: slot, hash: solanaHash}
+	bc.solanaMetaCache[blockHash] = slot
 	bc.solanaMetaCacheMu.Unlock()
 }
 
