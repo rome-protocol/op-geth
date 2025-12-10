@@ -447,6 +447,12 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		return nil, nil
 	}
 
+	if interpreter.evm.Context.GetHash != nil {
+		hash := interpreter.evm.Context.GetHash(num64)
+		num.SetBytes(hash[:])
+		return nil, nil
+	}
+
 	var buf [32]byte
 	binary.BigEndian.PutUint64(buf[24:], num64)
 	hash := crypto.Keccak256Hash(buf[:])
