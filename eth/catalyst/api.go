@@ -535,10 +535,11 @@ func (api *ConsensusAPI) storePendingSolanaAttributes(id engine.PayloadID, attr 
 		return
 	}
 	var meta solanaMetadata
-	// Use the first transaction's solana block number if available
-	if len(attr.SolanaBlockNumbers) > 0 && attr.SolanaBlockNumbers[0] != nil {
-		num := *attr.SolanaBlockNumbers[0]
-		meta.number = &num
+	if len(attr.SolanaBlockNumbers) > 0 && attr.SolanaBlockNumbers[0] != "" {
+		if num, err := hexutil.DecodeBig(attr.SolanaBlockNumbers[0]); err == nil && num.IsUint64() {
+			val := num.Uint64()
+			meta.number = &val
+		}
 	}
 	if meta.number == nil {
 		return
@@ -693,12 +694,10 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 		return engine.PayloadStatusV1{Status: engine.ACCEPTED}, nil
 	}
 
-	var solanaSlot *uint64
 	api.solanaLock.Lock()
 	meta, hasMeta := api.solanaMeta[block.Hash()]
 	if hasMeta && meta.number != nil {
 		log.Info("Found Solana metadata in api.solanaMeta", "blockHash", block.Hash().Hex(), "slot", *meta.number)
-		solanaSlot = meta.number
 	} else {
 		log.Info("No metadata in api.solanaMeta", "blockHash", block.Hash().Hex(), "hasMeta", hasMeta)
 		if hasMeta {
