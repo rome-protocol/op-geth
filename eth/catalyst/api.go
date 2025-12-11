@@ -409,6 +409,39 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			transactions = append(transactions, &tx)
 			span.End()
 		}
+
+		var solanaBlockNumbers []*uint64
+		for _, raw := range payloadAttributes.SolanaBlockNumbers {
+			if raw == "" {
+				solanaBlockNumbers = append(solanaBlockNumbers, nil)
+				continue
+			}
+			var v hexutil.Uint64
+			if err := v.UnmarshalText([]byte(raw)); err != nil {
+				log.Warn("Invalid Solana block number in payload attributes", "value", raw, "err", err)
+				solanaBlockNumbers = append(solanaBlockNumbers, nil)
+				continue
+			}
+			slot := uint64(v)
+			solanaBlockNumbers = append(solanaBlockNumbers, &slot)
+		}
+
+		var solanaTimestamps []*int64
+		for _, raw := range payloadAttributes.SolanaTimestamps {
+			if raw == "" {
+				solanaTimestamps = append(solanaTimestamps, nil)
+				continue
+			}
+			var v hexutil.Uint64
+			if err := v.UnmarshalText([]byte(raw)); err != nil {
+				log.Warn("Invalid Solana timestamp in payload attributes", "value", raw, "err", err)
+				solanaTimestamps = append(solanaTimestamps, nil)
+				continue
+			}
+			ts := int64(v)
+			solanaTimestamps = append(solanaTimestamps, &ts)
+		}
+
 		args := &miner.BuildPayloadArgs{
 			Parent:       update.HeadBlockHash,
 			Timestamp:    payloadAttributes.Timestamp,
@@ -416,13 +449,14 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			Random:       payloadAttributes.Random,
 			Withdrawals:  payloadAttributes.Withdrawals,
 			BeaconRoot:   payloadAttributes.BeaconRoot,
-			SolanaBlockNumber: payloadAttributes.SolanaBlockNumber,
-			NoTxPool:     payloadAttributes.NoTxPool,
-			Transactions: transactions,
-			GasLimit:     payloadAttributes.GasLimit,
-			GasUsed:      payloadAttributes.GasUsed,
-			GasPrice:     payloadAttributes.GasPrice,
-			Footprints:   payloadAttributes.TxFootprints,
+			SolanaBlockNumbers: solanaBlockNumbers,
+			SolanaTimestamps:   solanaTimestamps,
+			NoTxPool:           payloadAttributes.NoTxPool,
+			Transactions:       transactions,
+			GasLimit:           payloadAttributes.GasLimit,
+			GasUsed:            payloadAttributes.GasUsed,
+			GasPrice:           payloadAttributes.GasPrice,
+			Footprints:         payloadAttributes.TxFootprints,
 		}
 		id := args.Id()
 		api.storePendingSolanaAttributes(id, payloadAttributes)
@@ -536,9 +570,19 @@ func (api *ConsensusAPI) storePendingSolanaAttributes(id engine.PayloadID, attr 
 		return
 	}
 	var meta solanaMetadata
-	if attr.SolanaBlockNumber != nil {
-		num := *attr.SolanaBlockNumber
-		meta.number = &num
+	for i := len(attr.SolanaBlockNumbers) - 1; i >= 0; i-- {
+		raw := attr.SolanaBlockNumbers[i]
+		if raw == "" {
+			continue
+		}
+		var v hexutil.Uint64
+		if err := v.UnmarshalText([]byte(raw)); err != nil {
+			log.Warn("Invalid Solana block number in storePendingSolanaAttributes", "value", raw, "err", err)
+			continue
+		}
+		slot := uint64(v)
+		meta.number = &slot
+		break
 	}
 	if meta.number == nil {
 		return
