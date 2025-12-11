@@ -24,3 +24,14 @@ func WriteSolanaTxMetadata(db ethdb.KeyValueWriter, txHash common.Hash, slot uin
 	binary.BigEndian.PutUint64(enc[8:], uint64(timestamp))
 	db.Put(solanaTxMetadataKey(txHash), enc[:])
 }
+
+// ReadSolanaTxMetadata retrieves the solana slot and timestamp associated with a transaction hash.
+func ReadSolanaTxMetadata(db ethdb.KeyValueReader, txHash common.Hash) (uint64, int64, bool) {
+	enc, err := db.Get(solanaTxMetadataKey(txHash))
+	if err != nil || len(enc) != 16 {
+		return 0, 0, false
+	}
+	slot := binary.BigEndian.Uint64(enc[:8])
+	timestamp := int64(binary.BigEndian.Uint64(enc[8:]))
+	return slot, timestamp, true
+}

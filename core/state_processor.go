@@ -73,7 +73,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		receipts    types.Receipts
 		usedGas     = new(uint64)
 		header      = block.Header()
-		blockHash   = block.Hash()
 		blockNumber = block.Number()
 		allLogs     []*types.Log
 		gp          = new(GasPool).AddGas(block.GasLimit())
@@ -84,22 +83,26 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 	misc.EnsureCreate2Deployer(p.config, block.Time(), statedb)
 	
-	var (
-		context = NewEVMBlockContext(header, p.bc, nil, p.config, statedb)
-		vmenv   = vm.NewEVM(context, vm.TxContext{}, statedb, p.config, cfg)
-		signer  = types.MakeSigner(p.config, header.Number, header.Time)
 	)
 	if beaconRoot := block.BeaconRoot(); beaconRoot != nil {
+		context := NewEVMBlockContext(header, p.bc, nil, p.config, statedb)
+		vmenv := vm.NewEVM(context, vm.TxContext{}, statedb, p.config, cfg)
 		ProcessBeaconBlockRoot(*beaconRoot, vmenv, statedb)
 	}
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		msg, err := TransactionToMessage(tx, signer, header.BaseFee)
-		if err != nil {
-			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
-		}
 		statedb.SetTxContext(tx.Hash(), i)
-		receipt, err := applyTransaction(msg, p.config, p.bc, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, romeGasUsed[i], "", romeGasPrice[i])
+		
+		var solanaBlockNumber *uint64
+		var solanaTimestamp *uint64
+		if slot, ts, found := p.bc.GetSolanaTxMetadata(tx.Hash()); found {
+			slotCopy := slot
+			tsUint := uint64(ts)
+			solanaBlockNumber = &slotCopy
+			solanaTimestamp = &tsUint
+		}
+		
+		receipt, err := ApplyTransactionWithSolana(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, romeGasUsed[i], "", romeGasPrice[i], solanaBlockNumber, solanaTimestamp)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}

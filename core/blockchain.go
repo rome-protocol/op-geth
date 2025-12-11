@@ -995,6 +995,11 @@ func (bc *BlockChain) WriteSolanaTxMetadata(txHash common.Hash, slot uint64, tim
 	return batch.Write()
 }
 
+// GetSolanaTxMetadata retrieves the solana slot and timestamp associated with a transaction hash.
+func (bc *BlockChain) GetSolanaTxMetadata(txHash common.Hash) (uint64, int64, bool) {
+	return rawdb.ReadSolanaTxMetadata(bc.db, txHash)
+}
+
 // SetFootprintManager sets the footprint manager for this blockchain
 func (bc *BlockChain) SetFootprintManager(manager *footprint.Manager) {
 	bc.footprintManager = manager
