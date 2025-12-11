@@ -576,4 +576,3 @@ func (cm *chainMaker) GetTd(hash common.Hash, number uint64) *big.Int {
 func (cm *chainMaker) GetFootprintManager() *footprint.Manager {
 	return nil // not needed for chain generation
 }
-

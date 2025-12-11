@@ -293,21 +293,21 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	}
 
 	bc := &BlockChain{
-		chainConfig:     chainConfig,
-		cacheConfig:     cacheConfig,
-		db:              db,
-		triedb:          triedb,
-		triegc:          prque.New[int64, common.Hash](nil),
-		quit:            make(chan struct{}),
-		chainmu:         syncx.NewClosableMutex(),
-		bodyCache:       lru.NewCache[common.Hash, *types.Body](bodyCacheLimit),
-		bodyRLPCache:    lru.NewCache[common.Hash, rlp.RawValue](bodyCacheLimit),
-		receiptsCache:   lru.NewCache[common.Hash, []*types.Receipt](receiptsCacheLimit),
-		blockCache:      lru.NewCache[common.Hash, *types.Block](blockCacheLimit),
-		txLookupCache:   lru.NewCache[common.Hash, *rawdb.LegacyTxLookupEntry](txLookupCacheLimit),
-		futureBlocks:    lru.NewCache[common.Hash, *types.Block](maxFutureBlocks),
-		engine:          engine,
-		vmConfig:        vmConfig,
+		chainConfig:   chainConfig,
+		cacheConfig:   cacheConfig,
+		db:            db,
+		triedb:        triedb,
+		triegc:        prque.New[int64, common.Hash](nil),
+		quit:          make(chan struct{}),
+		chainmu:       syncx.NewClosableMutex(),
+		bodyCache:     lru.NewCache[common.Hash, *types.Body](bodyCacheLimit),
+		bodyRLPCache:  lru.NewCache[common.Hash, rlp.RawValue](bodyCacheLimit),
+		receiptsCache: lru.NewCache[common.Hash, []*types.Receipt](receiptsCacheLimit),
+		blockCache:    lru.NewCache[common.Hash, *types.Block](blockCacheLimit),
+		txLookupCache: lru.NewCache[common.Hash, *rawdb.LegacyTxLookupEntry](txLookupCacheLimit),
+		futureBlocks:  lru.NewCache[common.Hash, *types.Block](maxFutureBlocks),
+		engine:        engine,
+		vmConfig:      vmConfig,
 	}
 	bc.flushInterval.Store(int64(cacheConfig.TrieTimeLimit))
 	bc.forker = NewForkChoice(bc, shouldPreserve)

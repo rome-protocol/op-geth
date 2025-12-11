@@ -291,15 +291,15 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 			coinbase:    args.FeeRecipient,
 			random:      args.Random,
 			withdrawals: args.Withdrawals,
-			beaconRoot:         args.BeaconRoot,
-			solanaBlockNumbers:  args.SolanaBlockNumbers,
-			solanaTimestamps:    args.SolanaTimestamps,
-			noTxs:              true,
 			txs:         args.Transactions,
 			gasLimit:    args.GasLimit,
 			gasUsed:     args.GasUsed,
 			footPrints:  args.Footprints,
 			gasPrice:    args.GasPrice,
+			noTxs:               true,
+			beaconRoot:          args.BeaconRoot,
+			solanaBlockNumbers:  args.SolanaBlockNumbers,
+			solanaTimestamps:    args.SolanaTimestamps,
 		}
 		empty := w.getSealingBlock(emptyParams)
 		if empty.err != nil {
@@ -320,15 +320,15 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 		coinbase:    args.FeeRecipient,
 		random:      args.Random,
 		withdrawals: args.Withdrawals,
-		beaconRoot:         args.BeaconRoot,
-		solanaBlockNumbers: args.SolanaBlockNumbers,
-		solanaTimestamps:   args.SolanaTimestamps,
-		noTxs:              false,
 		txs:         args.Transactions,
 		gasLimit:    args.GasLimit,
 		gasUsed:     args.GasUsed,
 		footPrints:  args.Footprints,
 		gasPrice:    args.GasPrice,
+		noTxs:              false,
+		beaconRoot:         args.BeaconRoot,
+		solanaBlockNumbers: args.SolanaBlockNumbers,
+		solanaTimestamps:   args.SolanaTimestamps,
 	}
 
 	// Since we skip building the empty block when using the tx pool, we need to explicitly

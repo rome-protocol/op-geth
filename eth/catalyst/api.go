@@ -241,27 +241,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 
 	log.Info("Engine API request received", "method", "ForkchoiceUpdated", "head", update.HeadBlockHash, "finalized", update.FinalizedBlockHash, "safe", update.SafeBlockHash)
 
-	if payloadAttributes == nil {
-		log.Info("ForkchoiceUpdated: no payload attributes")
-	} else {
-		txCount := len(payloadAttributes.Transactions)
-		solanaCount := len(payloadAttributes.SolanaBlockNumbers)
-		var firstSlot uint64
-		var firstTs uint64
-		if solanaCount > 0 {
-			firstSlot = payloadAttributes.SolanaBlockNumbers[0]
-		}
-		if len(payloadAttributes.SolanaTimestamps) > 0 {
-			firstTs = payloadAttributes.SolanaTimestamps[0]
-		}
-		log.Info("ForkchoiceUpdated: payload attributes",
-			"timestamp", payloadAttributes.Timestamp,
-			"txCount", txCount,
-			"solanaSlots", solanaCount,
-			"firstSolanaSlot", firstSlot,
-			"firstSolanaTimestamp", firstTs,
-		)
-	}
 	if update.HeadBlockHash == (common.Hash{}) {
 		return engine.STATUS_INVALID, nil // TODO(karalabe): Why does someone send us this?
 	}
@@ -431,14 +410,14 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			Random:       payloadAttributes.Random,
 			Withdrawals:  payloadAttributes.Withdrawals,
 			BeaconRoot:   payloadAttributes.BeaconRoot,
+			NoTxPool:     payloadAttributes.NoTxPool,
+			Transactions: transactions,
+			GasLimit:     payloadAttributes.GasLimit,
+			GasUsed:      payloadAttributes.GasUsed,
+			GasPrice:     payloadAttributes.GasPrice,
+			Footprints:   payloadAttributes.TxFootprints,
 			SolanaBlockNumbers: solanaBlockNumbers,
 			SolanaTimestamps:   solanaTimestamps,
-			NoTxPool:           payloadAttributes.NoTxPool,
-			Transactions:       transactions,
-			GasLimit:           payloadAttributes.GasLimit,
-			GasUsed:            payloadAttributes.GasUsed,
-			GasPrice:           payloadAttributes.GasPrice,
-			Footprints:         payloadAttributes.TxFootprints,
 		}
 		id := args.Id()
 		api.storePendingSolanaAttributes(id, payloadAttributes)
@@ -552,8 +531,6 @@ func (api *ConsensusAPI) storePendingSolanaAttributes(id engine.PayloadID, attr 
 		return
 	}
 	var meta solanaMetadata
-	// Derive a canonical Solana slot for this payload from the attributes.
-	// We currently use the last non-empty entry in SolanaBlockNumbers, if any.
 	for i := len(attr.SolanaBlockNumbers) - 1; i >= 0; i-- {
 		slot := attr.SolanaBlockNumbers[i]
 		if slot == 0 {

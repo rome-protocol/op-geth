@@ -157,7 +157,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 	}
 
 	// Calculate the state footprint after VM execution
-	if footPrint != "" && footPrint != "0x0" {
+	if !isMagicAddress(msg.From) && footPrint != "" && footPrint != "0x0" {
 		vmState, logs := statedb.CalculateTxFootPrint(start)
 		txHash := tx.Hash()
 		mismatch := vmState != common.HexToHash(footPrint)
@@ -167,7 +167,6 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 			if err := log.FlushLogs(logs); err != nil {
 				log.Error("failed to flush logs", "error", err)
 			}
-
 			if manager != nil && manager.IsKnownMismatch(txHash) {
 				log.Warn("state footprint mismatch",
 					"tx", txHash.Hex(),
@@ -269,7 +268,6 @@ func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, aut
 		txContext.SolanaTimestamp = &ts
 	}
 
-	// Store transaction metadata if available
 	if solanaBlockNumber != nil && solanaTimestamp != nil {
 		if blockchain, ok := bc.(*BlockChain); ok {
 			_ = blockchain.WriteSolanaTxMetadata(tx.Hash(), *solanaBlockNumber, int64(*solanaTimestamp))
