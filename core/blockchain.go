@@ -261,9 +261,6 @@ type BlockChain struct {
 	vmConfig   vm.Config
 
 	footprintManager *footprint.Manager // Manages footprint caching and mismatch tracking
-	
-	solanaMetaCache map[common.Hash]uint64
-	solanaMetaCacheMu sync.RWMutex
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -311,7 +308,6 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		futureBlocks:    lru.NewCache[common.Hash, *types.Block](maxFutureBlocks),
 		engine:          engine,
 		vmConfig:        vmConfig,
-		solanaMetaCache: make(map[common.Hash]uint64),
 	}
 	bc.flushInterval.Store(int64(cacheConfig.TrieTimeLimit))
 	bc.forker = NewForkChoice(bc, shouldPreserve)
@@ -992,31 +988,11 @@ func (bc *BlockChain) GetFootprintManager() *footprint.Manager {
 	return bc.footprintManager
 }
 
-func (bc *BlockChain) GetSolanaMetadata(hash common.Hash) (uint64, bool) {
-	bc.solanaMetaCacheMu.RLock()
-	if slot, ok := bc.solanaMetaCache[hash]; ok {
-		bc.solanaMetaCacheMu.RUnlock()
-		return slot, true
-	}
-	bc.solanaMetaCacheMu.RUnlock()
-	
-	return rawdb.ReadSolanaMetadata(bc.db, hash)
-}
-
-func (bc *BlockChain) WriteSolanaMetadata(blockHash common.Hash, slot uint64) error {
-	bc.solanaMetaCacheMu.Lock()
-	bc.solanaMetaCache[blockHash] = slot
-	bc.solanaMetaCacheMu.Unlock()
-	
+// WriteSolanaTxMetadata stores the solana slot and timestamp associated with a transaction hash.
+func (bc *BlockChain) WriteSolanaTxMetadata(txHash common.Hash, slot uint64, timestamp int64) error {
 	batch := bc.db.NewBatch()
-	rawdb.WriteSolanaMetadata(batch, blockHash, slot)
+	rawdb.WriteSolanaTxMetadata(batch, txHash, slot, timestamp)
 	return batch.Write()
-}
-
-func (bc *BlockChain) SetSolanaMetadataCache(blockHash common.Hash, slot uint64) {
-	bc.solanaMetaCacheMu.Lock()
-	bc.solanaMetaCache[blockHash] = slot
-	bc.solanaMetaCacheMu.Unlock()
 }
 
 // SetFootprintManager sets the footprint manager for this blockchain

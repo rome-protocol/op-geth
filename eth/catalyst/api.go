@@ -388,17 +388,37 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			transactions = append(transactions, &tx)
 			span.End()
 		}
+		// Parse solana_block_numbers and solana_timestamps from hex strings
+		solanaBlockNumbers := make([]*uint64, len(payloadAttributes.SolanaBlockNumbers))
+		for i, numStr := range payloadAttributes.SolanaBlockNumbers {
+			if numStr != "" {
+				if num, err := hexutil.DecodeBig(numStr); err == nil && num.IsUint64() {
+					val := num.Uint64()
+					solanaBlockNumbers[i] = &val
+				}
+			}
+		}
+		solanaTimestamps := make([]*int64, len(payloadAttributes.SolanaTimestamps))
+		for i, tsStr := range payloadAttributes.SolanaTimestamps {
+			if tsStr != "" {
+				if ts, err := hexutil.DecodeBig(tsStr); err == nil && ts.IsInt64() {
+					val := ts.Int64()
+					solanaTimestamps[i] = &val
+				}
+			}
+		}
 		args := &miner.BuildPayloadArgs{
-			Parent:       update.HeadBlockHash,
-			Timestamp:    payloadAttributes.Timestamp,
-			FeeRecipient: payloadAttributes.SuggestedFeeRecipient,
-			Random:       payloadAttributes.Random,
-			Withdrawals:  payloadAttributes.Withdrawals,
-			BeaconRoot:   payloadAttributes.BeaconRoot,
-			SolanaBlockNumber: payloadAttributes.SolanaBlockNumber,
-			NoTxPool:     payloadAttributes.NoTxPool,
-			Transactions: transactions,
-			GasLimit:     payloadAttributes.GasLimit,
+			Parent:             update.HeadBlockHash,
+			Timestamp:          payloadAttributes.Timestamp,
+			FeeRecipient:       payloadAttributes.SuggestedFeeRecipient,
+			Random:             payloadAttributes.Random,
+			Withdrawals:        payloadAttributes.Withdrawals,
+			BeaconRoot:         payloadAttributes.BeaconRoot,
+			SolanaBlockNumbers: solanaBlockNumbers,
+			SolanaTimestamps:   solanaTimestamps,
+			NoTxPool:           payloadAttributes.NoTxPool,
+			Transactions:       transactions,
+			GasLimit:           payloadAttributes.GasLimit,
 			GasUsed:      payloadAttributes.GasUsed,
 			GasPrice:     payloadAttributes.GasPrice,
 			Footprints:   payloadAttributes.TxFootprints,
@@ -515,8 +535,9 @@ func (api *ConsensusAPI) storePendingSolanaAttributes(id engine.PayloadID, attr 
 		return
 	}
 	var meta solanaMetadata
-	if attr.SolanaBlockNumber != nil {
-		num := *attr.SolanaBlockNumber
+	// Use the first transaction's solana block number if available
+	if len(attr.SolanaBlockNumbers) > 0 && attr.SolanaBlockNumbers[0] != nil {
+		num := *attr.SolanaBlockNumbers[0]
 		meta.number = &num
 	}
 	if meta.number == nil {
@@ -686,28 +707,7 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 	}
 	api.solanaLock.Unlock()
 	
-	// Also check params directly (may have been populated by populateSolanaMetadata or from payload)
-	if solanaSlot == nil && params.SolanaBlockNumber != nil {
-		slot := uint64(*params.SolanaBlockNumber)
-		log.Info("Using Solana metadata from params.SolanaBlockNumber", "blockHash", block.Hash().Hex(), "slot", slot)
-		solanaSlot = &slot
-	}
-	if solanaSlot != nil {
-		log.Info("Writing Solana metadata before block insertion", "blockHash", block.Hash().Hex(), "blockNumber", block.NumberU64(), "solanaSlot", *solanaSlot)
-		if err := api.eth.BlockChain().WriteSolanaMetadata(block.Hash(), *solanaSlot); err != nil {
-			log.Error("Failed to write Solana metadata", "err", err, "blockHash", block.Hash().Hex())
-			return api.invalid(fmt.Errorf("failed to write Solana metadata: %w", err), parent.Header()), nil
-		}
-		log.Info("Successfully wrote Solana metadata", "blockHash", block.Hash().Hex(), "blockNumber", block.NumberU64())
-	} else {
-		api.solanaLock.Lock()
-		hasMeta := false
-		if _, ok := api.solanaMeta[block.Hash()]; ok {
-			hasMeta = true
-		}
-		api.solanaLock.Unlock()
-		log.Warn("Solana metadata not available for block", "hash", block.Hash().Hex(), "number", block.NumberU64(), "hasMeta", hasMeta, "hasParamsNumber", params.SolanaBlockNumber != nil, "solanaSlot", solanaSlot != nil)
-	}
+	// Solana metadata is now stored per-transaction, not per-block
 	
 	log.Trace("Inserting block without sethead", "hash", block.Hash(), "number", block.Number)
 	if err := api.eth.BlockChain().InsertBlockWithoutSetHead(block, params.RomeGasUsed, params.TxFootprints, params.RomeGasPrice); err != nil {

@@ -54,8 +54,9 @@ type RomePayloadAttributes struct {
 	Random                common.Hash         `json:"prevRandao"            gencodec:"required"`
 	SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient" gencodec:"required"`
 	Withdrawals           []*types.Withdrawal `json:"withdrawals"`
-	BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
-	SolanaBlockNumber     *uint64             `json:"solanaBlockNumber,omitempty" gencodec:"optional"`
+	BeaconRoot         *common.Hash `json:"parentBeaconBlockRoot"`
+	SolanaBlockNumbers []string     `json:"solanaBlockNumbers,omitempty" gencodec:"optional"`
+	SolanaTimestamps   []string     `json:"solanaTimestamps,omitempty" gencodec:"optional"`
 
 	// Transactions is a field for rollups: the transactions list is forced into the block
 	Transactions [][]byte `json:"transactions,omitempty"  gencodec:"optional"`
@@ -72,9 +73,10 @@ type RomePayloadAttributes struct {
 type payloadAttributesMarshaling struct {
 	Timestamp hexutil.Uint64
 
-	Transactions      []hexutil.Bytes
-	GasLimit          *hexutil.Uint64
-	SolanaBlockNumber *hexutil.Uint64
+	Transactions       []hexutil.Bytes
+	GasLimit           *hexutil.Uint64
+	SolanaBlockNumbers []string
+	SolanaTimestamps   []string
 }
 
 //go:generate go run github.com/fjl/gencodec -type ExecutableData -field-override executableDataMarshaling -out gen_ed.go

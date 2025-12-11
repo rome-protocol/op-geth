@@ -7,29 +7,20 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 )
 
-var solanaMetadataPrefix = []byte("solana-meta-")
+var solanaTxMetadataPrefix = []byte("solana-tx-meta-")
 
-// solanaMetadataKey builds the database key for storing solana metadata for a block hash.
-func solanaMetadataKey(blockHash common.Hash) []byte {
-	key := make([]byte, len(solanaMetadataPrefix)+len(blockHash.Bytes()))
-	copy(key, solanaMetadataPrefix)
-	copy(key[len(solanaMetadataPrefix):], blockHash.Bytes())
+// solanaTxMetadataKey builds the database key for storing solana metadata for a transaction hash.
+func solanaTxMetadataKey(txHash common.Hash) []byte {
+	key := make([]byte, len(solanaTxMetadataPrefix)+len(txHash.Bytes()))
+	copy(key, solanaTxMetadataPrefix)
+	copy(key[len(solanaTxMetadataPrefix):], txHash.Bytes())
 	return key
 }
 
-// WriteSolanaMetadata stores the solana slot associated with a block hash.
-func WriteSolanaMetadata(db ethdb.KeyValueWriter, blockHash common.Hash, slot uint64) {
-	var enc [8]byte
-	binary.BigEndian.PutUint64(enc[:], slot)
-	db.Put(solanaMetadataKey(blockHash), enc[:])
-}
-
-// ReadSolanaMetadata retrieves the solana slot associated with a block hash.
-func ReadSolanaMetadata(db ethdb.Reader, blockHash common.Hash) (uint64, bool) {
-	data, err := db.Get(solanaMetadataKey(blockHash))
-	if err != nil || len(data) < 8 {
-		return 0, false
-	}
-	slot := binary.BigEndian.Uint64(data[:8])
-	return slot, true
+// WriteSolanaTxMetadata stores the solana slot and timestamp associated with a transaction hash.
+func WriteSolanaTxMetadata(db ethdb.KeyValueWriter, txHash common.Hash, slot uint64, timestamp int64) {
+	var enc [16]byte
+	binary.BigEndian.PutUint64(enc[:8], slot)
+	binary.BigEndian.PutUint64(enc[8:], uint64(timestamp))
+	db.Put(solanaTxMetadataKey(txHash), enc[:])
 }

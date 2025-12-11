@@ -37,9 +37,13 @@ func (r RomePayloadAttributes) MarshalJSON() ([]byte, error) {
 	enc.SuggestedFeeRecipient = r.SuggestedFeeRecipient
 	enc.Withdrawals = r.Withdrawals
 	enc.BeaconRoot = r.BeaconRoot
-	if r.SolanaBlockNumber != nil {
-		val := hexutil.Uint64(*r.SolanaBlockNumber)
-		enc.SolanaBlockNumber = &val
+	if r.SolanaBlockNumbers != nil {
+		enc.SolanaBlockNumbers = make([]string, len(r.SolanaBlockNumbers))
+		copy(enc.SolanaBlockNumbers, r.SolanaBlockNumbers)
+	}
+	if r.SolanaTimestamps != nil {
+		enc.SolanaTimestamps = make([]string, len(r.SolanaTimestamps))
+		copy(enc.SolanaTimestamps, r.SolanaTimestamps)
 	}
 	if r.Transactions != nil {
 		enc.Transactions = make([]hexutil.Bytes, len(r.Transactions))
@@ -98,9 +102,13 @@ func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 	if dec.BeaconRoot != nil {
 		r.BeaconRoot = dec.BeaconRoot
 	}
-	if dec.SolanaBlockNumber != nil {
-		val := uint64(*dec.SolanaBlockNumber)
-		r.SolanaBlockNumber = &val
+	if dec.SolanaBlockNumbers != nil {
+		r.SolanaBlockNumbers = make([]string, len(dec.SolanaBlockNumbers))
+		copy(r.SolanaBlockNumbers, dec.SolanaBlockNumbers)
+	}
+	if dec.SolanaTimestamps != nil {
+		r.SolanaTimestamps = make([]string, len(dec.SolanaTimestamps))
+		copy(r.SolanaTimestamps, dec.SolanaTimestamps)
 	}
 	if dec.Transactions != nil {
 		r.Transactions = make([][]byte, len(dec.Transactions))

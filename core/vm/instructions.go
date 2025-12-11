@@ -448,8 +448,8 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	}
 
 	var current uint64
-	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		current = *interpreter.evm.Context.SolanaBlockNumber
+	if interpreter.evm.TxContext.SolanaBlockNumber != nil {
+		current = *interpreter.evm.TxContext.SolanaBlockNumber
 	} else {
 		num.Clear()
 		return nil, nil
@@ -477,14 +477,19 @@ func opCoinbase(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([
 }
 
 func opTimestamp(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	scope.Stack.push(new(uint256.Int).SetUint64(interpreter.evm.Context.Time))
+	if interpreter.evm.TxContext.SolanaTimestamp != nil {
+		timestamp := uint64(*interpreter.evm.TxContext.SolanaTimestamp)
+		scope.Stack.push(new(uint256.Int).SetUint64(timestamp))
+		return nil, nil
+	}
 	return nil, nil
 }
 
 func opNumber(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	if interpreter.evm.Context.SolanaBlockNumber != nil {
-		solanaNum := *interpreter.evm.Context.SolanaBlockNumber
+	if interpreter.evm.TxContext.SolanaBlockNumber != nil {
+		solanaNum := *interpreter.evm.TxContext.SolanaBlockNumber
 		scope.Stack.push(new(uint256.Int).SetUint64(solanaNum))
+		return nil, nil
 	}
 	return nil, nil
 }

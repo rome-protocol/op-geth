@@ -577,6 +577,3 @@ func (cm *chainMaker) GetFootprintManager() *footprint.Manager {
 	return nil // not needed for chain generation
 }
 
-func (cm *chainMaker) GetSolanaMetadata(common.Hash) (uint64, bool) {
-	return 0, false
-}

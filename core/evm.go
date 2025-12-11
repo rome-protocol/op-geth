@@ -42,8 +42,6 @@ type ChainContext interface {
 	// GetFootprintManager returns the footprint manager.
 	GetFootprintManager() *footprint.Manager
 
-	// GetSolanaMetadata retrieves the solana slot recorded for a block hash.
-	GetSolanaMetadata(common.Hash) (uint64, bool)
 }
 
 // NewEVMBlockContext creates a new context for use in the EVM.
@@ -70,30 +68,10 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	if header.Difficulty.Cmp(common.Big0) == 0 {
 		random = &header.MixDigest
 	}
-	var getSolanaHash func(uint64) (common.Hash, bool)
-	
-	if solanaBlockNumber == nil {
-		if chain != nil {
-			if metaSlot, ok := chain.GetSolanaMetadata(header.Hash()); ok {
-				solanaBlockNumber = &metaSlot
-			}
-		}
-	}
-	
-	if chain != nil {
-		getSolanaHash = func(slot uint64) (common.Hash, bool) {
-			var buf [32]byte
-			binary.BigEndian.PutUint64(buf[24:], slot)
-			hash := crypto.Keccak256Hash(buf[:])
-			return hash, true
-		}
-	}
-
 	blockCtx := vm.BlockContext{
 		CanTransfer:          CanTransfer,
 		Transfer:             Transfer,
 		GetHash:           GetHashFn(header, chain),
-		GetSolanaHash:     getSolanaHash,
 		Coinbase:          beneficiary,
 		BlockNumber:       new(big.Int).Set(header.Number),
 		Time:              header.Time,
