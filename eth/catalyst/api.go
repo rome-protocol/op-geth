@@ -693,34 +693,6 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 		return engine.PayloadStatusV1{Status: engine.ACCEPTED}, nil
 	}
 
-	var solanaSlot *uint64
-	api.solanaLock.Lock()
-	meta, hasMeta := api.solanaMeta[block.Hash()]
-	if hasMeta && meta.number != nil {
-		solanaSlot = meta.number
-	} else {
-		if hasMeta {
-			log.Info("Metadata exists but incomplete", "hasNumber", meta.number != nil)
-		}
-	}
-	api.solanaLock.Unlock()
-	if solanaSlot == nil && params.SolanaBlockNumber != nil {
-		slot := uint64(*params.SolanaBlockNumber)
-		solanaSlot = &slot
-	}
-	if solanaSlot != nil {
-		if err := api.eth.BlockChain().WriteSolanaMetadata(block.Hash(), *solanaSlot); err != nil {
-			return api.invalid(fmt.Errorf("failed to write Solana metadata: %w", err), parent.Header()), nil
-		}
-	} else {
-		api.solanaLock.Lock()
-		hasMeta := false
-		if _, ok := api.solanaMeta[block.Hash()]; ok {
-			hasMeta = true
-		}
-		api.solanaLock.Unlock()
-	}
-	
 	log.Trace("Inserting block without sethead", "hash", block.Hash(), "number", block.Number)
 	if err := api.eth.BlockChain().InsertBlockWithoutSetHead(block, params.RomeGasUsed, params.TxFootprints, params.RomeGasPrice); err != nil {
 		log.Warn("NewPayloadV1: inserting block failed", "error", err)
