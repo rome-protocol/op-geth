@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -444,22 +445,31 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	num64, overflow := num.Uint64WithOverflow()
 	if overflow {
 		num.Clear()
+		log.Info("opBLOCKHASH overflow", "arg", num.String())
 		return nil, nil
 	}
 
+	// Use SolanaBlockNumber from tx context only (Solana semantics). No fallback to EVM context.
 	var current uint64
 	if interpreter.evm.TxContext.SolanaBlockNumber != nil {
 		current = *interpreter.evm.TxContext.SolanaBlockNumber
 	} else {
+		log.Info("opBLOCKHASH SolanaBlockNumber nil", "arg", num64)
 		num.Clear()
 		return nil, nil
 	}
 
+	// Match rome-evm semantics:
+	// - blockhash(current or future) -> 0
+	// - blockhash(older than 256 blocks) -> 0
+	// - otherwise keccak256(32-byte big-endian(number))
 	if num64 >= current {
+		log.Info("opBLOCKHASH out_of_range_current_or_future", "arg", num64, "current", current)
 		num.Clear()
 		return nil, nil
 	}
 	if current-num64 > 256 {
+		log.Info("opBLOCKHASH out_of_range_past", "arg", num64, "current", current)
 		num.Clear()
 		return nil, nil
 	}
@@ -468,6 +478,7 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 	binary.BigEndian.PutUint64(buf[24:], num64)
 	hash := crypto.Keccak256Hash(buf[:])
 	num.SetBytes(hash[:])
+	log.Info("opBLOCKHASH ok", "arg", num64, "current", current, "hash", hash.Hex())
 	return nil, nil
 }
 
@@ -479,8 +490,12 @@ func opCoinbase(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([
 func opTimestamp(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	if interpreter.evm.TxContext.SolanaTimestamp != nil {
 		timestamp := uint64(*interpreter.evm.TxContext.SolanaTimestamp)
+		log.Info("opTIMESTAMP using SolanaTimestamp", "solanaTs", timestamp, "ethTime", interpreter.evm.Context.Time)
 		scope.Stack.push(new(uint256.Int).SetUint64(timestamp))
-		return nil, nil
+	} else {
+		log.Info("opTIMESTAMP SolanaTimestamp nil", "ethTime", interpreter.evm.Context.Time)
+		// No fallback to EVM context time; surface mismatch as 0
+		scope.Stack.push(new(uint256.Int))
 	}
 	return nil, nil
 }
@@ -488,10 +503,27 @@ func opTimestamp(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 func opNumber(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	if interpreter.evm.TxContext.SolanaBlockNumber != nil {
 		solanaNum := *interpreter.evm.TxContext.SolanaBlockNumber
+		log.Info("opNUMBER using SolanaBlockNumber",
+			"solanaSlot", solanaNum,
+			"ethBlock", func() uint64 {
+				if interpreter.evm.Context.BlockNumber != nil && interpreter.evm.Context.BlockNumber.IsUint64() {
+					return interpreter.evm.Context.BlockNumber.Uint64()
+				}
+				return 0
+			}(),
+		)
 		scope.Stack.push(new(uint256.Int).SetUint64(solanaNum))
-		return nil, nil
+	} else {
+		log.Info("opNUMBER SolanaBlockNumber nil",
+			"ethBlock", func() uint64 {
+				if interpreter.evm.Context.BlockNumber != nil && interpreter.evm.Context.BlockNumber.IsUint64() {
+					return interpreter.evm.Context.BlockNumber.Uint64()
+				}
+				return 0
+			}(),
+		)
+		scope.Stack.push(new(uint256.Int))
 	}
-	scope.Stack.push(new(uint256.Int))
 	return nil, nil
 }
 
