@@ -48,7 +48,7 @@ type PayloadAttributes struct {
 
 //go:generate go run github.com/fjl/gencodec -type RomePayloadAttributes -field-override payloadAttributesMarshaling -out gen_romeblockparams.go
 type RomePayloadAttributes struct {
-	Timestamp             uint64              `json:"timestamp"            gencodec:"required"`
+	Timestamp             uint64              `json:"timestamp,omitempty"            gencodec:"optional"`
 	GasPrice              []uint64            `json:"gasPrices"            gencodec:"required"`
 	GasUsed               []uint64            `json:"gasUsed"              gencodec:"required"`
 	Random                common.Hash         `json:"prevRandao"            gencodec:"required"`

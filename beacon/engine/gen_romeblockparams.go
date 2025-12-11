@@ -64,7 +64,7 @@ func (r RomePayloadAttributes) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON unmarshals from JSON.
 func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 	type RomePayloadAttributes struct {
-		Timestamp             *hexutil.Uint64     `json:"timestamp"            gencodec:"required"`
+		Timestamp             *hexutil.Uint64     `json:"timestamp,omitempty"            gencodec:"optional"`
 		GasPrice              []uint64            `json:"gasPrices"            gencodec:"required"`
 		GasUsed               []uint64            `json:"gasUsed"              gencodec:"required"`
 		Random                *common.Hash        `json:"prevRandao"            gencodec:"required"`
