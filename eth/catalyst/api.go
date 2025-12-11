@@ -247,7 +247,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		txCount := len(payloadAttributes.Transactions)
 		solanaCount := len(payloadAttributes.SolanaBlockNumbers)
 		var firstSlot uint64
-		var firstTs int64
+		var firstTs uint64
 		if solanaCount > 0 {
 			firstSlot = payloadAttributes.SolanaBlockNumbers[0]
 		}
