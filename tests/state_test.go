@@ -265,7 +265,7 @@ func runBenchmark(b *testing.B, t *StateTest) {
 
 			// Prepare the EVM.
 			txContext := core.NewEVMTxContext(msg)
-			context := core.NewEVMBlockContext(block.Header(), nil, &t.json.Env.Coinbase, config, statedb, nil, nil)
+			context := core.NewEVMBlockContext(block.Header(), nil, &t.json.Env.Coinbase, config, statedb)
 			context.GetHash = vmTestBlockHash
 			context.BaseFee = baseFee
 			evm := vm.NewEVM(context, txContext, statedb, config, vmconfig)

@@ -85,7 +85,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	misc.EnsureCreate2Deployer(p.config, block.Time(), statedb)
 	
 	var (
-		context = NewEVMBlockContext(header, p.bc, nil, p.config, statedb, nil)
+		context = NewEVMBlockContext(header, p.bc, nil, p.config, statedb)
 		vmenv   = vm.NewEVM(context, vm.TxContext{}, statedb, p.config, cfg)
 		signer  = types.MakeSigner(p.config, header.Number, header.Time)
 	)
@@ -252,7 +252,7 @@ func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, aut
 		return nil, err
 	}
 	// Create a new context to be used in the EVM environment
-	blockContext := NewEVMBlockContext(header, bc, author, config, statedb, solanaBlockNumber)
+	blockContext := NewEVMBlockContext(header, bc, author, config, statedb)
 	txContext := NewEVMTxContext(msg)
 	txContext.SolanaBlockNumber = solanaBlockNumber
 	txContext.SolanaTimestamp = solanaTimestamp

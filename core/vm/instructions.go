@@ -491,6 +491,7 @@ func opNumber(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 		scope.Stack.push(new(uint256.Int).SetUint64(solanaNum))
 		return nil, nil
 	}
+	scope.Stack.push(new(uint256.Int))
 	return nil, nil
 }
 

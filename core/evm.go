@@ -45,7 +45,7 @@ type ChainContext interface {
 }
 
 // NewEVMBlockContext creates a new context for use in the EVM.
-func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common.Address, config *params.ChainConfig, statedb types.StateGetter, solanaBlockNumber *uint64) vm.BlockContext {
+func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common.Address, config *params.ChainConfig, statedb types.StateGetter) vm.BlockContext {
 	var (
 		beneficiary common.Address
 		baseFee     *big.Int
@@ -81,7 +81,6 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		GasLimit:          header.GasLimit,
 		Random:            random,
 		L1CostFunc:        types.NewL1CostFunc(config, statedb),
-		SolanaBlockNumber: solanaBlockNumber,
 	}
 	return blockCtx
 }
