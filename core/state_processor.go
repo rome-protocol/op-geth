@@ -82,17 +82,16 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		misc.ApplyDAOHardFork(statedb)
 	}
 	misc.EnsureCreate2Deployer(p.config, block.Time(), statedb)
-	
-	)
+
 	if beaconRoot := block.BeaconRoot(); beaconRoot != nil {
 		context := NewEVMBlockContext(header, p.bc, nil, p.config, statedb)
 		vmenv := vm.NewEVM(context, vm.TxContext{}, statedb, p.config, cfg)
 		ProcessBeaconBlockRoot(*beaconRoot, vmenv, statedb)
 	}
-	// Iterate over and process the individual transactions
+
 	for i, tx := range block.Transactions() {
 		statedb.SetTxContext(tx.Hash(), i)
-		
+
 		var solanaBlockNumber *uint64
 		var solanaTimestamp *uint64
 		if slot, ts, found := p.bc.GetSolanaTxMetadata(tx.Hash()); found {
@@ -101,7 +100,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			solanaBlockNumber = &slotCopy
 			solanaTimestamp = &tsUint
 		}
-		
+
 		receipt, err := ApplyTransactionWithSolana(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, romeGasUsed[i], "", romeGasPrice[i], solanaBlockNumber, solanaTimestamp)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
@@ -134,7 +133,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 	defer span.End()
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
-	
+
 	if evm.TxContext.SolanaBlockNumber != nil {
 		txContext.SolanaBlockNumber = evm.TxContext.SolanaBlockNumber
 	}
@@ -148,18 +147,18 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 		nonce = statedb.GetNonce(msg.From)
 	}
 
-    // Snapshot journal start to scope footprint to this tx
-    start := statedb.JournalLength()
+	// Snapshot journal start to scope footprint to this tx
+	start := statedb.JournalLength()
 
-    // Apply the transaction to the current state 
-    result, err := ApplyMessage(evm, msg, gp, romeGasUsed, romeGasPrice)
+	// Apply the transaction to the current state
+	result, err := ApplyMessage(evm, msg, gp, romeGasUsed, romeGasPrice)
 	if err != nil {
 		return nil, err
 	}
 
 	// Calculate the state footprint after VM execution
-    if footPrint != "" && footPrint != "0x0" {
-        vmState, logs := statedb.CalculateTxFootPrint(start)
+	if footPrint != "" && footPrint != "0x0" {
+		vmState, logs := statedb.CalculateTxFootPrint(start)
 		txHash := tx.Hash()
 		mismatch := vmState != common.HexToHash(footPrint)
 		manager := bc.GetFootprintManager()
@@ -168,18 +167,18 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 			if err := log.FlushLogs(logs); err != nil {
 				log.Error("failed to flush logs", "error", err)
 			}
-			
+
 			if manager != nil && manager.IsKnownMismatch(txHash) {
-				log.Warn("state footprint mismatch", 
-					"tx", txHash.Hex(), 
-					"expected", footPrint, 
+				log.Warn("state footprint mismatch",
+					"tx", txHash.Hex(),
+					"expected", footPrint,
 					"got", vmState.Hex())
 			} else {
-				log.Error("state footprint mismatch", 
-					"tx", txHash.Hex(), 
-					"expected", footPrint, 
+				log.Error("state footprint mismatch",
+					"tx", txHash.Hex(),
+					"expected", footPrint,
 					"got", vmState.Hex())
-				
+
 				if manager != nil {
 					if err := manager.RecordMismatch(txHash); err != nil {
 						log.Error("Failed to record footprint mismatch", "tx", txHash.Hex(), "error", err)
@@ -187,7 +186,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 					if manager.ShouldPanic() {
 						panic("state footprint mismatch")
 					}
-				}			
+				}
 			}
 		}
 
@@ -269,14 +268,14 @@ func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, aut
 		ts := int64(*solanaTimestamp)
 		txContext.SolanaTimestamp = &ts
 	}
-	
+
 	// Store transaction metadata if available
 	if solanaBlockNumber != nil && solanaTimestamp != nil {
 		if blockchain, ok := bc.(*BlockChain); ok {
 			_ = blockchain.WriteSolanaTxMetadata(tx.Hash(), *solanaBlockNumber, int64(*solanaTimestamp))
 		}
 	}
-	
+
 	vmenv := vm.NewEVM(blockContext, txContext, statedb, config, cfg)
 	return applyTransaction(msg, config, bc, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, romeGasUsed, footPrint, romeGasPrice)
 }
