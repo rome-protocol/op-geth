@@ -157,7 +157,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 	}
 
 	// Calculate the state footprint after VM execution
-	if !isMagicAddress(msg.From) && footPrint != "" && footPrint != "0x0" {
+	if !state.IsMagicAddress(msg.From) && footPrint != "" && footPrint != "0x0" {
 		vmState, logs := statedb.CalculateTxFootPrint(start)
 		txHash := tx.Hash()
 		mismatch := vmState != common.HexToHash(footPrint)

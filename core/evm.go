@@ -81,6 +81,7 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		GasLimit:    header.GasLimit,
 		Random:      random,
 		L1CostFunc:  types.NewL1CostFunc(config, statedb),
+	}
 }
 
 // NewEVMTxContext creates a new transaction context for a single transaction.

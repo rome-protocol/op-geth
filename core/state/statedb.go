@@ -1453,7 +1453,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
 
     // a) from touchedSlots (storage-only touches in this tx)
     for addr := range s.touchedSlots {
-        if !isMagicAddress(addr) {
+        if !IsMagicAddress(addr) {
             touched[addr] = struct{}{}
         }
     }
@@ -1488,7 +1488,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     // build and sort address list
     addresses := make([]common.Address, 0, len(touched))
     for addr := range touched {
-        if !isMagicAddress(addr) {
+        if !IsMagicAddress(addr) {
             addresses = append(addresses, addr)
         }
     }
@@ -1499,7 +1499,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     // 2) build slot-sets from touchedSlots and journal entries since start
     slots := make(map[common.Address]map[common.Hash]struct{}, len(addresses))
     for addr, m := range s.touchedSlots {
-        if isMagicAddress(addr) {
+        if IsMagicAddress(addr) {
             continue
         }
         cmap := make(map[common.Hash]struct{}, len(m))
@@ -1512,7 +1512,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         switch c := s.journal.entries[i].(type) {
         case storageChange:
             addr := *c.account
-            if isMagicAddress(addr) {
+            if IsMagicAddress(addr) {
                 continue
             }
             if slots[addr] == nil {
@@ -1521,7 +1521,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
             slots[addr][c.key] = struct{}{}
         case resetObjectChange:
             addr := *c.account
-            if isMagicAddress(addr) {
+            if IsMagicAddress(addr) {
                 continue
             }
             if slots[addr] == nil {
@@ -1647,9 +1647,9 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     return final, logs
 }
 
-// isMagicAddress returns true if the address is a precompile or other special
+// IsMagicAddress returns true if the address is a precompile or other special
 // system/development address that should be excluded from footprint calculations.
-func isMagicAddress(addr common.Address) bool {
+func IsMagicAddress(addr common.Address) bool {
 	// Check standard precompiles
 	if _, ok := vm.PrecompiledContractsBerlin[addr]; ok {
 		return true
