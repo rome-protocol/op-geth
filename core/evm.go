@@ -71,11 +71,9 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		random = &header.MixDigest
 	}
 	var getSolanaHash func(uint64) (common.Hash, bool)
-	var getSolanaHashByEthBlock func(uint64) (common.Hash, bool)
 	
 	if solanaBlockNumber == nil {
 		if chain != nil {
-			// Look up Solana metadata from database for current block
 			if metaSlot, ok := chain.GetSolanaMetadata(header.Hash()); ok {
 				solanaBlockNumber = &metaSlot
 			}
@@ -84,16 +82,8 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	
 	if chain != nil {
 		getSolanaHash = func(slot uint64) (common.Hash, bool) {
-			// Use keccak256 of the slot number as the blockhash
 			var buf [32]byte
 			binary.BigEndian.PutUint64(buf[24:], slot)
-			hash := crypto.Keccak256Hash(buf[:])
-			return hash, true
-		}
-		getSolanaHashByEthBlock = func(ethBlockNum uint64) (common.Hash, bool) {
-			// Use keccak256 of the eth block number as the blockhash
-			var buf [32]byte
-			binary.BigEndian.PutUint64(buf[24:], ethBlockNum)
 			hash := crypto.Keccak256Hash(buf[:])
 			return hash, true
 		}
@@ -102,19 +92,18 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	blockCtx := vm.BlockContext{
 		CanTransfer:          CanTransfer,
 		Transfer:             Transfer,
-		GetHash:              GetHashFn(header, chain),
-		GetSolanaHash:        getSolanaHash,
-		GetSolanaHashByEthBlock: getSolanaHashByEthBlock,
-		Coinbase:             beneficiary,
-		BlockNumber:          new(big.Int).Set(header.Number),
-		Time:                 header.Time,
-		Difficulty:           new(big.Int).Set(header.Difficulty),
-		BaseFee:              baseFee,
-		BlobBaseFee:          blobBaseFee,
-		GasLimit:             header.GasLimit,
-		Random:               random,
-		L1CostFunc:           types.NewL1CostFunc(config, statedb),
-		SolanaBlockNumber:    solanaBlockNumber,
+		GetHash:           GetHashFn(header, chain),
+		GetSolanaHash:     getSolanaHash,
+		Coinbase:          beneficiary,
+		BlockNumber:       new(big.Int).Set(header.Number),
+		Time:              header.Time,
+		Difficulty:        new(big.Int).Set(header.Difficulty),
+		BaseFee:           baseFee,
+		BlobBaseFee:       blobBaseFee,
+		GasLimit:          header.GasLimit,
+		Random:            random,
+		L1CostFunc:        types.NewL1CostFunc(config, statedb),
+		SolanaBlockNumber: solanaBlockNumber,
 	}
 	return blockCtx
 }
@@ -142,12 +131,9 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash
 	return func(n uint64) common.Hash {
 		currentBlock := ref.Number.Uint64()
 		if currentBlock <= n {
-			// Current block or future block - return zero
 			return common.Hash{}
 		}
-		// Check if block is more than 256 blocks in the past
 		if currentBlock-n > 256 {
-			// Out of range - return zero
 			return common.Hash{}
 		}
 		// If there's no hash cache yet, make one

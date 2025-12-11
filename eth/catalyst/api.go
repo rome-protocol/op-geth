@@ -672,12 +672,7 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 		return engine.PayloadStatusV1{Status: engine.ACCEPTED}, nil
 	}
 
-	// Write Solana metadata to database BEFORE block insertion to ensure it's available
-	// during block execution (e.g., for opNumber and opBlockhash opcodes)
 	var solanaSlot *uint64
-	
-	log.Info("Checking Solana metadata sources", "blockHash", block.Hash().Hex(), "blockNumber", block.NumberU64(), "paramsHasNumber", params.SolanaBlockNumber != nil)
-	
 	api.solanaLock.Lock()
 	meta, hasMeta := api.solanaMeta[block.Hash()]
 	if hasMeta && meta.number != nil {

@@ -338,8 +338,7 @@ func BlockToExecutableData(block *types.Block, fees *big.Int, sidecars []*types.
 		BlobGasUsed:   block.BlobGasUsed(),
 		ExcessBlobGas: block.ExcessBlobGas(),
 	}
-	// Note: Solana metadata is stored in the database, not in headers.
-	// It should be populated separately if needed when converting blocks to ExecutableData.
+
 	bundle := BlobsBundleV1{
 		Commitments: make([]hexutil.Bytes, 0),
 		Blobs:       make([]hexutil.Bytes, 0),

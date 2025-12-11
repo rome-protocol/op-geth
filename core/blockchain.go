@@ -1008,7 +1008,6 @@ func (bc *BlockChain) WriteSolanaMetadata(blockHash common.Hash, slot uint64) er
 	bc.solanaMetaCache[blockHash] = slot
 	bc.solanaMetaCacheMu.Unlock()
 	
-	// Write to database
 	batch := bc.db.NewBatch()
 	rawdb.WriteSolanaMetadata(batch, blockHash, slot)
 	return batch.Write()

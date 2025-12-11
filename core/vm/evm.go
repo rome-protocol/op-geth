@@ -75,8 +75,6 @@ type BlockContext struct {
 	GetHash GetHashFunc
 	// GetSolanaHash returns the solana hash for the given solana slot if available.
 	GetSolanaHash func(uint64) (common.Hash, bool)
-	// GetSolanaHashByEthBlock returns the solana block hash if available.
-	GetSolanaHashByEthBlock func(uint64) (common.Hash, bool)
 	// L1CostFunc returns the L1 cost of the rollup message, the function may be nil, or return nil
 	L1CostFunc types.L1CostFunc
 
