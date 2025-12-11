@@ -246,7 +246,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	return ApplyTransactionWithSolana(config, bc, author, gp, statedb, header, tx, usedGas, cfg, romeGasUsed, footPrint, romeGasPrice, nil, nil)
 }
 
-func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, romeGasUsed uint64, footPrint string, romeGasPrice uint64, solanaBlockNumber *uint64, solanaTimestamp *int64) (*types.Receipt, error) {
+func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, romeGasUsed uint64, footPrint string, romeGasPrice uint64, solanaBlockNumber *uint64, solanaTimestamp *uint64) (*types.Receipt, error) {
 	msg, err := TransactionToMessage(tx, types.MakeSigner(config, header.Number, header.Time), header.BaseFee)
 	if err != nil {
 		return nil, err
@@ -255,12 +255,15 @@ func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, aut
 	blockContext := NewEVMBlockContext(header, bc, author, config, statedb)
 	txContext := NewEVMTxContext(msg)
 	txContext.SolanaBlockNumber = solanaBlockNumber
-	txContext.SolanaTimestamp = solanaTimestamp
+	if solanaTimestamp != nil {
+		ts := int64(*solanaTimestamp)
+		txContext.SolanaTimestamp = &ts
+	}
 	
 	// Store transaction metadata if available
 	if solanaBlockNumber != nil && solanaTimestamp != nil {
 		if blockchain, ok := bc.(*BlockChain); ok {
-			_ = blockchain.WriteSolanaTxMetadata(tx.Hash(), *solanaBlockNumber, *solanaTimestamp)
+			_ = blockchain.WriteSolanaTxMetadata(tx.Hash(), *solanaBlockNumber, int64(*solanaTimestamp))
 		}
 	}
 	

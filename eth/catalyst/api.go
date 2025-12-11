@@ -246,7 +246,8 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	} else {
 		txCount := len(payloadAttributes.Transactions)
 		solanaCount := len(payloadAttributes.SolanaBlockNumbers)
-		var firstSlot, firstTs string
+		var firstSlot uint64
+		var firstTs int64
 		if solanaCount > 0 {
 			firstSlot = payloadAttributes.SolanaBlockNumbers[0]
 		}
@@ -410,36 +411,17 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			span.End()
 		}
 
+		// Convert per-transaction Solana slots and timestamps from payload attributes.
 		var solanaBlockNumbers []*uint64
-		for _, raw := range payloadAttributes.SolanaBlockNumbers {
-			if raw == "" {
-				solanaBlockNumbers = append(solanaBlockNumbers, nil)
-				continue
-			}
-			var v hexutil.Uint64
-			if err := v.UnmarshalText([]byte(raw)); err != nil {
-				log.Warn("Invalid Solana block number in payload attributes", "value", raw, "err", err)
-				solanaBlockNumbers = append(solanaBlockNumbers, nil)
-				continue
-			}
-			slot := uint64(v)
-			solanaBlockNumbers = append(solanaBlockNumbers, &slot)
+		for _, slot := range payloadAttributes.SolanaBlockNumbers {
+			slotCopy := slot
+			solanaBlockNumbers = append(solanaBlockNumbers, &slotCopy)
 		}
 
-		var solanaTimestamps []*int64
-		for _, raw := range payloadAttributes.SolanaTimestamps {
-			if raw == "" {
-				solanaTimestamps = append(solanaTimestamps, nil)
-				continue
-			}
-			var v hexutil.Uint64
-			if err := v.UnmarshalText([]byte(raw)); err != nil {
-				log.Warn("Invalid Solana timestamp in payload attributes", "value", raw, "err", err)
-				solanaTimestamps = append(solanaTimestamps, nil)
-				continue
-			}
-			ts := int64(v)
-			solanaTimestamps = append(solanaTimestamps, &ts)
+		var solanaTimestamps []*uint64
+		for _, ts := range payloadAttributes.SolanaTimestamps {
+			tsCopy := ts
+			solanaTimestamps = append(solanaTimestamps, &tsCopy)
 		}
 
 		args := &miner.BuildPayloadArgs{
@@ -570,17 +552,13 @@ func (api *ConsensusAPI) storePendingSolanaAttributes(id engine.PayloadID, attr 
 		return
 	}
 	var meta solanaMetadata
+	// Derive a canonical Solana slot for this payload from the attributes.
+	// We currently use the last non-empty entry in SolanaBlockNumbers, if any.
 	for i := len(attr.SolanaBlockNumbers) - 1; i >= 0; i-- {
-		raw := attr.SolanaBlockNumbers[i]
-		if raw == "" {
+		slot := attr.SolanaBlockNumbers[i]
+		if slot == 0 {
 			continue
 		}
-		var v hexutil.Uint64
-		if err := v.UnmarshalText([]byte(raw)); err != nil {
-			log.Warn("Invalid Solana block number in storePendingSolanaAttributes", "value", raw, "err", err)
-			continue
-		}
-		slot := uint64(v)
 		meta.number = &slot
 		break
 	}

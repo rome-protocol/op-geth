@@ -102,7 +102,7 @@ type environment struct {
 	blobs    int
 
 	solanaBlockNumbers []*uint64
-	solanaTimestamps   []*int64
+	solanaTimestamps   []*uint64
 }
 
 // copy creates a deep copy of environment.
@@ -149,7 +149,7 @@ type task struct {
 	block              *types.Block
 	createdAt          time.Time
 	solanaBlockNumbers []*uint64
-	solanaTimestamps   []*int64
+	solanaTimestamps   []*uint64
 }
 
 const (
@@ -845,7 +845,7 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 	)
 
 	var solanaBlockNumber *uint64
-	var solanaTimestamp *int64
+	var solanaTimestamp *uint64
 	if index < len(env.solanaBlockNumbers) {
 		solanaBlockNumber = env.solanaBlockNumbers[index]
 	}
@@ -985,7 +985,7 @@ type generateParams struct {
 	withdrawals       types.Withdrawals // List of withdrawals to include in block.
 	beaconRoot         *common.Hash      // The beacon root (cancun field).
 	solanaBlockNumbers []*uint64         // Optional Solana block numbers for each transaction
-	solanaTimestamps   []*int64          // Optional Solana timestamps for each transaction
+	solanaTimestamps   []*uint64          // Optional Solana timestamps for each transaction
 	noTxs              bool              // Flag whether an empty block without any transaction is expected
 
 	txs       types.Transactions // Deposit transactions to include at the start of the block

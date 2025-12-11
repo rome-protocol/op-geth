@@ -23,8 +23,8 @@ func (r RomePayloadAttributes) MarshalJSON() ([]byte, error) {
 		SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient" gencodec:"required"`
 		Withdrawals           []*types.Withdrawal `json:"withdrawals"`
 		BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
-		SolanaBlockNumbers    []string            `json:"solanaBlockNumbers,omitempty" gencodec:"optional"`
-		SolanaTimestamps      []string            `json:"solanaTimestamps,omitempty" gencodec:"optional"`
+		SolanaBlockNumbers    []hexutil.Uint64    `json:"solanaBlockNumbers,omitempty" gencodec:"optional"`
+		SolanaTimestamps      []hexutil.Uint64     `json:"solanaTimestamps,omitempty" gencodec:"optional"`
 		Transactions          []hexutil.Bytes     `json:"transactions,omitempty"  gencodec:"optional"`
 		NoTxPool              bool                `json:"noTxPool,omitempty" gencodec:"optional"`
 		GasLimit              *hexutil.Uint64     `json:"gasLimit,omitempty" gencodec:"optional"`
@@ -39,12 +39,16 @@ func (r RomePayloadAttributes) MarshalJSON() ([]byte, error) {
 	enc.Withdrawals = r.Withdrawals
 	enc.BeaconRoot = r.BeaconRoot
 	if r.SolanaBlockNumbers != nil {
-		enc.SolanaBlockNumbers = make([]string, len(r.SolanaBlockNumbers))
-		copy(enc.SolanaBlockNumbers, r.SolanaBlockNumbers)
+		enc.SolanaBlockNumbers = make([]hexutil.Uint64, len(r.SolanaBlockNumbers))
+		for k, v := range r.SolanaBlockNumbers {
+			enc.SolanaBlockNumbers[k] = hexutil.Uint64(v)
+		}
 	}
 	if r.SolanaTimestamps != nil {
-		enc.SolanaTimestamps = make([]string, len(r.SolanaTimestamps))
-		copy(enc.SolanaTimestamps, r.SolanaTimestamps)
+		enc.SolanaTimestamps = make([]hexutil.Uint64, len(r.SolanaTimestamps))
+		for k, v := range r.SolanaTimestamps {
+			enc.SolanaTimestamps[k] = hexutil.Uint64(v)
+		}
 	}
 	if r.Transactions != nil {
 		enc.Transactions = make([]hexutil.Bytes, len(r.Transactions))
@@ -67,8 +71,8 @@ func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 		SuggestedFeeRecipient *common.Address     `json:"suggestedFeeRecipient" gencodec:"required"`
 		Withdrawals           []*types.Withdrawal `json:"withdrawals"`
 		BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
-		SolanaBlockNumbers    []string            `json:"solanaBlockNumbers,omitempty" gencodec:"optional"`
-		SolanaTimestamps      []string            `json:"solanaTimestamps,omitempty" gencodec:"optional"`
+		SolanaBlockNumbers    []hexutil.Uint64    `json:"solanaBlockNumbers,omitempty" gencodec:"optional"`
+		SolanaTimestamps      []hexutil.Uint64     `json:"solanaTimestamps,omitempty" gencodec:"optional"`
 		Transactions          []hexutil.Bytes     `json:"transactions,omitempty"  gencodec:"optional"`
 		NoTxPool              *bool               `json:"noTxPool,omitempty" gencodec:"optional"`
 		GasLimit              *hexutil.Uint64     `json:"gasLimit,omitempty" gencodec:"optional"`
@@ -104,12 +108,16 @@ func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 		r.BeaconRoot = dec.BeaconRoot
 	}
 	if dec.SolanaBlockNumbers != nil {
-		r.SolanaBlockNumbers = make([]string, len(dec.SolanaBlockNumbers))
-		copy(r.SolanaBlockNumbers, dec.SolanaBlockNumbers)
+		r.SolanaBlockNumbers = make([]uint64, len(dec.SolanaBlockNumbers))
+		for k, v := range dec.SolanaBlockNumbers {
+			r.SolanaBlockNumbers[k] = uint64(v)
+		}
 	}
 	if dec.SolanaTimestamps != nil {
-		r.SolanaTimestamps = make([]string, len(dec.SolanaTimestamps))
-		copy(r.SolanaTimestamps, dec.SolanaTimestamps)
+		r.SolanaTimestamps = make([]uint64, len(dec.SolanaTimestamps))
+		for k, v := range dec.SolanaTimestamps {
+			r.SolanaTimestamps[k] = uint64(v)
+		}
 	}
 	if dec.Transactions != nil {
 		r.Transactions = make([][]byte, len(dec.Transactions))

@@ -55,8 +55,8 @@ type RomePayloadAttributes struct {
 	SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient" gencodec:"required"`
 	Withdrawals           []*types.Withdrawal `json:"withdrawals"`
 	BeaconRoot         *common.Hash `json:"parentBeaconBlockRoot"`
-	SolanaBlockNumbers []string     `json:"solanaBlockNumbers,omitempty" gencodec:"optional"`
-	SolanaTimestamps   []string     `json:"solanaTimestamps,omitempty" gencodec:"optional"`
+	SolanaBlockNumbers []uint64     `json:"solanaBlockNumbers,omitempty" gencodec:"optional"`
+	SolanaTimestamps   []uint64     `json:"solanaTimestamps,omitempty" gencodec:"optional"`
 
 	// Transactions is a field for rollups: the transactions list is forced into the block
 	Transactions [][]byte `json:"transactions,omitempty"  gencodec:"optional"`
