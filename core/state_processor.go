@@ -131,6 +131,13 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 	defer span.End()
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
+	
+	if evm.TxContext.SolanaBlockNumber != nil {
+		txContext.SolanaBlockNumber = evm.TxContext.SolanaBlockNumber
+	}
+	if evm.TxContext.SolanaTimestamp != nil {
+		txContext.SolanaTimestamp = evm.TxContext.SolanaTimestamp
+	}
 	evm.Reset(txContext, statedb)
 
 	nonce := tx.Nonce()
