@@ -240,6 +240,27 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	defer api.forkchoiceLock.Unlock()
 
 	log.Info("Engine API request received", "method", "ForkchoiceUpdated", "head", update.HeadBlockHash, "finalized", update.FinalizedBlockHash, "safe", update.SafeBlockHash)
+
+	if payloadAttributes == nil {
+		log.Info("ForkchoiceUpdated: no payload attributes")
+	} else {
+		txCount := len(payloadAttributes.Transactions)
+		solanaCount := len(payloadAttributes.SolanaBlockNumbers)
+		var firstSlot, firstTs string
+		if solanaCount > 0 {
+			firstSlot = payloadAttributes.SolanaBlockNumbers[0]
+		}
+		if len(payloadAttributes.SolanaTimestamps) > 0 {
+			firstTs = payloadAttributes.SolanaTimestamps[0]
+		}
+		log.Info("ForkchoiceUpdated: payload attributes",
+			"timestamp", payloadAttributes.Timestamp,
+			"txCount", txCount,
+			"solanaSlots", solanaCount,
+			"firstSolanaSlot", firstSlot,
+			"firstSolanaTimestamp", firstTs,
+		)
+	}
 	if update.HeadBlockHash == (common.Hash{}) {
 		return engine.STATUS_INVALID, nil // TODO(karalabe): Why does someone send us this?
 	}
@@ -388,37 +409,17 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			transactions = append(transactions, &tx)
 			span.End()
 		}
-		// Parse solana_block_numbers and solana_timestamps from hex strings
-		solanaBlockNumbers := make([]*uint64, len(payloadAttributes.SolanaBlockNumbers))
-		for i, numStr := range payloadAttributes.SolanaBlockNumbers {
-			if numStr != "" {
-				if num, err := hexutil.DecodeBig(numStr); err == nil && num.IsUint64() {
-					val := num.Uint64()
-					solanaBlockNumbers[i] = &val
-				}
-			}
-		}
-		solanaTimestamps := make([]*int64, len(payloadAttributes.SolanaTimestamps))
-		for i, tsStr := range payloadAttributes.SolanaTimestamps {
-			if tsStr != "" {
-				if ts, err := hexutil.DecodeBig(tsStr); err == nil && ts.IsInt64() {
-					val := ts.Int64()
-					solanaTimestamps[i] = &val
-				}
-			}
-		}
 		args := &miner.BuildPayloadArgs{
-			Parent:             update.HeadBlockHash,
-			Timestamp:          payloadAttributes.Timestamp,
-			FeeRecipient:       payloadAttributes.SuggestedFeeRecipient,
-			Random:             payloadAttributes.Random,
-			Withdrawals:        payloadAttributes.Withdrawals,
-			BeaconRoot:         payloadAttributes.BeaconRoot,
-			SolanaBlockNumbers: solanaBlockNumbers,
-			SolanaTimestamps:   solanaTimestamps,
-			NoTxPool:           payloadAttributes.NoTxPool,
-			Transactions:       transactions,
-			GasLimit:           payloadAttributes.GasLimit,
+			Parent:       update.HeadBlockHash,
+			Timestamp:    payloadAttributes.Timestamp,
+			FeeRecipient: payloadAttributes.SuggestedFeeRecipient,
+			Random:       payloadAttributes.Random,
+			Withdrawals:  payloadAttributes.Withdrawals,
+			BeaconRoot:   payloadAttributes.BeaconRoot,
+			SolanaBlockNumber: payloadAttributes.SolanaBlockNumber,
+			NoTxPool:     payloadAttributes.NoTxPool,
+			Transactions: transactions,
+			GasLimit:     payloadAttributes.GasLimit,
 			GasUsed:      payloadAttributes.GasUsed,
 			GasPrice:     payloadAttributes.GasPrice,
 			Footprints:   payloadAttributes.TxFootprints,
@@ -535,11 +536,9 @@ func (api *ConsensusAPI) storePendingSolanaAttributes(id engine.PayloadID, attr 
 		return
 	}
 	var meta solanaMetadata
-	if len(attr.SolanaBlockNumbers) > 0 && attr.SolanaBlockNumbers[0] != "" {
-		if num, err := hexutil.DecodeBig(attr.SolanaBlockNumbers[0]); err == nil && num.IsUint64() {
-			val := num.Uint64()
-			meta.number = &val
-		}
+	if attr.SolanaBlockNumber != nil {
+		num := *attr.SolanaBlockNumber
+		meta.number = &num
 	}
 	if meta.number == nil {
 		return
@@ -694,19 +693,33 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 		return engine.PayloadStatusV1{Status: engine.ACCEPTED}, nil
 	}
 
+	var solanaSlot *uint64
 	api.solanaLock.Lock()
 	meta, hasMeta := api.solanaMeta[block.Hash()]
 	if hasMeta && meta.number != nil {
-		log.Info("Found Solana metadata in api.solanaMeta", "blockHash", block.Hash().Hex(), "slot", *meta.number)
+		solanaSlot = meta.number
 	} else {
-		log.Info("No metadata in api.solanaMeta", "blockHash", block.Hash().Hex(), "hasMeta", hasMeta)
 		if hasMeta {
 			log.Info("Metadata exists but incomplete", "hasNumber", meta.number != nil)
 		}
 	}
 	api.solanaLock.Unlock()
-	
-	// Solana metadata is now stored per-transaction, not per-block
+	if solanaSlot == nil && params.SolanaBlockNumber != nil {
+		slot := uint64(*params.SolanaBlockNumber)
+		solanaSlot = &slot
+	}
+	if solanaSlot != nil {
+		if err := api.eth.BlockChain().WriteSolanaMetadata(block.Hash(), *solanaSlot); err != nil {
+			return api.invalid(fmt.Errorf("failed to write Solana metadata: %w", err), parent.Header()), nil
+		}
+	} else {
+		api.solanaLock.Lock()
+		hasMeta := false
+		if _, ok := api.solanaMeta[block.Hash()]; ok {
+			hasMeta = true
+		}
+		api.solanaLock.Unlock()
+	}
 	
 	log.Trace("Inserting block without sethead", "hash", block.Hash(), "number", block.Number)
 	if err := api.eth.BlockChain().InsertBlockWithoutSetHead(block, params.RomeGasUsed, params.TxFootprints, params.RomeGasPrice); err != nil {

@@ -494,7 +494,6 @@ func opTimestamp(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		scope.Stack.push(new(uint256.Int).SetUint64(timestamp))
 	} else {
 		log.Info("opTIMESTAMP SolanaTimestamp nil", "ethTime", interpreter.evm.Context.Time)
-		// No fallback to EVM context time; surface mismatch as 0
 		scope.Stack.push(new(uint256.Int))
 	}
 	return nil, nil

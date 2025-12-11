@@ -78,10 +78,9 @@ func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 	if err := json.Unmarshal(input, &dec); err != nil {
 		return err
 	}
-	if dec.Timestamp == nil {
-		return errors.New("missing required field 'timestamp' for RomePayloadAttributes")
+	if dec.Timestamp != nil {
+		r.Timestamp = uint64(*dec.Timestamp)
 	}
-	r.Timestamp = uint64(*dec.Timestamp)
 	if dec.GasPrice == nil {
 		return errors.New("missing required field 'gasPrices' for RomePayloadAttributes")
 	}
