@@ -23,7 +23,8 @@ func (r RomePayloadAttributes) MarshalJSON() ([]byte, error) {
 		SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient" gencodec:"required"`
 		Withdrawals           []*types.Withdrawal `json:"withdrawals"`
 		BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
-		SolanaBlockNumber     *hexutil.Uint64     `json:"solanaBlockNumber,omitempty" gencodec:"optional"`
+		SolanaBlockNumbers    []string            `json:"solanaBlockNumbers,omitempty" gencodec:"optional"`
+		SolanaTimestamps      []string            `json:"solanaTimestamps,omitempty" gencodec:"optional"`
 		Transactions          []hexutil.Bytes     `json:"transactions,omitempty"  gencodec:"optional"`
 		NoTxPool              bool                `json:"noTxPool,omitempty" gencodec:"optional"`
 		GasLimit              *hexutil.Uint64     `json:"gasLimit,omitempty" gencodec:"optional"`
@@ -66,7 +67,8 @@ func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 		SuggestedFeeRecipient *common.Address     `json:"suggestedFeeRecipient" gencodec:"required"`
 		Withdrawals           []*types.Withdrawal `json:"withdrawals"`
 		BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
-		SolanaBlockNumber     *hexutil.Uint64     `json:"solanaBlockNumber,omitempty" gencodec:"optional"`
+		SolanaBlockNumbers    []string            `json:"solanaBlockNumbers,omitempty" gencodec:"optional"`
+		SolanaTimestamps      []string            `json:"solanaTimestamps,omitempty" gencodec:"optional"`
 		Transactions          []hexutil.Bytes     `json:"transactions,omitempty"  gencodec:"optional"`
 		NoTxPool              *bool               `json:"noTxPool,omitempty" gencodec:"optional"`
 		GasLimit              *hexutil.Uint64     `json:"gasLimit,omitempty" gencodec:"optional"`
