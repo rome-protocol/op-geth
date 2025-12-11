@@ -426,7 +426,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 
 		args := &miner.BuildPayloadArgs{
 			Parent:       update.HeadBlockHash,
-			Timestamp:    timestamp,
+			Timestamp:    payloadAttributes.Timestamp,
 			FeeRecipient: payloadAttributes.SuggestedFeeRecipient,
 			Random:       payloadAttributes.Random,
 			Withdrawals:  payloadAttributes.Withdrawals,
