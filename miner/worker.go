@@ -852,12 +852,6 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 	if index < len(env.solanaTimestamps) {
 		solanaTimestamp = env.solanaTimestamps[index]
 	}
-	if solanaBlockNumber == nil {
-		log.Warn("applyTransaction: SolanaBlockNumber is nil", "index", index, "len", len(env.solanaBlockNumbers), "txHash", tx.Hash())
-	}
-	if solanaTimestamp == nil {
-		log.Warn("applyTransaction: SolanaTimestamp is nil", "index", index, "len", len(env.solanaTimestamps), "txHash", tx.Hash())
-	}
 
 	receipt, err := core.ApplyTransactionWithSolana(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed, footPrint, romeGasPrice, solanaBlockNumber, solanaTimestamp)
 

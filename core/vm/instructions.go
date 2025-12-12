@@ -447,7 +447,6 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		return nil, nil
 	}
 
-	// Use SolanaBlockNumber from tx context only (Solana semantics). No fallback to EVM context.
 	var current uint64
 	if interpreter.evm.TxContext.SolanaBlockNumber != nil {
 		current = *interpreter.evm.TxContext.SolanaBlockNumber
