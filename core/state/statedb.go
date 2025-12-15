@@ -1557,31 +1557,47 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
                 b.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
                 pre = append(pre, addr.Bytes()...)
 
-                // nonce: journal bump if present in [start:], else state
+                destroyed := s.HasSelfDestructed(addr)
+
+                // nonce: journal bump if present in [start:], else state.
                 var nonce uint64
-                found := false
-                for j := len(s.journal.entries) - 1; j >= start; j-- {
-                    if nc, ok := s.journal.entries[j].(nonceChange); ok && *nc.account == addr {
-                        nonce = nc.prev + 1
-                        found = true
-                        break
+                if destroyed {
+                    nonce = 0
+                } else {
+                    found := false
+                    for j := len(s.journal.entries) - 1; j >= start; j-- {
+                        if nc, ok := s.journal.entries[j].(nonceChange); ok && *nc.account == addr {
+                            nonce = nc.prev + 1
+                            found = true
+                            break
+                        }
                     }
-                }
-                if !found {
-                    nonce = s.GetNonce(addr)
+                    if !found {
+                        nonce = s.GetNonce(addr)
+                    }
                 }
                 var nb [8]byte
                 binary.LittleEndian.PutUint64(nb[:], nonce)
                 pre = append(pre, nb[:]...)
                 b.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nb))
 
-                bal := s.GetBalance(addr).Bytes()
+                var balBytes []byte
+                if destroyed {
+                    balBytes = []byte{}
+                } else {
+                    balBytes = s.GetBalance(addr).Bytes()
+                }
                 var bb [32]byte
-                copy(bb[32-len(bal):], bal)
+                copy(bb[32-len(balBytes):], balBytes)
                 pre = append(pre, bb[:]...)
                 b.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(bb[:]).String(), bb))
 
-                code := s.GetCode(addr)
+                var code []byte
+                if destroyed {
+                    code = nil
+                } else {
+                    code = s.GetCode(addr)
+                }
                 pre = append(pre, code...)
                 b.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
