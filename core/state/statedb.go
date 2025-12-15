@@ -1561,20 +1561,16 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
 
                 // nonce: journal bump if present in [start:], else state.
                 var nonce uint64
-                if destroyed {
-                    nonce = 0
-                } else {
-                    found := false
-                    for j := len(s.journal.entries) - 1; j >= start; j-- {
-                        if nc, ok := s.journal.entries[j].(nonceChange); ok && *nc.account == addr {
-                            nonce = nc.prev + 1
-                            found = true
-                            break
-                        }
+                found := false
+                for j := len(s.journal.entries) - 1; j >= start; j-- {
+                    if nc, ok := s.journal.entries[j].(nonceChange); ok && *nc.account == addr {
+                        nonce = nc.prev + 1
+                        found = true
+                        break
                     }
-                    if !found {
-                        nonce = s.GetNonce(addr)
-                    }
+                }
+                if !found {
+                    nonce = s.GetNonce(addr)
                 }
                 var nb [8]byte
                 binary.LittleEndian.PutUint64(nb[:], nonce)
