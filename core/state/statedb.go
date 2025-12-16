@@ -470,10 +470,7 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 		prevbalance: new(big.Int).Set(stateObject.Balance()),
 	})
 	stateObject.markSelfdestructed()
-
 	stateObject.data.Balance = new(big.Int)
-	stateObject.setNonce(0)
-	stateObject.setCode(types.EmptyCodeHash, nil)
 }
 
 // Selfdestruct6780 conditionally selfdestructs if the object was newly created.
@@ -1456,7 +1453,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
 
     // a) from touchedSlots (storage-only touches in this tx)
     for addr := range s.touchedSlots {
-        if !isMagicAddress(addr) {
+        if !IsMagicAddress(addr) {
             touched[addr] = struct{}{}
         }
     }
@@ -1467,7 +1464,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     if start > len(s.journal.entries) {
         start = len(s.journal.entries)
     }
-    for i := start; i < len(s.journal.entries); i++ {
+	for i := start; i < len(s.journal.entries); i++ {
         switch c := s.journal.entries[i].(type) {
         case createObjectChange:
             touched[*c.account] = struct{}{}
@@ -1491,7 +1488,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     // build and sort address list
     addresses := make([]common.Address, 0, len(touched))
     for addr := range touched {
-        if !isMagicAddress(addr) {
+        if !IsMagicAddress(addr) {
             addresses = append(addresses, addr)
         }
     }
@@ -1502,7 +1499,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     // 2) build slot-sets from touchedSlots and journal entries since start
     slots := make(map[common.Address]map[common.Hash]struct{}, len(addresses))
     for addr, m := range s.touchedSlots {
-        if isMagicAddress(addr) {
+        if IsMagicAddress(addr) {
             continue
         }
         cmap := make(map[common.Hash]struct{}, len(m))
@@ -1515,7 +1512,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         switch c := s.journal.entries[i].(type) {
         case storageChange:
             addr := *c.account
-            if isMagicAddress(addr) {
+            if IsMagicAddress(addr) {
                 continue
             }
             if slots[addr] == nil {
@@ -1524,7 +1521,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
             slots[addr][c.key] = struct{}{}
         case resetObjectChange:
             addr := *c.account
-            if isMagicAddress(addr) {
+            if IsMagicAddress(addr) {
                 continue
             }
             if slots[addr] == nil {
@@ -1560,31 +1557,46 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
                 b.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
                 pre = append(pre, addr.Bytes()...)
 
-                // nonce: journal bump if present in [start:], else state
+                destroyed := s.HasSelfDestructed(addr)
+
                 var nonce uint64
-                found := false
-                for j := len(s.journal.entries) - 1; j >= start; j-- {
-                    if nc, ok := s.journal.entries[j].(nonceChange); ok && *nc.account == addr {
-                        nonce = nc.prev + 1
-                        found = true
-                        break
+                if destroyed {
+                    nonce = 0
+                } else {
+                    found := false
+                    for j := len(s.journal.entries) - 1; j >= start; j-- {
+                        if nc, ok := s.journal.entries[j].(nonceChange); ok && *nc.account == addr {
+                            nonce = nc.prev + 1
+                            found = true
+                            break
+                        }
                     }
-                }
-                if !found {
-                    nonce = s.GetNonce(addr)
+                    if !found {
+                        nonce = s.GetNonce(addr)
+                    }
                 }
                 var nb [8]byte
                 binary.LittleEndian.PutUint64(nb[:], nonce)
                 pre = append(pre, nb[:]...)
                 b.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nb))
 
-                bal := s.GetBalance(addr).Bytes()
+                var balBytes []byte
+                if destroyed {
+                    balBytes = []byte{}
+                } else {
+                    balBytes = s.GetBalance(addr).Bytes()
+                }
                 var bb [32]byte
-                copy(bb[32-len(bal):], bal)
+                copy(bb[32-len(balBytes):], balBytes)
                 pre = append(pre, bb[:]...)
                 b.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(bb[:]).String(), bb))
 
-                code := s.GetCode(addr)
+                var code []byte
+                if destroyed {
+                    code = nil
+                } else {
+                    code = s.GetCode(addr)
+                }
                 pre = append(pre, code...)
                 b.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
@@ -1650,9 +1662,9 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     return final, logs
 }
 
-// isMagicAddress returns true if the address is a precompile or other special
+// IsMagicAddress returns true if the address is a precompile or other special
 // system/development address that should be excluded from footprint calculations.
-func isMagicAddress(addr common.Address) bool {
+func IsMagicAddress(addr common.Address) bool {
 	// Check standard precompiles
 	if _, ok := vm.PrecompiledContractsBerlin[addr]; ok {
 		return true
