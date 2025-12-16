@@ -1570,19 +1570,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
 
                 b.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
                 pre = append(pre, addr.Bytes()...)
-
-                var nonce uint64
-                found := false
-                for j := len(s.journal.entries) - 1; j >= start; j-- {
-                    if nc, ok := s.journal.entries[j].(nonceChange); ok && *nc.account == addr {
-                        nonce = nc.prev + 1
-                        found = true
-                        break
-                    }
-                }
-                if !found {
-                    nonce = s.GetNonce(addr)
-                }
+                nonce := s.GetNonce(addr)
                 var nb [8]byte
                 binary.LittleEndian.PutUint64(nb[:], nonce)
                 pre = append(pre, nb[:]...)
