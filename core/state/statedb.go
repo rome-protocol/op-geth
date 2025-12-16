@@ -464,29 +464,13 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 	if stateObject == nil {
 		return
 	}
-	log.Info("SelfDestruct start",
-		"addr", addr.Hex(),
-		"nonce", stateObject.Nonce(),
-		"code_len", stateObject.CodeSize(),
-		"balance", stateObject.Balance(),
-	)
 	s.journal.append(selfDestructChange{
 		account:     &addr,
 		prev:        stateObject.selfDestructed,
 		prevbalance: new(big.Int).Set(stateObject.Balance()),
 	})
 	stateObject.markSelfdestructed()
-
-	stateObject.SetBalance(new(big.Int))
-	stateObject.SetNonce(0)
-	stateObject.SetCode(types.EmptyCodeHash, nil)
-	
-	log.Info("SelfDestruct end",
-		"addr", addr.Hex(),
-		"nonce", stateObject.Nonce(),
-		"code_len", stateObject.CodeSize(),
-		"balance", stateObject.Balance(),
-	)
+	stateObject.data.Balance = new(big.Int)
 }
 
 // Selfdestruct6780 conditionally selfdestructs if the object was newly created.
@@ -495,7 +479,9 @@ func (s *StateDB) Selfdestruct6780(addr common.Address) {
 	if stateObject == nil {
 		return
 	}
-	s.SelfDestruct(addr)
+	if stateObject.created {
+		s.SelfDestruct(addr)
+	}
 }
 
 // SetTransientState sets a transient storage slot (rolled back on revert).
@@ -1574,33 +1560,39 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
                 destroyed := s.HasSelfDestructed(addr)
 
                 var nonce uint64
-                if destroyed {
+                found := false
+                for j := len(s.journal.entries) - 1; j >= start; j-- {
+                    if nc, ok := s.journal.entries[j].(nonceChange); ok && *nc.account == addr {
+                        nonce = nc.prev + 1
+                        found = true
+                        break
+                    }
+                }
+                if !found {
                     nonce = s.GetNonce(addr)
-                } else {
-                    found := false
-                    for j := len(s.journal.entries) - 1; j >= start; j-- {
-                        if nc, ok := s.journal.entries[j].(nonceChange); ok && *nc.account == addr {
-                            nonce = nc.prev + 1
-                            found = true
-                            break
-                        }
-                    }
-                    if !found {
-                        nonce = s.GetNonce(addr)
-                    }
                 }
                 var nb [8]byte
                 binary.LittleEndian.PutUint64(nb[:], nonce)
                 pre = append(pre, nb[:]...)
                 b.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nb))
 
-                balBytes := s.GetBalance(addr).Bytes()
+                var balBytes []byte
+                if destroyed {
+                    balBytes = []byte{}
+                } else {
+                    balBytes = s.GetBalance(addr).Bytes()
+                }
                 var bb [32]byte
                 copy(bb[32-len(balBytes):], balBytes)
                 pre = append(pre, bb[:]...)
                 b.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(bb[:]).String(), bb))
 
-                code := s.GetCode(addr)
+                var code []byte
+                if destroyed {
+                    code = nil
+                } else {
+                    code = s.GetCode(addr)
+                }
                 pre = append(pre, code...)
                 b.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
