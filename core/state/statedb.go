@@ -1557,7 +1557,8 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
                 b.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
                 pre = append(pre, addr.Bytes()...)
 
-                // nonce: journal bump if present in [start:], else state
+                destroyed := s.HasSelfDestructed(addr)
+
                 var nonce uint64
                 found := false
                 for j := len(s.journal.entries) - 1; j >= start; j-- {
@@ -1575,13 +1576,23 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
                 pre = append(pre, nb[:]...)
                 b.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nb))
 
-                bal := s.GetBalance(addr).Bytes()
+                var balBytes []byte
+                if destroyed {
+                    balBytes = []byte{}
+                } else {
+                    balBytes = s.GetBalance(addr).Bytes()
+                }
                 var bb [32]byte
-                copy(bb[32-len(bal):], bal)
+                copy(bb[32-len(balBytes):], balBytes)
                 pre = append(pre, bb[:]...)
                 b.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(bb[:]).String(), bb))
 
-                code := s.GetCode(addr)
+                var code []byte
+                if destroyed {
+                    code = nil
+                } else {
+                    code = s.GetCode(addr)
+                }
                 pre = append(pre, code...)
                 b.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
