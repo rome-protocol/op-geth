@@ -476,7 +476,11 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 		prevbalance: new(big.Int).Set(stateObject.Balance()),
 	})
 	stateObject.markSelfdestructed()
-	stateObject.data.Balance = new(big.Int)
+
+	stateObject.SetBalance(new(big.Int))
+	stateObject.SetNonce(0)
+	stateObject.SetCode(types.EmptyCodeHash, nil)
+	
 	log.Info("SelfDestruct end",
 		"addr", addr.Hex(),
 		"nonce", stateObject.Nonce(),
