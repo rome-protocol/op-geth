@@ -1650,12 +1650,8 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
     return final, logs
 }
 
-// IsMagicAddress returns true if the address is a precompile or other special
+// isMagicAddress returns true if the address is a precompile or other special
 // system/development address that should be excluded from footprint calculations.
-func IsMagicAddress(addr common.Address) bool {
-	return isMagicAddress(addr)
-}
-
 func isMagicAddress(addr common.Address) bool {
 	// Check standard precompiles
 	if _, ok := vm.PrecompiledContractsBerlin[addr]; ok {
