@@ -470,18 +470,15 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 		prevbalance: new(big.Int).Set(stateObject.Balance()),
 	})
 	stateObject.markSelfdestructed()
-	stateObject.data.Balance = new(big.Int)
+
+	stateObject.SetBalance(new(big.Int))
+	stateObject.SetNonce(0)
+	stateObject.SetCode(types.EmptyCodeHash, nil)
 }
 
 // Selfdestruct6780 conditionally selfdestructs if the object was newly created.
 func (s *StateDB) Selfdestruct6780(addr common.Address) {
-	stateObject := s.getStateObject(addr)
-	if stateObject == nil {
-		return
-	}
-	if stateObject.created {
-		s.SelfDestruct(addr)
-	}
+	s.SelfDestruct(addr)
 }
 
 // SetTransientState sets a transient storage slot (rolled back on revert).
@@ -1556,12 +1553,10 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
 
                 b.WriteString(fmt.Sprintf("Address: %s\n", addr.Hex()))
                 pre = append(pre, addr.Bytes()...)
-
                 destroyed := s.HasSelfDestructed(addr)
-
                 var nonce uint64
                 if destroyed {
-                    nonce = 0
+                    nonce = s.GetNonce(addr)
                 } else {
                     found := false
                     for j := len(s.journal.entries) - 1; j >= start; j-- {
@@ -1580,23 +1575,13 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
                 pre = append(pre, nb[:]...)
                 b.WriteString(fmt.Sprintf("  Nonce: %d => %x\n", nonce, nb))
 
-                var balBytes []byte
-                if destroyed {
-                    balBytes = []byte{}
-                } else {
-                    balBytes = s.GetBalance(addr).Bytes()
-                }
+                balBytes := s.GetBalance(addr).Bytes()
                 var bb [32]byte
                 copy(bb[32-len(balBytes):], balBytes)
                 pre = append(pre, bb[:]...)
                 b.WriteString(fmt.Sprintf("  Balance: %s => %x\n", new(big.Int).SetBytes(bb[:]).String(), bb))
 
-                var code []byte
-                if destroyed {
-                    code = nil
-                } else {
-                    code = s.GetCode(addr)
-                }
+                code := s.GetCode(addr)
                 pre = append(pre, code...)
                 b.WriteString(fmt.Sprintf("  Code Length: %d\n", len(code)))
 
