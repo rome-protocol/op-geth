@@ -468,6 +468,7 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 	prevNonce := stateObject.Nonce()
 	prevCode := append([]byte(nil), stateObject.Code()...)
 	prevCodeHash := append([]byte(nil), stateObject.CodeHash()...)
+	created := stateObject.created
 
 	s.journal.append(selfDestructChange{
 		account:      &addr,
@@ -480,8 +481,10 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 	stateObject.markSelfdestructed()
 
 	stateObject.setBalance(new(big.Int))
-	stateObject.setNonce(0)
-	stateObject.setCode(types.EmptyCodeHash, nil)
+	if created {
+		stateObject.setNonce(0)
+		stateObject.setCode(types.EmptyCodeHash, nil)
+	}
 }
 
 // Selfdestruct6780 conditionally selfdestructs if the object was newly created.
