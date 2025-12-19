@@ -1896,6 +1896,11 @@ func (s *TransactionAPI) GetTransactionCount(ctx context.Context, address common
 		if err != nil {
 			return nil, err
 		}
+		log.Info("GetTransactionCount",
+			"addr", address.Hex(),
+			"block", "pending",
+			"nonce", nonce,
+		)
 		return (*hexutil.Uint64)(&nonce), nil
 	}
 	// Resolve block number and use its state to ask for the nonce
@@ -1923,6 +1928,11 @@ func (s *TransactionAPI) GetTransactionCount(ctx context.Context, address common
 	}
 
 	nonce := state.GetNonce(address)
+	log.Info("GetTransactionCount",
+		"addr", address.Hex(),
+		"block", header.Number.Uint64(),
+		"nonce", nonce,
+	)
 	return (*hexutil.Uint64)(&nonce), state.Error()
 }
 
