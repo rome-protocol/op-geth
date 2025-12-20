@@ -499,9 +499,14 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 	)
 }
 
-// Selfdestruct6780 conditionally selfdestructs if the object was newly created.
 func (s *StateDB) Selfdestruct6780(addr common.Address) {
-	s.SelfDestruct(addr)
+	stateObject := s.getStateObject(addr)
+	if stateObject == nil {
+		return
+	}
+	if stateObject.created {
+		s.SelfDestruct(addr)
+	}
 }
 
 // SetTransientState sets a transient storage slot (rolled back on revert).
