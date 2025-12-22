@@ -147,11 +147,11 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 		nonce = statedb.GetNonce(msg.From)
 	}
 
-	// Snapshot journal start to scope footprint to this tx
-	start := statedb.JournalLength()
+    // Snapshot journal start to scope footprint to this tx
+    start := statedb.JournalLength()
 
-	// Apply the transaction to the current state
-	result, err := ApplyMessage(evm, msg, gp, romeGasUsed, romeGasPrice)
+    // Apply the transaction to the current state
+    result, err := ApplyMessage(evm, msg, gp, romeGasUsed, romeGasPrice)
 	if err != nil {
 		return nil, err
 	}

@@ -486,19 +486,9 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 		stateObject.setNonce(0)
 		stateObject.setCode(types.EmptyCodeHash, nil)
 	}
-
-	log.Info("SelfDestruct",
-		"addr", addr.Hex(),
-		"created", created,
-		"prevNonce", prevNonce,
-		"finalNonce", stateObject.Nonce(),
-		"prevBalance", prevBalance,
-		"finalBalance", stateObject.Balance(),
-		"prevCodeLen", len(prevCode),
-		"finalCodeLen", len(stateObject.Code()),
-	)
 }
 
+// Selfdestruct6780 conditionally selfdestructs if the object was newly created.
 func (s *StateDB) Selfdestruct6780(addr common.Address) {
 	stateObject := s.getStateObject(addr)
 	if stateObject == nil {
