@@ -146,6 +146,8 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 		return nil, err
 	}
 
+	log.Info("Calculating state footprint mismatch for", "tx", tx.Hash().Hex(), "with footprint", footPrint)
+
 	// Calculate the state footprint after VM execution
     if footPrint != "" && footPrint != "0x0" {
         vmState, logs := statedb.CalculateTxFootPrint(start)
@@ -157,9 +159,9 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 			if err := log.FlushLogs(logs); err != nil {
 				log.Error("failed to flush logs", "error", err)
 			}
-			
+
 			if manager != nil && manager.IsKnownMismatch(txHash) {
-				log.Warn("state footprint mismatch", 
+				log.Error("known state footprint mismatch", 
 					"tx", txHash.Hex(), 
 					"expected", footPrint, 
 					"got", vmState.Hex())
