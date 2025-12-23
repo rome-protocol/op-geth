@@ -146,7 +146,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 		return nil, err
 	}
 
-	log.Info("Calculating state footprint mismatch for", "tx", tx.Hash().Hex(), "with footprint", footPrint)
+	log.Info("Comparing state footprint for", "tx", tx.Hash().Hex(), "with footprint", footPrint)
 
 	// Calculate the state footprint after VM execution
     if footPrint != "" && footPrint != "0x0" {
