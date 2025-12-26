@@ -475,7 +475,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			"transactionsCount", len(args.Transactions),
 			"allMatch", len(args.SolanaBlockNumbers) == len(args.Transactions) && len(args.SolanaTimestamps) == len(args.Transactions))
 		id := args.Id()
-		log.Info("=== CATALYST API: Storing pending Solana attributes ===", "payloadID", id.Hex())
+		log.Info("=== CATALYST API: Storing pending Solana attributes ===", "payloadID", id.String())
 		api.storePendingSolanaAttributes(id, payloadAttributes)
 		// If we already are busy generating this work, then we do not need
 		// to start a second process.
@@ -543,31 +543,31 @@ func (api *ConsensusAPI) GetPayloadV3(payloadID engine.PayloadID) (*engine.Execu
 }
 
 func (api *ConsensusAPI) getPayload(payloadID engine.PayloadID, full bool) (*engine.ExecutionPayloadEnvelope, error) {
-	log.Info("=== CATALYST API: getPayload ENTRY ===", "method", "GetPayload", "id", payloadID.Hex(), "full", full)
+	log.Info("=== CATALYST API: getPayload ENTRY ===", "method", "GetPayload", "id", payloadID.String(), "full", full)
 	data := api.localBlocks.get(payloadID, full)
 	if data == nil {
-		log.Warn("=== CATALYST API: getPayload: Unknown payload ===", "payloadID", payloadID.Hex())
+		log.Warn("=== CATALYST API: getPayload: Unknown payload ===", "payloadID", payloadID.String())
 		return nil, engine.UnknownPayload
 	}
 	if payload := data.ExecutionPayload; payload != nil {
 		log.Info("=== CATALYST API: getPayload: Storing Solana metadata ===", 
-			"payloadID", payloadID.Hex(),
+			"payloadID", payloadID.String(),
 			"blockHash", payload.BlockHash.Hex(),
 			"hasSolanaBlockNumber", payload.SolanaBlockNumber != nil)
 		api.storeSolanaMetadata(payloadID, payload)
 	} else {
-		log.Warn("=== CATALYST API: getPayload: ExecutionPayload is nil ===", "payloadID", payloadID.Hex())
+		log.Warn("=== CATALYST API: getPayload: ExecutionPayload is nil ===", "payloadID", payloadID.String())
 	}
 	return data, nil
 }
 
 func (api *ConsensusAPI) storeSolanaMetadata(id engine.PayloadID, payload *engine.RomeExecutableData) {
 	if payload == nil {
-		log.Warn("=== CATALYST API: storeSolanaMetadata: payload is nil ===", "payloadID", id.Hex())
+		log.Warn("=== CATALYST API: storeSolanaMetadata: payload is nil ===", "payloadID", id.String())
 		return
 	}
 	log.Info("=== CATALYST API: storeSolanaMetadata ENTRY ===",
-		"payloadID", id.Hex(),
+		"payloadID", id.String(),
 		"blockHash", payload.BlockHash.Hex(),
 		"blockNumber", payload.Number,
 		"hasSolanaBlockNumber", payload.SolanaBlockNumber != nil,
@@ -589,7 +589,7 @@ func (api *ConsensusAPI) storeSolanaMetadata(id engine.PayloadID, payload *engin
 
 	if pending, ok := api.solanaPending[id]; ok {
 		log.Info("=== CATALYST API: storeSolanaMetadata: Found in solanaPending ===", 
-			"payloadID", id.Hex(),
+			"payloadID", id.String(),
 			"hasPendingNumber", pending.number != nil,
 			"pendingNumber", func() interface{} {
 				if pending.number != nil {
@@ -603,7 +603,7 @@ func (api *ConsensusAPI) storeSolanaMetadata(id engine.PayloadID, payload *engin
 		}
 		delete(api.solanaPending, id)
 	} else {
-		log.Info("=== CATALYST API: storeSolanaMetadata: Not found in solanaPending ===", "payloadID", id.Hex())
+		log.Info("=== CATALYST API: storeSolanaMetadata: Not found in solanaPending ===", "payloadID", id.String())
 	}
 	if meta.number == nil {
 		log.Warn("=== CATALYST API: storeSolanaMetadata: No valid number, skipping storage ===")
@@ -622,11 +622,11 @@ func (api *ConsensusAPI) storeSolanaMetadata(id engine.PayloadID, payload *engin
 
 func (api *ConsensusAPI) storePendingSolanaAttributes(id engine.PayloadID, attr *engine.RomePayloadAttributes) {
 	if attr == nil {
-		log.Warn("=== CATALYST API: storePendingSolanaAttributes: attr is nil ===", "payloadID", id.Hex())
+		log.Warn("=== CATALYST API: storePendingSolanaAttributes: attr is nil ===", "payloadID", id.String())
 		return
 	}
 	log.Info("=== CATALYST API: storePendingSolanaAttributes ENTRY ===", 
-		"payloadID", id.Hex(),
+		"payloadID", id.String(),
 		"solanaBlockNumbersCount", len(attr.SolanaBlockNumbers),
 		"solanaTimestampsCount", len(attr.SolanaTimestamps))
 	
@@ -652,7 +652,7 @@ func (api *ConsensusAPI) storePendingSolanaAttributes(id engine.PayloadID, attr 
 	api.solanaLock.Lock()
 	api.solanaPending[id] = meta
 	api.solanaLock.Unlock()
-	log.Info("=== CATALYST API: Stored in solanaPending map ===", "payloadID", id.Hex(), "number", *meta.number)
+	log.Info("=== CATALYST API: Stored in solanaPending map ===", "payloadID", id.String(), "number", *meta.number)
 }
 
 func (api *ConsensusAPI) populateSolanaMetadata(params *engine.RomeExecutableData) {
