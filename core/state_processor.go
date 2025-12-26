@@ -99,6 +99,19 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			tsUint := uint64(ts)
 			solanaBlockNumber = &slotCopy
 			solanaTimestamp = &tsUint
+			if i < 3 {
+				log.Info("Process: Found Solana metadata in database",
+					"txIndex", i,
+					"txHash", tx.Hash().Hex(),
+					"slot", slot,
+					"timestamp", ts)
+			}
+		} else {
+			if i < 3 {
+				log.Info("Process: No Solana metadata found in database",
+					"txIndex", i,
+					"txHash", tx.Hash().Hex())
+			}
 		}
 
 		receipt, err := ApplyTransactionWithSolana(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, romeGasUsed[i], "", romeGasPrice[i], solanaBlockNumber, solanaTimestamp)
@@ -266,6 +279,29 @@ func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, aut
 	if solanaTimestamp != nil {
 		ts := int64(*solanaTimestamp)
 		txContext.SolanaTimestamp = &ts
+	}
+	
+	// Log Solana metadata for debugging (only for first few transactions to avoid spam)
+	if statedb.TxIndex() < 3 {
+		log.Info("ApplyTransactionWithSolana: Setting Solana metadata in TxContext",
+			"txHash", tx.Hash().Hex(),
+			"txIndex", statedb.TxIndex(),
+			"hasSolanaBlockNumber", solanaBlockNumber != nil,
+			"solanaBlockNumber", func() interface{} {
+				if solanaBlockNumber != nil {
+					return *solanaBlockNumber
+				}
+				return nil
+			}(),
+			"hasSolanaTimestamp", solanaTimestamp != nil,
+			"solanaTimestamp", func() interface{} {
+				if solanaTimestamp != nil {
+					return *solanaTimestamp
+				}
+				return nil
+			}(),
+			"txContextSolanaBlockNumber", txContext.SolanaBlockNumber != nil,
+			"txContextSolanaTimestamp", txContext.SolanaTimestamp != nil)
 	}
 
 	if solanaBlockNumber != nil && solanaTimestamp != nil {

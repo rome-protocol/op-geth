@@ -852,6 +852,27 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 	if index < len(env.solanaTimestamps) {
 		solanaTimestamp = env.solanaTimestamps[index]
 	}
+	
+	if index < 3 { // Log first 3 transactions for debugging
+		log.Info("Worker applyTransaction: Solana metadata",
+			"txIndex", index,
+			"hasSolanaBlockNumber", solanaBlockNumber != nil,
+			"solanaBlockNumber", func() interface{} {
+				if solanaBlockNumber != nil {
+					return *solanaBlockNumber
+				}
+				return nil
+			}(),
+			"hasSolanaTimestamp", solanaTimestamp != nil,
+			"solanaTimestamp", func() interface{} {
+				if solanaTimestamp != nil {
+					return *solanaTimestamp
+				}
+				return nil
+			}(),
+			"envSolanaBlockNumbersLen", len(env.solanaBlockNumbers),
+			"envSolanaTimestampsLen", len(env.solanaTimestamps))
+	}
 
 	receipt, err := core.ApplyTransactionWithSolana(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed, footPrint, romeGasPrice, solanaBlockNumber, solanaTimestamp)
 
