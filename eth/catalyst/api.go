@@ -543,13 +543,20 @@ func (api *ConsensusAPI) GetPayloadV3(payloadID engine.PayloadID) (*engine.Execu
 }
 
 func (api *ConsensusAPI) getPayload(payloadID engine.PayloadID, full bool) (*engine.ExecutionPayloadEnvelope, error) {
-	log.Trace("Engine API request received", "method", "GetPayload", "id", payloadID)
+	log.Info("=== CATALYST API: getPayload ENTRY ===", "method", "GetPayload", "id", payloadID.Hex(), "full", full)
 	data := api.localBlocks.get(payloadID, full)
 	if data == nil {
+		log.Warn("=== CATALYST API: getPayload: Unknown payload ===", "payloadID", payloadID.Hex())
 		return nil, engine.UnknownPayload
 	}
 	if payload := data.ExecutionPayload; payload != nil {
+		log.Info("=== CATALYST API: getPayload: Storing Solana metadata ===", 
+			"payloadID", payloadID.Hex(),
+			"blockHash", payload.BlockHash.Hex(),
+			"hasSolanaBlockNumber", payload.SolanaBlockNumber != nil)
 		api.storeSolanaMetadata(payloadID, payload)
+	} else {
+		log.Warn("=== CATALYST API: getPayload: ExecutionPayload is nil ===", "payloadID", payloadID.Hex())
 	}
 	return data, nil
 }
