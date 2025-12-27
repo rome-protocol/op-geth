@@ -44,7 +44,7 @@ type BuildPayloadArgs struct {
 	Withdrawals  types.Withdrawals // The provided withdrawals
 	BeaconRoot         *common.Hash      // The provided beaconRoot (Cancun)
 	SolanaBlockNumbers []*uint64         // The Solana slots associated with each transaction
-	SolanaTimestamps   []*uint64         // The Solana timestamps associated with each transaction
+	SolanaTimestamps   []*int64          // The Solana timestamps associated with each transaction
 
 	NoTxPool     bool                 // Optimism addition: option to disable tx pool contents from being included
 	Transactions []*types.Transaction // Optimism addition: txs forced into the block via engine API

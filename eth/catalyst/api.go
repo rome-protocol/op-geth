@@ -440,7 +440,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			"transactionsCount", len(transactions),
 			"match", len(solanaBlockNumbers) == len(transactions))
 
-		var solanaTimestamps []*uint64
+		var solanaTimestamps []*int64
 		for i, ts := range payloadAttributes.SolanaTimestamps {
 			tsCopy := ts
 			solanaTimestamps = append(solanaTimestamps, &tsCopy)

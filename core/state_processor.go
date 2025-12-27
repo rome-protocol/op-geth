@@ -93,12 +93,11 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		statedb.SetTxContext(tx.Hash(), i)
 
 		var solanaBlockNumber *uint64
-		var solanaTimestamp *uint64
+		var solanaTimestamp *int64
 		if slot, ts, found := p.bc.GetSolanaTxMetadata(tx.Hash()); found {
 			slotCopy := slot
-			tsUint := uint64(ts)
 			solanaBlockNumber = &slotCopy
-			solanaTimestamp = &tsUint
+			solanaTimestamp = &ts
 			if i < 3 {
 				log.Info("Process: Found Solana metadata in database",
 					"txIndex", i,
@@ -267,7 +266,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	return ApplyTransactionWithSolana(config, bc, author, gp, statedb, header, tx, usedGas, cfg, romeGasUsed, footPrint, romeGasPrice, nil, nil)
 }
 
-func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, romeGasUsed uint64, footPrint string, romeGasPrice uint64, solanaBlockNumber *uint64, solanaTimestamp *uint64) (*types.Receipt, error) {
+func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, romeGasUsed uint64, footPrint string, romeGasPrice uint64, solanaBlockNumber *uint64, solanaTimestamp *int64) (*types.Receipt, error) {
 	msg, err := TransactionToMessage(tx, types.MakeSigner(config, header.Number, header.Time), header.BaseFee)
 	if err != nil {
 		return nil, err
@@ -276,10 +275,7 @@ func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, aut
 	blockContext := NewEVMBlockContext(header, bc, author, config, statedb)
 	txContext := NewEVMTxContext(msg)
 	txContext.SolanaBlockNumber = solanaBlockNumber
-	if solanaTimestamp != nil {
-		ts := int64(*solanaTimestamp)
-		txContext.SolanaTimestamp = &ts
-	}
+	txContext.SolanaTimestamp = solanaTimestamp
 	
 	// Log Solana metadata for debugging (only for first few transactions to avoid spam)
 	if statedb.TxIndex() < 3 {
@@ -306,7 +302,7 @@ func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, aut
 
 	if solanaBlockNumber != nil && solanaTimestamp != nil {
 		if blockchain, ok := bc.(*BlockChain); ok {
-			_ = blockchain.WriteSolanaTxMetadata(tx.Hash(), *solanaBlockNumber, int64(*solanaTimestamp))
+			_ = blockchain.WriteSolanaTxMetadata(tx.Hash(), *solanaBlockNumber, *solanaTimestamp)
 		}
 	}
 
