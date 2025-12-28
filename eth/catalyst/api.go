@@ -19,6 +19,7 @@ package catalyst
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -247,12 +248,19 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		"hasPayloadAttributes", payloadAttributes != nil)
 	
 	if payloadAttributes != nil {
+		// Log the raw JSON representation to see what we actually received
+		if jsonBytes, err := json.Marshal(payloadAttributes); err == nil {
+			log.Info("=== CATALYST API: PayloadAttributes RAW JSON ===", "json", string(jsonBytes))
+		}
+		
 		log.Info("=== CATALYST API: PayloadAttributes Details ===",
 			"timestamp", payloadAttributes.Timestamp,
 			"hasSolanaBlockNumbers", len(payloadAttributes.SolanaBlockNumbers) > 0,
 			"solanaBlockNumbersCount", len(payloadAttributes.SolanaBlockNumbers),
+			"solanaBlockNumbers", payloadAttributes.SolanaBlockNumbers,
 			"hasSolanaTimestamps", len(payloadAttributes.SolanaTimestamps) > 0,
 			"solanaTimestampsCount", len(payloadAttributes.SolanaTimestamps),
+			"solanaTimestamps", payloadAttributes.SolanaTimestamps,
 			"transactionsCount", len(payloadAttributes.Transactions),
 			"txFootprintsCount", len(payloadAttributes.TxFootprints))
 	} else {
