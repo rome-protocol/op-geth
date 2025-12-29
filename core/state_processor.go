@@ -98,19 +98,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			slotCopy := slot
 			solanaBlockNumber = &slotCopy
 			solanaTimestamp = &ts
-			if i < 3 {
-				log.Info("Process: Found Solana metadata in database",
-					"txIndex", i,
-					"txHash", tx.Hash().Hex(),
-					"slot", slot,
-					"timestamp", ts)
-			}
-		} else {
-			if i < 3 {
-				log.Info("Process: No Solana metadata found in database",
-					"txIndex", i,
-					"txHash", tx.Hash().Hex())
-			}
 		}
 
 		receipt, err := ApplyTransactionWithSolana(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, romeGasUsed[i], "", romeGasPrice[i], solanaBlockNumber, solanaTimestamp)
@@ -135,7 +122,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	return receipts, allLogs, *usedGas, nil
 }
 
-func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, romeGasUsed uint64, footPrint string, romeGasPrice uint64) (*types.Receipt, error) {
+func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, romeGasUsed uint64, footPrint string, romeGasPrice uint64, solanaBlockNumber *uint64, solanaTimestamp *int64) (*types.Receipt, error) {
 	tracer := log.GetTracer()
 	_, span := tracer.Start(context.Background(), "applyTransaction",
 		trace.WithAttributes(
@@ -145,13 +132,8 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 	defer span.End()
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
-
-	if evm.TxContext.SolanaBlockNumber != nil {
-		txContext.SolanaBlockNumber = evm.TxContext.SolanaBlockNumber
-	}
-	if evm.TxContext.SolanaTimestamp != nil {
-		txContext.SolanaTimestamp = evm.TxContext.SolanaTimestamp
-	}
+	txContext.SolanaBlockNumber = solanaBlockNumber
+	txContext.SolanaTimestamp = solanaTimestamp
 	evm.Reset(txContext, statedb)
 
 	nonce := tx.Nonce()
@@ -284,7 +266,7 @@ func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, aut
 	}
 
 	vmenv := vm.NewEVM(blockContext, txContext, statedb, config, cfg)
-	return applyTransaction(msg, config, bc, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, romeGasUsed, footPrint, romeGasPrice)
+	return applyTransaction(msg, config, bc, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, romeGasUsed, footPrint, romeGasPrice, solanaBlockNumber, solanaTimestamp)
 }
 
 // ProcessBeaconBlockRoot applies the EIP-4788 system call to the beacon block root
