@@ -1548,7 +1548,7 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         }
     }
 
-    // 3) per-account hashing in parallel (same as CalculateTxFootPrint)
+    // 3) per-account hashing in parallel 
     type result struct {
         idx  int
         hash [32]byte
