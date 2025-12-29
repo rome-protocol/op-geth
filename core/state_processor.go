@@ -169,7 +169,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 	}
 
 	// Calculate the state footprint after VM execution
-	if !state.IsMagicAddress(msg.From) && footPrint != "0x0" {
+	if !state.IsMagicAddress(msg.From) && footPrint != "" {
 		vmState, logs := statedb.CalculateTxFootPrint(start)
 		txHash := tx.Hash()
 		mismatch := vmState != common.HexToHash(footPrint)
@@ -276,29 +276,6 @@ func ApplyTransactionWithSolana(config *params.ChainConfig, bc ChainContext, aut
 	txContext := NewEVMTxContext(msg)
 	txContext.SolanaBlockNumber = solanaBlockNumber
 	txContext.SolanaTimestamp = solanaTimestamp
-	
-	// Log Solana metadata for debugging (only for first few transactions to avoid spam)
-	if statedb.TxIndex() < 3 {
-		log.Info("ApplyTransactionWithSolana: Setting Solana metadata in TxContext",
-			"txHash", tx.Hash().Hex(),
-			"txIndex", statedb.TxIndex(),
-			"hasSolanaBlockNumber", solanaBlockNumber != nil,
-			"solanaBlockNumber", func() interface{} {
-				if solanaBlockNumber != nil {
-					return *solanaBlockNumber
-				}
-				return nil
-			}(),
-			"hasSolanaTimestamp", solanaTimestamp != nil,
-			"solanaTimestamp", func() interface{} {
-				if solanaTimestamp != nil {
-					return *solanaTimestamp
-				}
-				return nil
-			}(),
-			"txContextSolanaBlockNumber", txContext.SolanaBlockNumber != nil,
-			"txContextSolanaTimestamp", txContext.SolanaTimestamp != nil)
-	}
 
 	if solanaBlockNumber != nil && solanaTimestamp != nil {
 		if blockchain, ok := bc.(*BlockChain); ok {
