@@ -824,7 +824,7 @@ func (w *worker) commitBlobTransaction(env *environment, tx *types.Transaction) 
 	if (env.blobs+len(sc.Blobs))*params.BlobTxBlobGasPerBlob > params.MaxBlobGasPerBlock {
 		return nil, errors.New("max data blobs reached")
 	}
-	receipt, err := w.applyTransaction(env, tx, 0, 0, "", 0)
+	receipt, err := w.applyTransaction(env, tx, 0, 0, "0x0", 0)
 	if err != nil {
 		return nil, err
 	}
@@ -927,7 +927,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 		}
 
 		index++
-		logs, err := w.commitTransaction(env, tx, index, gasUsed, "", gasPrice)
+		logs, err := w.commitTransaction(env, tx, index, gasUsed, "0x0", gasPrice)
 		switch {
 		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
@@ -1150,7 +1150,7 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 			footprint = genParams.footPrints[idx]
 		} else {
 			log.Warn("Fallback: footPrints missing", "idx", idx, "txHash", tx.Hash())
-			footprint = ""
+			footprint = "0x0"
 		}
 
 		if idx < len(genParams.gasPrice) {

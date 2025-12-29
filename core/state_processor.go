@@ -100,7 +100,16 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			solanaTimestamp = &ts
 		}
 
-		receipt, err := ApplyTransactionWithSolana(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, romeGasUsed[i], "", romeGasPrice[i], solanaBlockNumber, solanaTimestamp)
+		var footPrint string
+		if i < len(footPrints) {
+			footPrint = footPrints[i]
+		} else if p.bc.GetFootprintManager() != nil {
+			if entry, found := p.bc.GetFootprintManager().Get(tx.Hash()); found && entry.ExpectedFootprint != "" && entry.ExpectedFootprint != "0x0" {
+				footPrint = entry.ExpectedFootprint
+			}
+		}
+
+		receipt, err := ApplyTransactionWithSolana(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, romeGasUsed[i], footPrint, romeGasPrice[i], solanaBlockNumber, solanaTimestamp)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
@@ -152,7 +161,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 
 	log.Info("applyTransaction: submitted footPrint", "footPrint", footPrint, "txhash", tx.Hash().Hex())
 	// Calculate the state footprint after VM execution
-	if footPrint != "" && footPrint != "0x0" {
+	if footPrint != "0x0" {
 		vmState, logs := statedb.CalculateTxFootPrint(start)
 		txHash := tx.Hash()
 		mismatch := vmState != common.HexToHash(footPrint)
