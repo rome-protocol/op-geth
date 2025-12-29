@@ -150,42 +150,43 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 		return nil, err
 	}
 
-	log.Info("applyTransaction: footPrint", "footPrint", footPrint)
 	// Calculate the state footprint after VM execution
-	vmState, logs := statedb.CalculateTxFootPrint(start)
-	txHash := tx.Hash()
-	mismatch := vmState != common.HexToHash(footPrint)
-	manager := bc.GetFootprintManager()
+	if footPrint != "0x0" {
+		vmState, logs := statedb.CalculateTxFootPrint(start)
+		txHash := tx.Hash()
+		mismatch := vmState != common.HexToHash(footPrint)
+		manager := bc.GetFootprintManager()
 
-	if mismatch {
-		if err := log.FlushLogs(logs); err != nil {
-			log.Error("failed to flush logs", "error", err)
-		}
-		if manager != nil && manager.IsKnownMismatch(txHash) {
-			log.Warn("state footprint mismatch",
-				"tx", txHash.Hex(),
-				"expected", footPrint,
-				"got", vmState.Hex())
-		} else {
-			log.Error("state footprint mismatch",
-				"tx", txHash.Hex(),
-				"expected", footPrint,
-				"got", vmState.Hex())
+		if mismatch {
+			if err := log.FlushLogs(logs); err != nil {
+				log.Error("failed to flush logs", "error", err)
+			}
+			if manager != nil && manager.IsKnownMismatch(txHash) {
+				log.Warn("state footprint mismatch",
+					"tx", txHash.Hex(),
+					"expected", footPrint,
+					"got", vmState.Hex())
+			} else {
+				log.Error("state footprint mismatch",
+					"tx", txHash.Hex(),
+					"expected", footPrint,
+					"got", vmState.Hex())
 
-			if manager != nil {
-				if err := manager.RecordMismatch(txHash); err != nil {
-					log.Error("Failed to record footprint mismatch", "tx", txHash.Hex(), "error", err)
-				}
-				if manager.ShouldPanic() {
-					panic("state footprint mismatch")
+				if manager != nil {
+					if err := manager.RecordMismatch(txHash); err != nil {
+						log.Error("Failed to record footprint mismatch", "tx", txHash.Hex(), "error", err)
+					}
+					if manager.ShouldPanic() {
+						panic("state footprint mismatch")
+					}
 				}
 			}
 		}
-	}
 
-	// Always store footprint data, whether there's a mismatch or not
-	if manager != nil {
-		manager.Store(txHash, footPrint, vmState.Hex(), blockNumber.Uint64(), mismatch)
+		// Always store footprint data, whether there's a mismatch or not
+		if manager != nil {
+			manager.Store(txHash, footPrint, vmState.Hex(), blockNumber.Uint64(), mismatch)
+		}
 	}
 
 	// Update the state with pending changes.
