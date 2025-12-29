@@ -101,9 +101,10 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		}
 
 		var footPrint string
-		if i < len(footPrints) {
+		if i < len(footPrints) && footPrints[i] != "" && footPrints[i] != "0x0" {
 			footPrint = footPrints[i]
-		} else if p.bc.GetFootprintManager() != nil {
+		}
+		if p.bc.GetFootprintManager() != nil {
 			if entry, found := p.bc.GetFootprintManager().Get(tx.Hash()); found && entry.ExpectedFootprint != "" && entry.ExpectedFootprint != "0x0" {
 				footPrint = entry.ExpectedFootprint
 			}
