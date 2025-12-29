@@ -100,12 +100,12 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			solanaTimestamp = &ts
 		}
 
-		var footPrint string
-		if i < len(footPrints) && footPrints[i] != "" && footPrints[i] != "0x0" {
+		footPrint := "0x0"
+		if i < len(footPrints) {
 			footPrint = footPrints[i]
 		}
 		if p.bc.GetFootprintManager() != nil {
-			if entry, found := p.bc.GetFootprintManager().Get(tx.Hash()); found && entry.ExpectedFootprint != "" && entry.ExpectedFootprint != "0x0" {
+			if entry, found := p.bc.GetFootprintManager().Get(tx.Hash()); found {
 				footPrint = entry.ExpectedFootprint
 			}
 		}
