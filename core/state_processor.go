@@ -150,6 +150,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 		return nil, err
 	}
 
+	log.Info("applyTransaction: footPrint", "footPrint", footPrint)
 	// Calculate the state footprint after VM execution
 	if footPrint != "0x0" {
 		vmState, logs := statedb.CalculateTxFootPrint(start)
