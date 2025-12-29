@@ -150,9 +150,9 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 		return nil, err
 	}
 
-	log.Info("applyTransaction: footPrint", "footPrint", footPrint)
+	log.Info("applyTransaction: submitted footPrint", "footPrint", footPrint, "txhash", tx.Hash().Hex())
 	// Calculate the state footprint after VM execution
-	if footPrint != "0x0" {
+	if footPrint != "" && footPrint != "0x0" {
 		vmState, logs := statedb.CalculateTxFootPrint(start)
 		txHash := tx.Hash()
 		mismatch := vmState != common.HexToHash(footPrint)

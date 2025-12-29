@@ -98,9 +98,6 @@ type ConsensusAPI struct {
 
 	remoteBlocks *headerQueue  // Cache of remote payloads received
 	localBlocks  *payloadQueue // Cache of local payloads generated
-	solanaMeta     map[common.Hash]solanaMetadata
-	solanaPending  map[engine.PayloadID]solanaMetadata
-	solanaLock   sync.Mutex
 
 	// The forkchoice update and new payload method require us to return the
 	// latest valid hash in an invalid chain. To support that return, we need
@@ -139,9 +136,6 @@ type ConsensusAPI struct {
 	newPayloadLock sync.Mutex // Lock for the NewPayload method
 }
 
-type solanaMetadata struct {
-	number *uint64
-}
 
 // NewConsensusAPI creates a new consensus api for the given backend.
 // The underlying blockchain needs to have a valid terminal total difficulty set.
@@ -160,8 +154,6 @@ func newConsensusAPIWithoutHeartbeat(eth *eth.Ethereum) *ConsensusAPI {
 		eth:               eth,
 		remoteBlocks:      newHeaderQueue(),
 		localBlocks:       newPayloadQueue(),
-		solanaMeta:        make(map[common.Hash]solanaMetadata),
-		solanaPending:     make(map[engine.PayloadID]solanaMetadata),
 		invalidBlocksHits: make(map[common.Hash]int),
 		invalidTipsets:    make(map[common.Hash]*types.Header),
 	}
@@ -418,7 +410,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			SolanaTimestamps:   solanaTimestamps,
 		}
 		id := args.Id()
-		api.storePendingSolanaAttributes(id, payloadAttributes)
 		// If we already are busy generating this work, then we do not need
 		// to start a second process.
 		if api.localBlocks.has(id) {
@@ -489,82 +480,9 @@ func (api *ConsensusAPI) getPayload(payloadID engine.PayloadID, full bool) (*eng
 	if data == nil {
 		return nil, engine.UnknownPayload
 	}
-	if payload := data.ExecutionPayload; payload != nil {
-		api.storeSolanaMetadata(payloadID, payload)
-	}
 	return data, nil
 }
 
-func (api *ConsensusAPI) storeSolanaMetadata(id engine.PayloadID, payload *engine.RomeExecutableData) {
-	if payload == nil {
-		return
-	}
-	
-	var meta solanaMetadata
-	if payload.SolanaBlockNumber != nil {
-		num := uint64(*payload.SolanaBlockNumber)
-		meta.number = &num
-	}
-	api.solanaLock.Lock()
-	defer api.solanaLock.Unlock()
-
-	if pending, ok := api.solanaPending[id]; ok {
-		if meta.number == nil && pending.number != nil {
-			meta.number = pending.number
-		}
-		delete(api.solanaPending, id)
-	}
-	if meta.number == nil {
-		return
-	}
-	if payload.SolanaBlockNumber == nil && meta.number != nil {
-		val := hexutil.Uint64(*meta.number)
-		payload.SolanaBlockNumber = &val
-	}
-	api.solanaMeta[payload.BlockHash] = meta
-}
-
-func (api *ConsensusAPI) storePendingSolanaAttributes(id engine.PayloadID, attr *engine.RomePayloadAttributes) {
-	if attr == nil {
-		return
-	}
-	
-	var meta solanaMetadata
-	for i := len(attr.SolanaBlockNumbers) - 1; i >= 0; i-- {
-		slot := attr.SolanaBlockNumbers[i]
-		if slot == 0 {
-			continue
-		}
-		meta.number = &slot
-		break
-	}
-	if meta.number == nil {
-		return
-	}
-	api.solanaLock.Lock()
-	api.solanaPending[id] = meta
-	api.solanaLock.Unlock()
-}
-
-func (api *ConsensusAPI) populateSolanaMetadata(params *engine.RomeExecutableData) {
-	api.solanaLock.Lock()
-	defer api.solanaLock.Unlock()
-
-	meta, ok := api.solanaMeta[params.BlockHash]
-	if !ok {
-		return
-	}
-	if params.SolanaBlockNumber == nil && meta.number != nil {
-		val := hexutil.Uint64(*meta.number)
-		params.SolanaBlockNumber = &val
-	}
-}
-
-func (api *ConsensusAPI) forgetSolanaMetadata(hash common.Hash) {
-	api.solanaLock.Lock()
-	delete(api.solanaMeta, hash)
-	api.solanaLock.Unlock()
-}
 
 // NewPayloadV1 creates an Eth1 block, inserts it in the chain, and returns the status of the chain.
 func (api *ConsensusAPI) NewPayloadV1(params engine.RomeExecutableData) (engine.PayloadStatusV1, error) {
@@ -624,8 +542,6 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 	// check whether we already have the block locally.
 	api.newPayloadLock.Lock()
 	defer api.newPayloadLock.Unlock()
-	api.populateSolanaMetadata(&params)
-	defer api.forgetSolanaMetadata(params.BlockHash)
 	block, err := engine.ExecutableDataToBlock(params, versionedHashes, beaconRoot)
 	if err != nil {
 		log.Warn("Invalid NewPayload params", "params", params, "error", err)
