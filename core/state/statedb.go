@@ -1517,6 +1517,11 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         if IsMagicAddress(addr) {
             continue
         }
+        // Check if this address was created and selfdestructed in this transaction
+        obj := s.getStateObject(addr)
+        if obj != nil && obj.selfDestructed && obj.created {
+            continue
+        }
         cmap := make(map[common.Hash]struct{}, len(m))
         for k := range m {
             cmap[k] = struct{}{}
@@ -1528,6 +1533,10 @@ func (s *StateDB) CalculateTxFootPrint(start int) (common.Hash, []string) {
         case storageChange:
             addr := *c.account
             if IsMagicAddress(addr) {
+                continue
+            }
+            obj := s.getStateObject(addr)
+            if obj != nil && obj.selfDestructed && obj.created {
                 continue
             }
             if slots[addr] == nil {
