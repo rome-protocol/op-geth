@@ -166,6 +166,9 @@ func (s *stateObject) GetState(key common.Hash) common.Hash {
 	if dirty {
 		return value
 	}
+	if s.selfDestructed && s.created {
+		return common.Hash{}
+	}
 	// Otherwise return the entry's original value
 	return s.GetCommittedState(key)
 }
