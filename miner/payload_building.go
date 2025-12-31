@@ -42,7 +42,9 @@ type BuildPayloadArgs struct {
 	FeeRecipient common.Address    // The provided recipient address for collecting transaction fee
 	Random       common.Hash       // The provided randomness value
 	Withdrawals  types.Withdrawals // The provided withdrawals
-	BeaconRoot   *common.Hash      // The provided beaconRoot (Cancun)
+	BeaconRoot         *common.Hash      // The provided beaconRoot (Cancun)
+	SolanaBlockNumbers []*uint64         // The Solana slots associated with each transaction
+	SolanaTimestamps   []*int64          // The Solana timestamps associated with each transaction
 
 	NoTxPool     bool                 // Optimism addition: option to disable tx pool contents from being included
 	Transactions []*types.Transaction // Optimism addition: txs forced into the block via engine API
@@ -77,6 +79,26 @@ func (args *BuildPayloadArgs) Id() engine.PayloadID {
 		binary.Write(hasher, binary.BigEndian, *args.GasLimit)
 	}
 	binary.Write(hasher, binary.BigEndian, args.GasPrice)
+	if len(args.SolanaBlockNumbers) > 0 {
+		binary.Write(hasher, binary.BigEndian, uint64(len(args.SolanaBlockNumbers)))
+		for _, num := range args.SolanaBlockNumbers {
+			if num != nil {
+				binary.Write(hasher, binary.BigEndian, *num)
+			} else {
+				binary.Write(hasher, binary.BigEndian, uint64(0))
+			}
+		}
+	}
+	if len(args.SolanaTimestamps) > 0 {
+		binary.Write(hasher, binary.BigEndian, uint64(len(args.SolanaTimestamps)))
+		for _, ts := range args.SolanaTimestamps {
+			if ts != nil {
+				binary.Write(hasher, binary.BigEndian, *ts)
+			} else {
+				binary.Write(hasher, binary.BigEndian, int64(0))
+			}
+		}
+	}
 
 	var out engine.PayloadID
 	copy(out[:], hasher.Sum(nil)[:8])
@@ -269,13 +291,15 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 			coinbase:    args.FeeRecipient,
 			random:      args.Random,
 			withdrawals: args.Withdrawals,
-			beaconRoot:  args.BeaconRoot,
-			noTxs:       true,
 			txs:         args.Transactions,
 			gasLimit:    args.GasLimit,
 			gasUsed:     args.GasUsed,
 			footPrints:  args.Footprints,
 			gasPrice:    args.GasPrice,
+			noTxs:               true,
+			beaconRoot:          args.BeaconRoot,
+			solanaBlockNumbers:  args.SolanaBlockNumbers,
+			solanaTimestamps:    args.SolanaTimestamps,
 		}
 		empty := w.getSealingBlock(emptyParams)
 		if empty.err != nil {
@@ -296,13 +320,15 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 		coinbase:    args.FeeRecipient,
 		random:      args.Random,
 		withdrawals: args.Withdrawals,
-		beaconRoot:  args.BeaconRoot,
-		noTxs:       false,
 		txs:         args.Transactions,
 		gasLimit:    args.GasLimit,
 		gasUsed:     args.GasUsed,
 		footPrints:  args.Footprints,
 		gasPrice:    args.GasPrice,
+		noTxs:              false,
+		beaconRoot:         args.BeaconRoot,
+		solanaBlockNumbers: args.SolanaBlockNumbers,
+		solanaTimestamps:   args.SolanaTimestamps,
 	}
 
 	// Since we skip building the empty block when using the tx pool, we need to explicitly
