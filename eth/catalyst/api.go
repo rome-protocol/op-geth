@@ -361,6 +361,32 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	// sealed by the beacon client. The payload will be requested later, and we
 	// will replace it arbitrarily many times in between.
 	if payloadAttributes != nil {
+		// Log payload attributes received from forkchoice
+		var beaconRootStr string
+		if payloadAttributes.BeaconRoot != nil {
+			beaconRootStr = payloadAttributes.BeaconRoot.Hex()
+		} else {
+			beaconRootStr = "nil"
+		}
+		var gasLimitVal uint64
+		if payloadAttributes.GasLimit != nil {
+			gasLimitVal = *payloadAttributes.GasLimit
+		}
+		log.Info("Forkchoice payload attributes received",
+			"timestamp", payloadAttributes.Timestamp,
+			"gasPrice", payloadAttributes.GasPrice,
+			"gasUsed", payloadAttributes.GasUsed,
+			"random", payloadAttributes.Random.Hex(),
+			"feeRecipient", payloadAttributes.SuggestedFeeRecipient.Hex(),
+			"withdrawals", len(payloadAttributes.Withdrawals),
+			"beaconRoot", beaconRootStr,
+			"solanaBlockNumbers", payloadAttributes.SolanaBlockNumbers,
+			"solanaTimestamps", payloadAttributes.SolanaTimestamps,
+			"transactions", len(payloadAttributes.Transactions),
+			"noTxPool", payloadAttributes.NoTxPool,
+			"gasLimit", gasLimitVal,
+			"txFootprints", payloadAttributes.TxFootprints,
+		)
 		if api.eth.BlockChain().Config().Optimism != nil && payloadAttributes.GasLimit == nil {
 			return engine.STATUS_INVALID, engine.InvalidPayloadAttributes.With(errors.New("gasLimit parameter is required"))
 		}
