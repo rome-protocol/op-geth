@@ -393,9 +393,11 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			solanaTimestamps = append(solanaTimestamps, &tsCopy)
 		}
 
+		blockTimestamp := uint64(time.Now().Unix())
+
 		args := &miner.BuildPayloadArgs{
 			Parent:       update.HeadBlockHash,
-			Timestamp:    payloadAttributes.Timestamp,
+			Timestamp:    blockTimestamp,
 			FeeRecipient: payloadAttributes.SuggestedFeeRecipient,
 			Random:       payloadAttributes.Random,
 			Withdrawals:  payloadAttributes.Withdrawals,
