@@ -17,6 +17,7 @@
 package core
 
 import (
+	"encoding/binary"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -25,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/footprint"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -39,6 +41,7 @@ type ChainContext interface {
 
 	// GetFootprintManager returns the footprint manager.
 	GetFootprintManager() *footprint.Manager
+
 }
 
 // NewEVMBlockContext creates a new context for use in the EVM.
@@ -87,6 +90,7 @@ func NewEVMTxContext(msg *Message) vm.TxContext {
 		Origin:     msg.From,
 		GasPrice:   new(big.Int).Set(msg.GasPrice),
 		BlobHashes: msg.BlobHashes,
+		GasLimit:   msg.GasLimit,
 	}
 	if msg.BlobGasFeeCap != nil {
 		ctx.BlobFeeCap = new(big.Int).Set(msg.BlobGasFeeCap)
@@ -101,21 +105,23 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash
 	var cache []common.Hash
 
 	return func(n uint64) common.Hash {
-		if ref.Number.Uint64() <= n {
-			// This situation can happen if we're doing tracing and using
-			// block overrides.
+		currentBlock := ref.Number.Uint64()
+		if currentBlock <= n {
+			return common.Hash{}
+		}
+		if currentBlock-n > 256 {
 			return common.Hash{}
 		}
 		// If there's no hash cache yet, make one
 		if len(cache) == 0 {
 			cache = append(cache, ref.ParentHash)
 		}
-		if idx := ref.Number.Uint64() - n - 1; idx < uint64(len(cache)) {
+		if idx := currentBlock - n - 1; idx < uint64(len(cache)) {
 			return cache[idx]
 		}
 		// No luck in the cache, but we can start iterating from the last element we already know
 		lastKnownHash := cache[len(cache)-1]
-		lastKnownNumber := ref.Number.Uint64() - uint64(len(cache))
+		lastKnownNumber := currentBlock - uint64(len(cache))
 
 		for {
 			header := chain.GetHeader(lastKnownHash, lastKnownNumber)
@@ -129,7 +135,9 @@ func GetHashFn(ref *types.Header, chain ChainContext) func(n uint64) common.Hash
 				return lastKnownHash
 			}
 		}
-		return common.Hash{}
+		var buf [32]byte
+		binary.BigEndian.PutUint64(buf[24:], n)
+		return crypto.Keccak256Hash(buf[:])
 	}
 }
 

@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -101,19 +100,24 @@ type environment struct {
 	gasUsed  []uint64
 	sidecars []*types.BlobTxSidecar
 	blobs    int
+
+	solanaBlockNumbers []*uint64
+	solanaTimestamps   []*int64
 }
 
 // copy creates a deep copy of environment.
 func (env *environment) copy() *environment {
 	cpy := &environment{
-		signer:   env.signer,
-		state:    env.state.Copy(),
-		tcount:   env.tcount,
-		coinbase: env.coinbase,
-		gasPrice: env.gasPrice,
-		gasUsed:  env.gasUsed,
-		header:   types.CopyHeader(env.header),
-		receipts: copyReceipts(env.receipts),
+		signer:            env.signer,
+		state:             env.state.Copy(),
+		tcount:            env.tcount,
+		coinbase:          env.coinbase,
+		gasPrice:            env.gasPrice,
+		gasUsed:             env.gasUsed,
+		header:              types.CopyHeader(env.header),
+		receipts:            copyReceipts(env.receipts),
+		solanaBlockNumbers:  env.solanaBlockNumbers,
+		solanaTimestamps:    env.solanaTimestamps,
 	}
 	if env.gasPool != nil {
 		gasPool := *env.gasPool
@@ -140,10 +144,12 @@ func (env *environment) discard() {
 
 // task contains all information for consensus engine sealing and result submitting.
 type task struct {
-	receipts  []*types.Receipt
-	state     *state.StateDB
-	block     *types.Block
-	createdAt time.Time
+	receipts           []*types.Receipt
+	state              *state.StateDB
+	block              *types.Block
+	createdAt          time.Time
+	solanaBlockNumbers []*uint64
+	solanaTimestamps   []*int64
 }
 
 const (
@@ -730,6 +736,7 @@ func (w *worker) resultLoop() {
 				log.Error("Failed writing block to chain", "err", err)
 				continue
 			}
+			// Write Solana metadata to database if available
 			log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealhash, "hash", hash,
 				"elapsed", common.PrettyDuration(time.Since(task.createdAt)))
 
@@ -763,11 +770,13 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, genParams *
 
 	// Note the passed coinbase may be different with header.Coinbase.
 	env := &environment{
-		signer:   types.MakeSigner(w.chainConfig, header.Number, header.Time),
-		state:    state,
-		coinbase: genParams.coinbase,
-		header:   header,
-		gasUsed:  genParams.gasUsed,
+		signer:            types.MakeSigner(w.chainConfig, header.Number, header.Time),
+		state:             state,
+		coinbase:          genParams.coinbase,
+		header:            header,
+		gasUsed:           genParams.gasUsed,
+		solanaBlockNumbers: genParams.solanaBlockNumbers,
+		solanaTimestamps:   genParams.solanaTimestamps,
 	}
 	// Keep track of transactions which return errors so they can be removed
 	env.tcount = 0
@@ -815,7 +824,7 @@ func (w *worker) commitBlobTransaction(env *environment, tx *types.Transaction) 
 	if (env.blobs+len(sc.Blobs))*params.BlobTxBlobGasPerBlob > params.MaxBlobGasPerBlock {
 		return nil, errors.New("max data blobs reached")
 	}
-	receipt, err := w.applyTransaction(env, tx, 0, 0, "", 0)
+	receipt, err := w.applyTransaction(env, tx, 0, 0, "0x0", 0)
 	if err != nil {
 		return nil, err
 	}
@@ -834,7 +843,16 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, index
 		gp   = env.gasPool.Gas()
 	)
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed, footPrint, romeGasPrice)
+	var solanaBlockNumber *uint64
+	var solanaTimestamp *int64
+	if index < len(env.solanaBlockNumbers) {
+		solanaBlockNumber = env.solanaBlockNumbers[index]
+	}
+	if index < len(env.solanaTimestamps) {
+		solanaTimestamp = env.solanaTimestamps[index]
+	}
+
+	receipt, err := core.ApplyTransactionWithSolana(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), romeGasUsed, footPrint, romeGasPrice, solanaBlockNumber, solanaTimestamp)
 
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
@@ -909,7 +927,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 		}
 
 		index++
-		logs, err := w.commitTransaction(env, tx, index, gasUsed, "", gasPrice)
+		logs, err := w.commitTransaction(env, tx, index, gasUsed, "0x0", gasPrice)
 		switch {
 		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
@@ -949,17 +967,19 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 
 // generateParams wraps various of settings for generating sealing task.
 type generateParams struct {
-	timestamp   uint64            // The timstamp for sealing task
-	gasPrice    []uint64          // Rome gas price override
-	gasUsed     []uint64          // Rome gas used override
-	footPrints  []string          // footPrints for the state comparison
-	forceTime   bool              // Flag whether the given timestamp is immutable or not
-	parentHash  common.Hash       // Parent block hash, empty means the latest chain head
-	coinbase    common.Address    // The fee recipient address for including transaction
-	random      common.Hash       // The randomness generated by beacon chain, empty before the merge
-	withdrawals types.Withdrawals // List of withdrawals to include in block.
-	beaconRoot  *common.Hash      // The beacon root (cancun field).
-	noTxs       bool              // Flag whether an empty block without any transaction is expected
+	timestamp         uint64            // The timstamp for sealing task
+	gasPrice          []uint64          // Rome gas price override
+	gasUsed           []uint64          // Rome gas used override
+	footPrints        []string          // footPrints for the state comparison
+	forceTime         bool              // Flag whether the given timestamp is immutable or not
+	parentHash        common.Hash       // Parent block hash, empty means the latest chain head
+	coinbase          common.Address    // The fee recipient address for including transaction
+	random            common.Hash       // The randomness generated by beacon chain, empty before the merge
+	withdrawals       types.Withdrawals // List of withdrawals to include in block.
+	beaconRoot         *common.Hash     // The beacon root (cancun field).
+	solanaBlockNumbers []*uint64        // Solana block numbers for each transaction
+	solanaTimestamps   []*int64         // Solana timestamps for each transaction
+	noTxs              bool             // Flag whether an empty block without any transaction is expected
 
 	txs       types.Transactions // Deposit transactions to include at the start of the block
 	gasLimit  *uint64            // Optional gas limit override
@@ -1021,24 +1041,16 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	if len(w.extra) != 0 && w.chainConfig.Optimism == nil { // Optimism chains must not set any extra data.
 		header.Extra = w.extra
 	}
-	// Set the randomness field from the beacon chain if it's available.
-	if genParams.random != (common.Hash{}) {
-		header.MixDigest = genParams.random
-	}
+	header.MixDigest = common.Hash{}
 	// Set baseFee and GasLimit if we are on an EIP-1559 chain
 	if w.chainConfig.IsLondon(header.Number) {
-		header.BaseFee = eip1559.CalcBaseFee(w.chainConfig, parent, header.Time)
+		header.BaseFee = big.NewInt(0)
 		if !w.chainConfig.IsLondon(parent.Number) {
 			parentGasLimit := parent.GasLimit * w.chainConfig.ElasticityMultiplier()
 			header.GasLimit = core.CalcGasLimit(parentGasLimit, w.config.GasCeil)
 		}
 	}
-	if genParams.gasLimit != nil { // override gas limit if specified
-		header.GasLimit = *genParams.gasLimit
-	} else if w.chain.Config().Optimism != nil && w.config.GasCeil != 0 {
-		// configure the gas limit of pending blocks with the miner gas limit config when using optimism
-		header.GasLimit = w.config.GasCeil
-	}
+	header.GasLimit = math.MaxUint64
 	// Apply EIP-4844, EIP-4788.
 	if w.chainConfig.IsCancun(header.Number, header.Time) {
 		var excessBlobGas uint64
@@ -1138,7 +1150,7 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 			footprint = genParams.footPrints[idx]
 		} else {
 			log.Warn("Fallback: footPrints missing", "idx", idx, "txHash", tx.Hash())
-			footprint = ""
+			footprint = "0x0"
 		}
 
 		if idx < len(genParams.gasPrice) {
@@ -1278,7 +1290,14 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		// If we're post merge, just ignore
 		if !w.isTTDReached(block.Header()) {
 			select {
-			case w.taskCh <- &task{receipts: env.receipts, state: env.state, block: block, createdAt: time.Now()}:
+			case w.taskCh <- &task{
+				receipts:          env.receipts,
+				state:             env.state,
+				block:             block,
+				createdAt:         time.Now(),
+				solanaBlockNumbers: env.solanaBlockNumbers,
+				solanaTimestamps:   env.solanaTimestamps,
+			}:
 				fees := totalFees(block, env.receipts)
 				feesInEther := new(big.Float).Quo(new(big.Float).SetInt(fees), big.NewFloat(params.Ether))
 				log.Info("Commit new sealing work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),

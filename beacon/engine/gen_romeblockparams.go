@@ -23,6 +23,8 @@ func (r RomePayloadAttributes) MarshalJSON() ([]byte, error) {
 		SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient" gencodec:"required"`
 		Withdrawals           []*types.Withdrawal `json:"withdrawals"`
 		BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
+		SolanaBlockNumbers    []uint64    `json:"solanaBlockNumbers,omitempty" gencodec:"optional"`
+		SolanaTimestamps      []int64     `json:"solanaTimestamps,omitempty" gencodec:"optional"`
 		Transactions          []hexutil.Bytes     `json:"transactions,omitempty"  gencodec:"optional"`
 		NoTxPool              bool                `json:"noTxPool,omitempty" gencodec:"optional"`
 		GasLimit              *hexutil.Uint64     `json:"gasLimit,omitempty" gencodec:"optional"`
@@ -36,6 +38,12 @@ func (r RomePayloadAttributes) MarshalJSON() ([]byte, error) {
 	enc.SuggestedFeeRecipient = r.SuggestedFeeRecipient
 	enc.Withdrawals = r.Withdrawals
 	enc.BeaconRoot = r.BeaconRoot
+	if r.SolanaBlockNumbers != nil {
+		enc.SolanaBlockNumbers = r.SolanaBlockNumbers
+	}
+	if r.SolanaTimestamps != nil {
+		enc.SolanaTimestamps = r.SolanaTimestamps
+	}
 	if r.Transactions != nil {
 		enc.Transactions = make([]hexutil.Bytes, len(r.Transactions))
 		for k, v := range r.Transactions {
@@ -50,13 +58,15 @@ func (r RomePayloadAttributes) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON unmarshals from JSON.
 func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 	type RomePayloadAttributes struct {
-		Timestamp             *hexutil.Uint64     `json:"timestamp"            gencodec:"required"`
+		Timestamp             *hexutil.Uint64     `json:"timestamp,omitempty"            gencodec:"optional"`
 		GasPrice              []uint64            `json:"gasPrices"            gencodec:"required"`
 		GasUsed               []uint64            `json:"gasUsed"              gencodec:"required"`
 		Random                *common.Hash        `json:"prevRandao"            gencodec:"required"`
 		SuggestedFeeRecipient *common.Address     `json:"suggestedFeeRecipient" gencodec:"required"`
 		Withdrawals           []*types.Withdrawal `json:"withdrawals"`
 		BeaconRoot            *common.Hash        `json:"parentBeaconBlockRoot"`
+		SolanaBlockNumbers    []uint64    `json:"solanaBlockNumbers,omitempty" gencodec:"optional"`
+		SolanaTimestamps      []int64     `json:"solanaTimestamps,omitempty" gencodec:"optional"`
 		Transactions          []hexutil.Bytes     `json:"transactions,omitempty"  gencodec:"optional"`
 		NoTxPool              *bool               `json:"noTxPool,omitempty" gencodec:"optional"`
 		GasLimit              *hexutil.Uint64     `json:"gasLimit,omitempty" gencodec:"optional"`
@@ -66,10 +76,9 @@ func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 	if err := json.Unmarshal(input, &dec); err != nil {
 		return err
 	}
-	if dec.Timestamp == nil {
-		return errors.New("missing required field 'timestamp' for RomePayloadAttributes")
+	if dec.Timestamp != nil {
+		r.Timestamp = uint64(*dec.Timestamp)
 	}
-	r.Timestamp = uint64(*dec.Timestamp)
 	if dec.GasPrice == nil {
 		return errors.New("missing required field 'gasPrices' for RomePayloadAttributes")
 	}
@@ -91,6 +100,12 @@ func (r *RomePayloadAttributes) UnmarshalJSON(input []byte) error {
 	}
 	if dec.BeaconRoot != nil {
 		r.BeaconRoot = dec.BeaconRoot
+	}
+	if dec.SolanaBlockNumbers != nil {
+		r.SolanaBlockNumbers = dec.SolanaBlockNumbers
+	}
+	if dec.SolanaTimestamps != nil {
+		r.SolanaTimestamps = dec.SolanaTimestamps
 	}
 	if dec.Transactions != nil {
 		r.Transactions = make([][]byte, len(dec.Transactions))
