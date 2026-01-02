@@ -136,7 +136,6 @@ type ConsensusAPI struct {
 	newPayloadLock sync.Mutex // Lock for the NewPayload method
 }
 
-
 // NewConsensusAPI creates a new consensus api for the given backend.
 // The underlying blockchain needs to have a valid terminal total difficulty set.
 func NewConsensusAPI(eth *eth.Ethereum) *ConsensusAPI {
@@ -231,6 +230,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	api.forkchoiceLock.Lock()
 	defer api.forkchoiceLock.Unlock()
 
+	log.Info("Engine API request received", "method", "ForkchoiceUpdated", "head", update.HeadBlockHash, "finalized", update.FinalizedBlockHash, "safe", update.SafeBlockHash)
 	if update.HeadBlockHash == (common.Hash{}) {
 		return engine.STATUS_INVALID, nil // TODO(karalabe): Why does someone send us this?
 	}
@@ -379,20 +379,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			transactions = append(transactions, &tx)
 			span.End()
 		}
-
-		// Convert per-transaction Solana slots and timestamps from payload attributes.
-		var solanaBlockNumbers []*uint64
-		for _, slot := range payloadAttributes.SolanaBlockNumbers {
-			slotCopy := slot
-			solanaBlockNumbers = append(solanaBlockNumbers, &slotCopy)
-		}
-
-		var solanaTimestamps []*int64
-		for _, ts := range payloadAttributes.SolanaTimestamps {
-			tsCopy := ts
-			solanaTimestamps = append(solanaTimestamps, &tsCopy)
-		}
-
 		args := &miner.BuildPayloadArgs{
 			Parent:       update.HeadBlockHash,
 			Timestamp:    payloadAttributes.Timestamp,
@@ -406,8 +392,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			GasUsed:      payloadAttributes.GasUsed,
 			GasPrice:     payloadAttributes.GasPrice,
 			Footprints:   payloadAttributes.TxFootprints,
-			SolanaBlockNumbers: solanaBlockNumbers,
-			SolanaTimestamps:   solanaTimestamps,
 		}
 		id := args.Id()
 		// If we already are busy generating this work, then we do not need
@@ -476,13 +460,13 @@ func (api *ConsensusAPI) GetPayloadV3(payloadID engine.PayloadID) (*engine.Execu
 }
 
 func (api *ConsensusAPI) getPayload(payloadID engine.PayloadID, full bool) (*engine.ExecutionPayloadEnvelope, error) {
+	log.Trace("Engine API request received", "method", "GetPayload", "id", payloadID)
 	data := api.localBlocks.get(payloadID, full)
 	if data == nil {
 		return nil, engine.UnknownPayload
 	}
 	return data, nil
 }
-
 
 // NewPayloadV1 creates an Eth1 block, inserts it in the chain, and returns the status of the chain.
 func (api *ConsensusAPI) NewPayloadV1(params engine.RomeExecutableData) (engine.PayloadStatusV1, error) {
@@ -542,6 +526,7 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 	// check whether we already have the block locally.
 	api.newPayloadLock.Lock()
 	defer api.newPayloadLock.Unlock()
+	log.Trace("Engine API request received", "method", "NewPayload", "number", params.Number, "hash", params.BlockHash)
 	block, err := engine.ExecutableDataToBlock(params, versionedHashes, beaconRoot)
 	if err != nil {
 		log.Warn("Invalid NewPayload params", "params", params, "error", err)
@@ -588,6 +573,10 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 		log.Error("Ignoring pre-merge parent block", "number", params.Number, "hash", params.BlockHash, "td", ptd, "ttd", ttd)
 		return engine.INVALID_TERMINAL_BLOCK, nil
 	}
+	if block.Time() < parent.Time() {
+		log.Warn("Invalid timestamp", "parent", block.Time(), "block", block.Time())
+		return api.invalid(errors.New("invalid timestamp"), parent.Header()), nil
+	}
 	// Another corner case: if the node is in snap sync mode, but the CL client
 	// tries to make it import a block. That should be denied as pushing something
 	// into the database directly will conflict with the assumptions of snap sync
@@ -600,7 +589,6 @@ func (api *ConsensusAPI) newPayload(params engine.RomeExecutableData, versionedH
 		log.Warn("State not available, ignoring new payload")
 		return engine.PayloadStatusV1{Status: engine.ACCEPTED}, nil
 	}
-
 	log.Trace("Inserting block without sethead", "hash", block.Hash(), "number", block.Number)
 	if err := api.eth.BlockChain().InsertBlockWithoutSetHead(block, params.RomeGasUsed, params.TxFootprints, params.RomeGasPrice); err != nil {
 		log.Warn("NewPayloadV1: inserting block failed", "error", err)

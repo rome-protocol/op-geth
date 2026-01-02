@@ -253,7 +253,6 @@ func (d *dummyChain) GetFootprintManager() *footprint.Manager {
 	return nil
 }
 
-
 // TestBlockhash tests the blockhash operation. It's a bit special, since it internally
 // requires access to a chain reader.
 func TestBlockhash(t *testing.T) {
