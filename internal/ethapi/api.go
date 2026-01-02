@@ -1172,7 +1172,6 @@ func (context *ChainContext) GetFootprintManager() *footprint.Manager {
 	return nil
 }
 
-
 func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.StateDB, header *types.Header, overrides *StateOverride, blockOverrides *BlockOverrides, timeout time.Duration, globalGasCap uint64) (*core.ExecutionResult, error) {
 	if err := overrides.Apply(state); err != nil {
 		return nil, err

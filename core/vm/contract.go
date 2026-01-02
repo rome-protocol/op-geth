@@ -58,9 +58,8 @@ type Contract struct {
 	CodeAddr *common.Address
 	Input    []byte
 
-	Gas        uint64
-	initialGas uint64 
-	value      *big.Int
+	Gas   uint64
+	value *big.Int
 }
 
 // NewContract returns a new contract environment for the execution of EVM.
@@ -77,7 +76,6 @@ func NewContract(caller ContractRef, object ContractRef, value *big.Int, gas uin
 	// Gas should be a pointer so it can safely be reduced through the run
 	// This pointer will be off the state transition
 	c.Gas = gas
-	c.initialGas = gas 
 	// ensures a value is set
 	c.value = value
 

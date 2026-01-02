@@ -17,9 +17,6 @@
 package vm
 
 import (
-	"encoding/binary"
-	"math"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -430,12 +427,8 @@ func opExtCodeHash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext)
 }
 
 func opGasprice(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	if interpreter.evm.GasPrice == nil || interpreter.evm.GasPrice.Sign() == 0 {
-		scope.Stack.push(new(uint256.Int))
-	} else {
-		v, _ := uint256.FromBig(interpreter.evm.GasPrice)
-		scope.Stack.push(v)
-	}
+	v, _ := uint256.FromBig(interpreter.evm.GasPrice)
+	scope.Stack.push(v)
 	return nil, nil
 }
 
@@ -446,28 +439,18 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		num.Clear()
 		return nil, nil
 	}
-
-	var current uint64
-	if interpreter.evm.TxContext.SolanaBlockNumber != nil {
-		current = *interpreter.evm.TxContext.SolanaBlockNumber
+	var upper, lower uint64
+	upper = interpreter.evm.Context.BlockNumber.Uint64()
+	if upper < 257 {
+		lower = 0
+	} else {
+		lower = upper - 256
+	}
+	if num64 >= lower && num64 < upper {
+		num.SetBytes(interpreter.evm.Context.GetHash(num64).Bytes())
 	} else {
 		num.Clear()
-		return nil, nil
 	}
-
-	if num64 >= current {
-		num.Clear()
-		return nil, nil
-	}
-	if current-num64 > 256 {
-		num.Clear()
-		return nil, nil
-	}
-
-	var buf [32]byte
-	binary.BigEndian.PutUint64(buf[24:], num64)
-	hash := crypto.Keccak256Hash(buf[:])
-	num.SetBytes(hash[:])
 	return nil, nil
 }
 
@@ -477,22 +460,13 @@ func opCoinbase(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([
 }
 
 func opTimestamp(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	if interpreter.evm.TxContext.SolanaTimestamp != nil {
-		timestamp := uint64(*interpreter.evm.TxContext.SolanaTimestamp)
-		scope.Stack.push(new(uint256.Int).SetUint64(timestamp))
-	} else {
-		scope.Stack.push(new(uint256.Int))
-	}
+	scope.Stack.push(new(uint256.Int).SetUint64(interpreter.evm.Context.Time))
 	return nil, nil
 }
 
 func opNumber(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	if interpreter.evm.TxContext.SolanaBlockNumber != nil {
-		solanaNum := *interpreter.evm.TxContext.SolanaBlockNumber
-		scope.Stack.push(new(uint256.Int).SetUint64(solanaNum))
-	} else {
-		scope.Stack.push(new(uint256.Int))
-	}
+	v, _ := uint256.FromBig(interpreter.evm.Context.BlockNumber)
+	scope.Stack.push(v)
 	return nil, nil
 }
 
@@ -509,7 +483,7 @@ func opRandom(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 }
 
 func opGasLimit(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	scope.Stack.push(new(uint256.Int).SetAllOne())
+	scope.Stack.push(new(uint256.Int).SetUint64(interpreter.evm.Context.GasLimit))
 	return nil, nil
 }
 
@@ -597,7 +571,7 @@ func opMsize(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]by
 }
 
 func opGas(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	scope.Stack.push(new(uint256.Int).SetUint64(interpreter.evm.TxContext.GasLimit))
+	scope.Stack.push(new(uint256.Int).SetUint64(scope.Contract.Gas))
 	return nil, nil
 }
 
@@ -609,11 +583,15 @@ func opCreate(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 		value        = scope.Stack.pop()
 		offset, size = scope.Stack.pop(), scope.Stack.pop()
 		input        = scope.Memory.GetCopy(int64(offset.Uint64()), int64(size.Uint64()))
-		gas          = uint64(math.MaxInt64) 
+		gas          = scope.Contract.Gas
 	)
+	if interpreter.evm.chainRules.IsEIP150 {
+		gas -= gas / 64
+	}
 	// reuse size int for stackvalue
 	stackvalue := size
-	// Skip UseGas since we have infinite gas
+
+	scope.Contract.UseGas(gas)
 	//TODO: use uint256.Int instead of converting with toBig()
 	var bigVal = big0
 	if !value.IsZero() {
@@ -652,8 +630,11 @@ func opCreate2(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 		offset, size = scope.Stack.pop(), scope.Stack.pop()
 		salt         = scope.Stack.pop()
 		input        = scope.Memory.GetCopy(int64(offset.Uint64()), int64(size.Uint64()))
-		gas          = uint64(math.MaxInt64) 
+		gas          = scope.Contract.Gas
 	)
+	// Apply EIP150
+	gas -= gas / 64
+	scope.Contract.UseGas(gas)
 	// reuse size int for stackvalue
 	stackvalue := size
 	//TODO: use uint256.Int instead of converting with toBig()
@@ -683,9 +664,9 @@ func opCreate2(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	stack := scope.Stack
 	// Pop gas. The actual gas in interpreter.evm.callGasTemp.
-	// We use it as a temporary value
+	// We can use this as a temporary value
 	temp := stack.pop()
-	gas := uint64(math.MaxInt64)
+	gas := interpreter.evm.callGasTemp
 	// Pop other call parameters.
 	addr, value, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
 	toAddr := common.Address(addr.Bytes20())
@@ -726,7 +707,7 @@ func opCallCode(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([
 	stack := scope.Stack
 	// We use it as a temporary value
 	temp := stack.pop()
-	gas := uint64(math.MaxInt64) 
+	gas := interpreter.evm.callGasTemp
 	// Pop other call parameters.
 	addr, value, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
 	toAddr := common.Address(addr.Bytes20())
@@ -761,7 +742,7 @@ func opDelegateCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext
 	// Pop gas. The actual gas is in interpreter.evm.callGasTemp.
 	// We use it as a temporary value
 	temp := stack.pop()
-	gas := uint64(math.MaxInt64)
+	gas := interpreter.evm.callGasTemp
 	// Pop other call parameters.
 	addr, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
 	toAddr := common.Address(addr.Bytes20())
@@ -789,7 +770,7 @@ func opStaticCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) 
 	stack := scope.Stack
 	// We use it as a temporary value
 	temp := stack.pop()
-	gas := uint64(math.MaxInt64)
+	gas := interpreter.evm.callGasTemp
 	// Pop other call parameters.
 	addr, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
 	toAddr := common.Address(addr.Bytes20())

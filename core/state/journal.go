@@ -102,11 +102,8 @@ type (
 	}
 	selfDestructChange struct {
 		account     *common.Address
-		prev        bool      // whether account had already self-destructed
-		prevbalance *big.Int  // previous balance
-		prevNonce   uint64    // previous nonce
-		prevCode    []byte    // previous contract code
-		prevCodeHash []byte   // previous code hash bytes
+		prev        bool // whether account had already self-destructed
+		prevbalance *big.Int
 	}
 
 	// Changes to individual accounts.
@@ -192,10 +189,6 @@ func (ch selfDestructChange) revert(s *StateDB) {
 	if obj != nil {
 		obj.selfDestructed = ch.prev
 		obj.setBalance(ch.prevbalance)
-		obj.setNonce(ch.prevNonce)
-		if ch.prevCodeHash != nil {
-			obj.setCode(common.BytesToHash(ch.prevCodeHash), ch.prevCode)
-		}
 	}
 }
 
