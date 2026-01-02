@@ -299,7 +299,7 @@ func (m *Manager) ShouldPanic() bool {
 //   - Exactly 64 hex characters (32 bytes) with optional "0x" prefix
 //   - All characters must be valid hex digits (0-9, a-f, A-F)
 func isValidFootprint(footprint string) bool {
-	if footprint == "" {
+	if footprint == "" || footprint == "0x0" {
 		return true
 	}
 
