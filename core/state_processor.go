@@ -160,35 +160,11 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 		return nil, err
 	}
 
-	// Log transaction execution status and errors
-	txHash := tx.Hash()
-	if result.Failed() {
-		isRevert := errors.Is(result.Err, vm.ErrExecutionReverted)
-		if isRevert {
-			log.Warn("Transaction reverted",
-				"tx", txHash.Hex(),
-				"error", result.Err.Error(),
-				"returnData", common.Bytes2Hex(result.ReturnData),
-				"gasUsed", result.UsedGas,
-				"refundedGas", result.RefundedGas)
-		} else {
-			log.Error("Transaction execution failed",
-				"tx", txHash.Hex(),
-				"error", result.Err.Error(),
-				"gasUsed", result.UsedGas,
-				"refundedGas", result.RefundedGas)
-		}
-	} else {
-		log.Debug("Transaction executed successfully",
-			"tx", txHash.Hex(),
-			"gasUsed", result.UsedGas,
-			"refundedGas", result.RefundedGas)
-	}
-
-	log.Info("applyTransaction: submitted footPrint", "footPrint", footPrint, "txhash", txHash.Hex())
+	log.Info("applyTransaction: submitted footPrint", "footPrint", footPrint, "txhash", tx.Hash().Hex())
 
 	// Calculate the state footprint after VM execution
 	vmState, logs := statedb.CalculateTxFootPrint(start)
+	txHash := tx.Hash()
 	mismatch := vmState != common.HexToHash(footPrint)
 	manager := bc.GetFootprintManager()
 
