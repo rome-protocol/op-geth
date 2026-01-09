@@ -394,6 +394,17 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		}
 
 		blockTimestamp := uint64(time.Now().Unix())
+		if len(payloadAttributes.SolanaTimestamps) > 0 {
+			maxTimestamp := payloadAttributes.SolanaTimestamps[0]
+			for _, ts := range payloadAttributes.SolanaTimestamps[1:] {
+				if ts > maxTimestamp {
+					maxTimestamp = ts
+				}
+			}
+			blockTimestamp = uint64(maxTimestamp)
+		} else if payloadAttributes.Timestamp != 0 {
+			blockTimestamp = payloadAttributes.Timestamp
+		}
 
 		args := &miner.BuildPayloadArgs{
 			Parent:       update.HeadBlockHash,
