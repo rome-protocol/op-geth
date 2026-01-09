@@ -511,11 +511,6 @@ func (s *StateDB) SetTransientState(addr common.Address, key, value common.Hash)
 		prevalue: prev,
 	})
 	s.setTransientState(addr, key, value)
-	// (optionally) record as touched slot:
-	if s.touchedSlots[addr] == nil {
-		s.touchedSlots[addr] = make(map[common.Hash]struct{})
-	}
-	s.touchedSlots[addr][key] = struct{}{}
 }
 
 // setTransientState is a lower level setter for transient storage. It
