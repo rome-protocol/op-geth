@@ -403,13 +403,15 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			}
 			log.Info("Solana maxTimestamp value", "maxTimestamp", maxTimestamp, "allTimestamps", payloadAttributes.SolanaTimestamps)
 			if maxTimestamp > 0 {
-				blockTimestamp = uint64(maxTimestamp / 1e9)
+				blockTimestamp = uint64(maxTimestamp)
 			} else {
 				blockTimestamp = uint64(time.Now().Unix())
 			}
 		} else if payloadAttributes.Timestamp != 0 {
 			blockTimestamp = payloadAttributes.Timestamp
 		}
+
+		log.Info("Final blockTimestamp before building payload", "blockTimestamp", blockTimestamp, "hex", fmt.Sprintf("0x%x", blockTimestamp))
 
 		args := &miner.BuildPayloadArgs{
 			Parent:       update.HeadBlockHash,
