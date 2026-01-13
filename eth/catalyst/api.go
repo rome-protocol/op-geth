@@ -401,7 +401,11 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 					maxTimestamp = ts
 				}
 			}
-			blockTimestamp = uint64(maxTimestamp)
+			if maxTimestamp > 0 {
+				blockTimestamp = uint64(maxTimestamp / 1e9)
+			} else {
+				blockTimestamp = uint64(time.Now().Unix())
+			}
 		} else if payloadAttributes.Timestamp != 0 {
 			blockTimestamp = payloadAttributes.Timestamp
 		}
