@@ -393,6 +393,8 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			solanaTimestamps = append(solanaTimestamps, &tsCopy)
 		}
 
+		log.Info("Solana maxTimestamp value", "allTimestamps", payloadAttributes.SolanaTimestamps)
+
 		blockTimestamp := uint64(time.Now().Unix())
 		if len(payloadAttributes.SolanaTimestamps) > 0 {
 			maxTimestamp := payloadAttributes.SolanaTimestamps[0]
