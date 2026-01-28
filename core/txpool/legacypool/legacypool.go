@@ -1161,7 +1161,9 @@ func (pool *LegacyPool) removeTx(hash common.Hash, outofbound bool, unreserve bo
 		}
 		if future.Empty() {
 			delete(pool.queue, addr)
-			delete(pool.beats, addr)
+			if _, ok := pool.pending[addr]; !ok {
+				delete(pool.beats, addr)
+			}
 		}
 	}
 	return 0
@@ -1528,8 +1530,8 @@ func (pool *LegacyPool) promoteExecutables(accounts []common.Address) []*types.T
 		// Delete the entire queue entry if it became empty.
 		if list.Empty() {
 			delete(pool.queue, addr)
-			delete(pool.beats, addr)
 			if _, ok := pool.pending[addr]; !ok {
+				delete(pool.beats, addr)
 				pool.reserve(addr, false)
 			}
 		}
