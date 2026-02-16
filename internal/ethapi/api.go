@@ -73,7 +73,14 @@ func NewEthereumAPI(b Backend) *EthereumAPI {
 
 // GasPrice returns a suggestion for a gas price for legacy transactions.
 func (s *EthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
-	return fetchRomeGasPrice(ctx)
+	log.Info("rpc_GasPrice: forwarding eth_gasPrice to external gasometer (ROME_GASOMETER_URL)")
+	price, err := fetchRomeGasPrice(ctx)
+	if err != nil {
+		log.Error("rpc_GasPrice: fetchRomeGasPrice failed", "err", err)
+		return nil, err
+	}
+	log.Info("rpc_GasPrice: returning gas price", "gasPrice", (*big.Int)(price))
+	return price, nil
 }
 
 func fetchRomeGasPrice(ctx context.Context) (*hexutil.Big, error) {
@@ -1996,6 +2003,12 @@ func (s *TransactionAPI) GetTransactionReceipt(ctx context.Context, hash common.
 // marshalReceipt marshals a transaction receipt into a JSON object.
 func marshalReceipt(receipt *types.Receipt, blockHash common.Hash, blockNumber uint64, signer types.Signer, tx *types.Transaction, txIndex int, chainConfig *params.ChainConfig) map[string]interface{} {
 	from, _ := types.Sender(signer, tx)
+
+	log.Info("rpc_marshalReceipt: effectiveGasPrice",
+		"tx", tx.Hash().Hex(),
+		"effectiveGasPrice", receipt.EffectiveGasPrice,
+		"gasUsed", receipt.GasUsed,
+		"blockNumber", blockNumber)
 
 	fields := map[string]interface{}{
 		"blockHash":         blockHash,
