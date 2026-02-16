@@ -217,6 +217,13 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 	}
 	receipt.TxHash = tx.Hash()
 	receipt.GasUsed = romeGasUsed
+	// Log and record the effective gas price we get from the engine for debugging.
+	log.Info("applyTransaction: setting EffectiveGasPrice from romeGasPrice",
+		"tx", tx.Hash().Hex(),
+		"romeGasPrice", romeGasPrice,
+		"gasUsed", romeGasUsed,
+		"blockNumber", blockNumber.Uint64(),
+		"baseFee", evm.Context.BaseFee)
 	receipt.EffectiveGasPrice = new(big.Int).SetUint64(romeGasPrice)
 
 	if msg.IsDepositTx && config.IsOptimismRegolith(evm.Context.Time) {
