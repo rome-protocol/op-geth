@@ -73,13 +73,11 @@ func NewEthereumAPI(b Backend) *EthereumAPI {
 
 // GasPrice returns a suggestion for a gas price for legacy transactions.
 func (s *EthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
-	log.Info("rpc_GasPrice: forwarding eth_gasPrice to external gasometer (ROME_GASOMETER_URL)")
 	price, err := fetchRomeGasPrice(ctx)
 	if err != nil {
 		log.Error("rpc_GasPrice: fetchRomeGasPrice failed", "err", err)
 		return nil, err
 	}
-	log.Info("rpc_GasPrice: returning gas price", "gasPrice", (*big.Int)(price))
 	return price, nil
 }
 
@@ -106,7 +104,6 @@ func fetchRomeGasPrice(ctx context.Context) (*hexutil.Big, error) {
 
 // MaxPriorityFeePerGas returns a suggestion for a gas tip cap for dynamic fee transactions.
 func (s *EthereumAPI) MaxPriorityFeePerGas(ctx context.Context) (*hexutil.Big, error) {
-	log.Info("Rome: enter EthereumAPI MaxPriorityFeePerGas")
 	tipcap, err := s.b.SuggestGasTipCap(ctx)
 	if err != nil {
 		return nil, err
@@ -1356,8 +1353,6 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 // value is capped by both `args.Gas` (if non-nil & non-zero) and the backend's RPCGasCap
 // configuration (if non-zero).
 func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash, overrides *StateOverride) (hexutil.Uint64, error) {
-	log.Info("Rome: enter EthereumAPI EstimateGas")
-
 	bNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
 	if blockNrOrHash != nil {
 		bNrOrHash = *blockNrOrHash
@@ -2003,12 +1998,6 @@ func (s *TransactionAPI) GetTransactionReceipt(ctx context.Context, hash common.
 // marshalReceipt marshals a transaction receipt into a JSON object.
 func marshalReceipt(receipt *types.Receipt, blockHash common.Hash, blockNumber uint64, signer types.Signer, tx *types.Transaction, txIndex int, chainConfig *params.ChainConfig) map[string]interface{} {
 	from, _ := types.Sender(signer, tx)
-
-	log.Info("rpc_marshalReceipt: effectiveGasPrice",
-		"tx", tx.Hash().Hex(),
-		"effectiveGasPrice", receipt.EffectiveGasPrice,
-		"gasUsed", receipt.GasUsed,
-		"blockNumber", blockNumber)
 
 	fields := map[string]interface{}{
 		"blockHash":         blockHash,

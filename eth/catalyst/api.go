@@ -231,32 +231,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	api.forkchoiceLock.Lock()
 	defer api.forkchoiceLock.Unlock()
 
-	if payloadAttributes != nil {
-		log.Info("engine_forkchoiceUpdated: received payloadAttributes",
-			"head", update.HeadBlockHash,
-			"safe", update.SafeBlockHash,
-			"finalized", update.FinalizedBlockHash,
-			"timestamp", payloadAttributes.Timestamp,
-			"gasPrices_len", len(payloadAttributes.GasPrice),
-			"gasUsed_len", len(payloadAttributes.GasUsed),
-			"beaconRoot", payloadAttributes.BeaconRoot)
-		if len(payloadAttributes.GasPrice) > 0 {
-			// Log the first few gas prices for quick inspection.
-			limit := 5
-			if len(payloadAttributes.GasPrice) < limit {
-				limit = len(payloadAttributes.GasPrice)
-			}
-			log.Info("engine_forkchoiceUpdated: sample gasPrices",
-				"count", limit,
-				"gasPrices", payloadAttributes.GasPrice[:limit])
-		}
-	} else {
-		log.Info("engine_forkchoiceUpdated: no payloadAttributes",
-			"head", update.HeadBlockHash,
-			"safe", update.SafeBlockHash,
-			"finalized", update.FinalizedBlockHash)
-	}
-
 	if update.HeadBlockHash == (common.Hash{}) {
 		return engine.STATUS_INVALID, nil // TODO(karalabe): Why does someone send us this?
 	}
