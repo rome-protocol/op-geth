@@ -218,7 +218,8 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 	receipt.TxHash = tx.Hash()
 	receipt.GasUsed = romeGasUsed
 	if romeGasPrice > 0 {
-		receipt.EffectiveGasPrice = new(big.Int).SetUint64(romeGasPrice)
+		romePrice := new(big.Int).SetUint64(romeGasPrice)
+		receipt.EffectiveGasPrice = romePrice.Mul(romePrice, big.NewInt(1_000_000))
 	}
 
 	if msg.IsDepositTx && config.IsOptimismRegolith(evm.Context.Time) {
