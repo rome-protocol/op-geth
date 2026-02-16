@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -526,7 +527,11 @@ func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, nu
 		rs[i].Type = txs[i].Type()
 		rs[i].TxHash = txs[i].Hash()
 		if rs[i].EffectiveGasPrice == nil {
+			// No engine romeGasPrice was set when this receipt was created (e.g. block from sync or vanilla path).
+			// Derive from tx so RPC has a value; this can differ from proxy if that node had romeGasPrice.
 			rs[i].EffectiveGasPrice = txs[i].inner.effectiveGasPrice(new(big.Int), baseFee)
+			log.Info("DeriveFields: effectiveGasPrice was nil, derived from tx",
+				"tx", txs[i].Hash().Hex(), "block", number, "effectiveGasPrice", rs[i].EffectiveGasPrice)
 		}
 
 		// EIP-4844 blob transaction fields

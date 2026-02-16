@@ -2158,6 +2158,9 @@ func (bc *BlockChain) collectLogs(b *types.Block, removed bool) []*types.Log {
 	if err := receipts.DeriveFields(bc.chainConfig, b.Hash(), b.NumberU64(), b.Time(), b.BaseFee(), blobGasPrice, b.Transactions()); err != nil {
 		log.Error("Failed to derive block receipts fields", "hash", b.Hash(), "number", b.NumberU64(), "err", err)
 	}
+	for i, r := range receipts {
+		log.Info("collectLogs: effectiveGasPrice", "block", b.NumberU64(), "hash", b.Hash(), "txIndex", i, "txHash", r.TxHash, "effectiveGasPrice", r.EffectiveGasPrice)
+	}
 	var logs []*types.Log
 	for _, receipt := range receipts {
 		for _, log := range receipt.Logs {

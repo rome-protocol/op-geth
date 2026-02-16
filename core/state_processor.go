@@ -254,6 +254,9 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 	receipt.BlockNumber = blockNumber
 	receipt.TransactionIndex = uint(statedb.TxIndex())
 
+	log.Info("applyTransaction: receipt EffectiveGasPrice (returning)",
+		"tx", tx.Hash().Hex(), "blockNumber", blockNumber.Uint64(),
+		"effectiveGasPrice", receipt.EffectiveGasPrice, "gasUsed", receipt.GasUsed)
 	return receipt, err
 }
 
