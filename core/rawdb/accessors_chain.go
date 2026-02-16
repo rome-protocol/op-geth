@@ -658,17 +658,11 @@ func ReadReceipts(db ethdb.Reader, hash common.Hash, number uint64, time uint64,
 		log.Error("Failed to derive block receipts fields", "hash", hash, "number", number, "err", err)
 		return nil
 	}
-	for i, r := range receipts {
-		log.Info("ReadReceipts: effectiveGasPrice", "block", number, "hash", hash, "txIndex", i, "txHash", r.TxHash, "effectiveGasPrice", r.EffectiveGasPrice)
-	}
 	return receipts
 }
 
 // WriteReceipts stores all the transaction receipts belonging to a block.
 func WriteReceipts(db ethdb.KeyValueWriter, hash common.Hash, number uint64, receipts types.Receipts) {
-	for i, r := range receipts {
-		log.Info("WriteReceipts: effectiveGasPrice", "block", number, "hash", hash, "txIndex", i, "txHash", r.TxHash, "effectiveGasPrice", r.EffectiveGasPrice)
-	}
 	// Convert the receipts into their storage form and serialize them
 	storageReceipts := make([]*types.ReceiptForStorage, len(receipts))
 	for i, receipt := range receipts {

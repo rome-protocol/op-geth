@@ -27,7 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -147,6 +146,8 @@ type storedReceiptRLP struct {
 	// DepositNonce. Post Canyon, receipts will have a non-empty DepositReceiptVersion indicating
 	// which post-Canyon receipt hash function to invoke.
 	DepositReceiptVersion *uint64 `rlp:"optional"`
+	// EffectiveGasPrice (Rome/engine) is persisted so it survives read-back; when present it is the 6th element.
+	EffectiveGasPrice *big.Int `rlp:"optional"`
 }
 
 // LegacyOptimismStoredReceiptRLP is the pre bedrock storage encoding of a
@@ -405,7 +406,18 @@ func (r *ReceiptForStorage) EncodeRLP(_w io.Writer) error {
 		}
 	}
 	w.ListEnd(logList)
-	if r.DepositNonce != nil {
+	if r.EffectiveGasPrice != nil {
+		if r.DepositNonce != nil {
+			w.WriteUint64(*r.DepositNonce)
+			if r.DepositReceiptVersion != nil {
+				w.WriteUint64(*r.DepositReceiptVersion)
+			}
+		} else {
+			w.WriteUint64(0)
+			w.WriteUint64(0)
+		}
+		w.WriteBigInt(r.EffectiveGasPrice)
+	} else if r.DepositNonce != nil {
 		w.WriteUint64(*r.DepositNonce)
 		if r.DepositReceiptVersion != nil {
 			w.WriteUint64(*r.DepositReceiptVersion)
@@ -472,8 +484,17 @@ func decodeStoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 	r.Logs = stored.Logs
 	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
 	if stored.DepositNonce != nil {
-		r.DepositNonce = stored.DepositNonce
-		r.DepositReceiptVersion = stored.DepositReceiptVersion
+		// 0,0 with EffectiveGasPrice set is sentinel for "no deposit, engine set effective gas price"
+		if stored.EffectiveGasPrice != nil && *stored.DepositNonce == 0 && stored.DepositReceiptVersion != nil && *stored.DepositReceiptVersion == 0 {
+			r.DepositNonce = nil
+			r.DepositReceiptVersion = nil
+		} else {
+			r.DepositNonce = stored.DepositNonce
+			r.DepositReceiptVersion = stored.DepositReceiptVersion
+		}
+	}
+	if stored.EffectiveGasPrice != nil {
+		r.EffectiveGasPrice = stored.EffectiveGasPrice
 	}
 	return nil
 }
@@ -527,11 +548,7 @@ func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, nu
 		rs[i].Type = txs[i].Type()
 		rs[i].TxHash = txs[i].Hash()
 		if rs[i].EffectiveGasPrice == nil {
-			// No engine romeGasPrice was set when this receipt was created (e.g. block from sync or vanilla path).
-			// Derive from tx so RPC has a value; this can differ from proxy if that node had romeGasPrice.
 			rs[i].EffectiveGasPrice = txs[i].inner.effectiveGasPrice(new(big.Int), baseFee)
-			log.Info("DeriveFields: effectiveGasPrice was nil, derived from tx",
-				"tx", txs[i].Hash().Hex(), "block", number, "effectiveGasPrice", rs[i].EffectiveGasPrice)
 		}
 
 		// EIP-4844 blob transaction fields
