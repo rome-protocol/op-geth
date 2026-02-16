@@ -217,10 +217,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, bc ChainContext,
 	}
 	receipt.TxHash = tx.Hash()
 	receipt.GasUsed = romeGasUsed
-	if romeGasPrice > 0 {
-		romePrice := new(big.Int).SetUint64(romeGasPrice)
-		receipt.EffectiveGasPrice = romePrice.Mul(romePrice, big.NewInt(1_000_000))
-	}
+	receipt.EffectiveGasPrice = new(big.Int).SetUint64(romeGasPrice)
 
 	if msg.IsDepositTx && config.IsOptimismRegolith(evm.Context.Time) {
 		// The actual nonce for deposit transactions is only recorded from Regolith onwards and

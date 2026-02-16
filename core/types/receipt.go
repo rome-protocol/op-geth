@@ -523,7 +523,6 @@ func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, nu
 		return errors.New("transaction and receipt count mismatch")
 	}
 	for i := 0; i < len(rs); i++ {
-		// The transaction type and hash can be retrieved from the transaction itself
 		rs[i].Type = txs[i].Type()
 		rs[i].TxHash = txs[i].Hash()
 		if rs[i].EffectiveGasPrice == nil {
