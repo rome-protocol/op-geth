@@ -484,7 +484,6 @@ func decodeStoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 	r.Logs = stored.Logs
 	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
 	if stored.DepositNonce != nil {
-		// 0,0 with EffectiveGasPrice set is sentinel for "no deposit, engine set effective gas price"
 		if stored.EffectiveGasPrice != nil && *stored.DepositNonce == 0 && stored.DepositReceiptVersion != nil && *stored.DepositReceiptVersion == 0 {
 			r.DepositNonce = nil
 			r.DepositReceiptVersion = nil
