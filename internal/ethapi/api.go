@@ -73,7 +73,12 @@ func NewEthereumAPI(b Backend) *EthereumAPI {
 
 // GasPrice returns a suggestion for a gas price for legacy transactions.
 func (s *EthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
-	return fetchRomeGasPrice(ctx)
+	price, err := fetchRomeGasPrice(ctx)
+	if err != nil {
+		log.Error("rpc_GasPrice: fetchRomeGasPrice failed", "err", err)
+		return nil, err
+	}
+	return price, nil
 }
 
 func fetchRomeGasPrice(ctx context.Context) (*hexutil.Big, error) {
@@ -99,7 +104,6 @@ func fetchRomeGasPrice(ctx context.Context) (*hexutil.Big, error) {
 
 // MaxPriorityFeePerGas returns a suggestion for a gas tip cap for dynamic fee transactions.
 func (s *EthereumAPI) MaxPriorityFeePerGas(ctx context.Context) (*hexutil.Big, error) {
-	log.Info("Rome: enter EthereumAPI MaxPriorityFeePerGas")
 	tipcap, err := s.b.SuggestGasTipCap(ctx)
 	if err != nil {
 		return nil, err
@@ -1349,8 +1353,6 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 // value is capped by both `args.Gas` (if non-nil & non-zero) and the backend's RPCGasCap
 // configuration (if non-zero).
 func (s *BlockChainAPI) EstimateGas(ctx context.Context, args TransactionArgs, blockNrOrHash *rpc.BlockNumberOrHash, overrides *StateOverride) (hexutil.Uint64, error) {
-	log.Info("Rome: enter EthereumAPI EstimateGas")
-
 	bNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
 	if blockNrOrHash != nil {
 		bNrOrHash = *blockNrOrHash

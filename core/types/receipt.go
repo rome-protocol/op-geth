@@ -146,6 +146,8 @@ type storedReceiptRLP struct {
 	// DepositNonce. Post Canyon, receipts will have a non-empty DepositReceiptVersion indicating
 	// which post-Canyon receipt hash function to invoke.
 	DepositReceiptVersion *uint64 `rlp:"optional"`
+	// EffectiveGasPrice (Rome/engine) is persisted so it survives read-back
+	EffectiveGasPrice *big.Int `rlp:"optional"`
 }
 
 // LegacyOptimismStoredReceiptRLP is the pre bedrock storage encoding of a
@@ -404,7 +406,18 @@ func (r *ReceiptForStorage) EncodeRLP(_w io.Writer) error {
 		}
 	}
 	w.ListEnd(logList)
-	if r.DepositNonce != nil {
+	if r.EffectiveGasPrice != nil {
+		if r.DepositNonce != nil {
+			w.WriteUint64(*r.DepositNonce)
+			if r.DepositReceiptVersion != nil {
+				w.WriteUint64(*r.DepositReceiptVersion)
+			}
+		} else {
+			w.WriteUint64(0)
+			w.WriteUint64(0)
+		}
+		w.WriteBigInt(r.EffectiveGasPrice)
+	} else if r.DepositNonce != nil {
 		w.WriteUint64(*r.DepositNonce)
 		if r.DepositReceiptVersion != nil {
 			w.WriteUint64(*r.DepositReceiptVersion)
@@ -471,8 +484,16 @@ func decodeStoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 	r.Logs = stored.Logs
 	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
 	if stored.DepositNonce != nil {
-		r.DepositNonce = stored.DepositNonce
-		r.DepositReceiptVersion = stored.DepositReceiptVersion
+		if stored.EffectiveGasPrice != nil && *stored.DepositNonce == 0 && stored.DepositReceiptVersion != nil && *stored.DepositReceiptVersion == 0 {
+			r.DepositNonce = nil
+			r.DepositReceiptVersion = nil
+		} else {
+			r.DepositNonce = stored.DepositNonce
+			r.DepositReceiptVersion = stored.DepositReceiptVersion
+		}
+	}
+	if stored.EffectiveGasPrice != nil {
+		r.EffectiveGasPrice = stored.EffectiveGasPrice
 	}
 	return nil
 }
@@ -523,10 +544,11 @@ func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, nu
 		return errors.New("transaction and receipt count mismatch")
 	}
 	for i := 0; i < len(rs); i++ {
-		// The transaction type and hash can be retrieved from the transaction itself
 		rs[i].Type = txs[i].Type()
 		rs[i].TxHash = txs[i].Hash()
-		rs[i].EffectiveGasPrice = txs[i].inner.effectiveGasPrice(new(big.Int), baseFee)
+		if rs[i].EffectiveGasPrice == nil {
+			rs[i].EffectiveGasPrice = txs[i].inner.effectiveGasPrice(new(big.Int), baseFee)
+		}
 
 		// EIP-4844 blob transaction fields
 		if txs[i].Type() == BlobTxType {
