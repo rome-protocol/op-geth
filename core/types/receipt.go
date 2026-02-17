@@ -146,7 +146,7 @@ type storedReceiptRLP struct {
 	// DepositNonce. Post Canyon, receipts will have a non-empty DepositReceiptVersion indicating
 	// which post-Canyon receipt hash function to invoke.
 	DepositReceiptVersion *uint64 `rlp:"optional"`
-	// EffectiveGasPrice (Rome/engine) is persisted so it survives read-back; when present it is the 6th element.
+	// EffectiveGasPrice (Rome/engine) is persisted so it survives read-back
 	EffectiveGasPrice *big.Int `rlp:"optional"`
 }
 
