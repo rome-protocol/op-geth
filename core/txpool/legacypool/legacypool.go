@@ -377,10 +377,13 @@ func (pool *LegacyPool) loop() {
 
 		case <-evict.C:
 			pool.mu.Lock()
-			for addr := range pool.pending {
+			for addr := range pool.queue {
+				if pool.locals.contains(addr) {
+					continue
+				}
 				log.Info("inside tx pool", "addr", addr)
 				if time.Since(pool.beats[addr]) > pool.config.Lifetime {
-					list := pool.pending[addr].Flatten()
+					list := pool.queue[addr].Flatten()
 					for _, tx := range list {
 						pool.removeTx(tx.Hash(), true, true)
 						log.Info("removed tx", "hash", tx.Hash())
@@ -1161,7 +1164,9 @@ func (pool *LegacyPool) removeTx(hash common.Hash, outofbound bool, unreserve bo
 		}
 		if future.Empty() {
 			delete(pool.queue, addr)
-			delete(pool.beats, addr)
+			if _, ok := pool.pending[addr]; !ok {
+				delete(pool.beats, addr)
+			}
 		}
 	}
 	return 0
