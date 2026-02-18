@@ -148,10 +148,10 @@ var DefaultConfig = Config{
 	PriceLimit: 1,
 	PriceBump:  10,
 
-	AccountSlots: 16,
-	GlobalSlots:  4096 + 1024, // urgent + floating queue capacity with 4:1 ratio
-	AccountQueue: 64,
-	GlobalQueue:  1024,
+	AccountSlots: 64,
+	GlobalSlots:  16384,
+	AccountQueue: 256,
+	GlobalQueue:  8192,
 
 	Lifetime: 5 * time.Minute,
 }
