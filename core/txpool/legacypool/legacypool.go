@@ -378,14 +378,17 @@ func (pool *LegacyPool) loop() {
 		case <-evict.C:
 			pool.mu.Lock()
 			for addr := range pool.pending {
-				log.Info("inside tx pool", "addr", addr)
-				if time.Since(pool.beats[addr]) > pool.config.Lifetime {
+				lastBeat := pool.beats[addr]
+				age := time.Since(lastBeat)
+				log.Info("Evaluating pending account for txpool eviction", "addr", addr, "pending", pool.pending[addr].Len(), "lastBeat", lastBeat, "age", age, "lifetime", pool.config.Lifetime)
+				if age > pool.config.Lifetime {
 					list := pool.pending[addr].Flatten()
 					for _, tx := range list {
+						log.Info("Evicting pending tx due to lifetime", "reason", "pending_lifetime", "addr", addr, "hash", tx.Hash(), "nonce", tx.Nonce(), "age", age, "lifetime", pool.config.Lifetime)
 						pool.removeTx(tx.Hash(), true, true)
-						log.Info("removed tx", "hash", tx.Hash())
 					}
 					queuedEvictionMeter.Mark(int64(len(list)))
+					log.Info("Evicted pending transactions by lifetime", "reason", "pending_lifetime", "addr", addr, "count", len(list), "age", age, "lifetime", pool.config.Lifetime)
 				}
 			}
 			pool.mu.Unlock()
@@ -446,7 +449,11 @@ func (pool *LegacyPool) SetGasTip(tip *big.Int) {
 	if tip.Cmp(old) > 0 {
 		// pool.priced is sorted by GasFeeCap, so we have to iterate through pool.all instead
 		drop := pool.all.RemotesBelowTip(tip)
+		if len(drop) > 0 {
+			log.Info("Dropping remote txs below tip threshold", "reason", "tip_threshold", "oldTip", old, "newTip", tip, "count", len(drop))
+		}
 		for _, tx := range drop {
+			log.Trace("Dropping tx below tip threshold", "reason", "tip_threshold", "hash", tx.Hash(), "nonce", tx.Nonce(), "gasTipCap", tx.GasTipCap(), "requiredTip", tip)
 			pool.removeTx(tx.Hash(), false, true)
 		}
 		pool.priced.Removed(len(drop))
@@ -1137,6 +1144,7 @@ func (pool *LegacyPool) removeTx(hash common.Hash, outofbound bool, unreserve bo
 	// Remove the transaction from the pending lists and reset the account nonce
 	if pending := pool.pending[addr]; pending != nil {
 		if removed, invalids := pending.Remove(tx); removed {
+			log.Info("Removed tx from pending pool", "hash", hash, "addr", addr, "nonce", tx.Nonce(), "outofbound", outofbound, "unreserve", unreserve, "invalidatedCount", len(invalids))
 			// If no more pending transactions are left, remove the list
 			if pending.Empty() {
 				delete(pool.pending, addr)
@@ -1156,6 +1164,7 @@ func (pool *LegacyPool) removeTx(hash common.Hash, outofbound bool, unreserve bo
 	// Transaction is in the future queue
 	if future := pool.queue[addr]; future != nil {
 		if removed, _ := future.Remove(tx); removed {
+			log.Info("Removed tx from queued pool", "hash", hash, "addr", addr, "nonce", tx.Nonce(), "outofbound", outofbound, "unreserve", unreserve)
 			// Reduce the queued counter
 			queuedGauge.Dec(1)
 		}
@@ -1519,6 +1528,9 @@ func (pool *LegacyPool) promoteExecutables(accounts []common.Address) []*types.T
 			}
 			queuedRateLimitMeter.Mark(int64(len(caps)))
 		}
+		if len(forwards)+len(drops)+len(caps) > 0 {
+			log.Info("Pruned queued transactions during promotion", "reason", "queue_cleanup", "addr", addr, "oldNonceDrops", len(forwards), "insufficientFundsDrops", len(drops), "accountQueueCapDrops", len(caps), "balance", balance, "gasLimit", gasLimit)
+		}
 		// Mark all the items dropped as removed
 		pool.priced.Removed(len(forwards) + len(drops) + len(caps))
 		queuedGauge.Dec(int64(len(forwards) + len(drops) + len(caps)))
@@ -1548,6 +1560,7 @@ func (pool *LegacyPool) truncatePending() {
 	if pending <= pool.config.GlobalSlots {
 		return
 	}
+	log.Info("Truncating pending pool due to global slots overflow", "reason", "global_pending_slots", "pending", pending, "globalSlots", pool.config.GlobalSlots)
 
 	pendingBeforeCap := pending
 	// Assemble a spam order to penalize large transactors first
@@ -1622,6 +1635,9 @@ func (pool *LegacyPool) truncatePending() {
 		}
 	}
 	pendingRateLimitMeter.Mark(int64(pendingBeforeCap - pending))
+	if dropped := pendingBeforeCap - pending; dropped > 0 {
+		log.Info("Pending pool truncation complete", "reason", "global_pending_slots", "dropped", dropped, "remaining", pending, "globalSlots", pool.config.GlobalSlots)
+	}
 }
 
 // truncateQueue drops the oldest transactions in the queue if the pool is above the global queue limit.
@@ -1633,6 +1649,7 @@ func (pool *LegacyPool) truncateQueue() {
 	if queued <= pool.config.GlobalQueue {
 		return
 	}
+	log.Info("Truncating queued pool due to global queue overflow", "reason", "global_queue_slots", "queued", queued, "globalQueue", pool.config.GlobalQueue)
 
 	// Sort all accounts with queued transactions by heartbeat
 	addresses := make(addressesByHeartbeat, 0, len(pool.queue))
@@ -1652,6 +1669,7 @@ func (pool *LegacyPool) truncateQueue() {
 
 		// Drop all transactions if they are less than the overflow
 		if size := uint64(list.Len()); size <= drop {
+			log.Info("Dropping entire queued account due to overflow", "reason", "global_queue_slots", "addr", addr.address, "count", size, "dropRemaining", drop)
 			for _, tx := range list.Flatten() {
 				pool.removeTx(tx.Hash(), true, true)
 			}
@@ -1662,6 +1680,7 @@ func (pool *LegacyPool) truncateQueue() {
 		// Otherwise drop only last few transactions
 		txs := list.Flatten()
 		for i := len(txs) - 1; i >= 0 && drop > 0; i-- {
+			log.Info("Dropping queued tx due to overflow", "reason", "global_queue_slots", "addr", addr.address, "hash", txs[i].Hash(), "nonce", txs[i].Nonce(), "dropRemaining", drop)
 			pool.removeTx(txs[i].Hash(), true, true)
 			drop--
 			queuedRateLimitMeter.Mark(1)
@@ -1728,6 +1747,9 @@ func (pool *LegacyPool) demoteUnexecutables() {
 				pool.enqueueTx(hash, tx, false, false)
 			}
 			pendingGauge.Dec(int64(len(gapped)))
+		}
+		if len(olds)+len(drops)+len(invalids) > 0 {
+			log.Info("Updated pending account during reset/demotion", "reason", "pending_revalidation", "addr", addr, "chainNonce", nonce, "removedOldNonce", len(olds), "removedInsufficientFunds", len(drops), "demotedToQueue", len(invalids), "balance", balance, "gasLimit", gasLimit)
 		}
 		// Delete the entire pending entry if it became empty.
 		if list.Empty() {
