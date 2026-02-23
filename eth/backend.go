@@ -59,6 +59,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/rome"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -81,6 +82,7 @@ type Ethereum struct {
 
 	seqRPCService        *rpc.Client
 	historicalRPCService *rpc.Client
+	romeForwarder        *rome.ProxyForwarder
 
 	// DB interfaces
 	chainDb ethdb.Database // Block chain database
@@ -271,6 +273,11 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if config.RomeProxyURL != "" {
+		eth.romeForwarder = rome.NewProxyForwarder(config.RomeProxyURL, eth.txPool)
+	}
+
 	// Permit the downloader to use the trie cache allowance during fast sync
 	cacheLimit := cacheConfig.TrieCleanLimit + cacheConfig.TrieDirtyLimit + cacheConfig.SnapshotLimit
 	if eth.handler, err = newHandler(&handlerConfig{
@@ -587,6 +594,11 @@ func (s *Ethereum) Start() error {
 	}
 	// Start the networking layer and the light server if requested
 	s.handler.Start(maxPeers)
+
+	if s.romeForwarder != nil {
+		s.romeForwarder.Start()
+	}
+
 	return nil
 }
 
@@ -597,6 +609,10 @@ func (s *Ethereum) Stop() error {
 	s.ethDialCandidates.Close()
 	s.snapDialCandidates.Close()
 	s.handler.Stop()
+
+	if s.romeForwarder != nil {
+		s.romeForwarder.Stop()
+	}
 
 	// Then stop everything else.
 	s.bloomIndexer.Close()
