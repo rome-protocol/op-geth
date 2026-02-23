@@ -900,7 +900,7 @@ var (
 
 	RomeProxyURLFlag = &cli.StringFlag{
 		Name:     "rome.proxyurl",
-		Usage:    "HTTP endpoint of the Rome proxy to forward mempool transactions via eth_sendRawTransaction",
+		Usage:    "HTTP endpoint of the Rome proxy to forward mempool transactions via eth_sendRawTransaction (defaults to ROME_GASOMETER_URL env var)",
 		Category: flags.RollupCategory,
 	}
 
@@ -1862,6 +1862,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	cfg.ApplySuperchainUpgrades = ctx.Bool(RollupSuperchainUpgradesFlag.Name)
 	if ctx.IsSet(RomeProxyURLFlag.Name) {
 		cfg.RomeProxyURL = ctx.String(RomeProxyURLFlag.Name)
+	} else if u := os.Getenv("ROME_GASOMETER_URL"); u != "" {
+		cfg.RomeProxyURL = u
 	}
 	// Override any default configs for hard coded networks.
 	switch {
