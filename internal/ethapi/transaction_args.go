@@ -160,9 +160,6 @@ func (args *TransactionArgs) setFeeDefaults(ctx context.Context, b Backend) erro
 		if args.MaxFeePerGas.ToInt().Sign() == 0 {
 			return errors.New("maxFeePerGas must be non-zero")
 		}
-		if args.MaxFeePerGas.ToInt().Cmp(args.MaxPriorityFeePerGas.ToInt()) < 0 {
-			return fmt.Errorf("maxFeePerGas (%v) < maxPriorityFeePerGas (%v)", args.MaxFeePerGas, args.MaxPriorityFeePerGas)
-		}
 		return nil // No need to set anything, user already set MaxFeePerGas and MaxPriorityFeePerGas
 	}
 	// Sanity check the EIP-4844 fee parameters.
@@ -242,10 +239,6 @@ func (args *TransactionArgs) setLondonFeeDefaults(ctx context.Context, head *typ
 			new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
 		)
 		args.MaxFeePerGas = (*hexutil.Big)(val)
-	}
-	// Both EIP-1559 fee parameters are now set; sanity check them.
-	if args.MaxFeePerGas.ToInt().Cmp(args.MaxPriorityFeePerGas.ToInt()) < 0 {
-		return fmt.Errorf("maxFeePerGas (%v) < maxPriorityFeePerGas (%v)", args.MaxFeePerGas, args.MaxPriorityFeePerGas)
 	}
 	return nil
 }

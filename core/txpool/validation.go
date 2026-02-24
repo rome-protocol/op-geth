@@ -96,10 +96,6 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 	if tx.GasTipCap().BitLen() > 256 {
 		return core.ErrTipVeryHigh
 	}
-	// Ensure gasFeeCap is greater than or equal to gasTipCap
-	if tx.GasFeeCapIntCmp(tx.GasTipCap()) < 0 {
-		return core.ErrTipAboveFeeCap
-	}
 	// Make sure the transaction is signed properly
 	if _, err := types.Sender(signer, tx); err != nil {
 		return ErrInvalidSender
