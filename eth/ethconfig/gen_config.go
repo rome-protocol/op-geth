@@ -66,6 +66,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		RollupDisableTxPoolGossip               bool
 		RollupDisableTxPoolAdmission            bool
 		RollupHaltOnIncompatibleProtocolVersion string
+		RomeProxyURL                            string
 	}
 	var enc Config
 	enc.Genesis = c.Genesis
@@ -117,6 +118,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.RollupDisableTxPoolGossip = c.RollupDisableTxPoolGossip
 	enc.RollupDisableTxPoolAdmission = c.RollupDisableTxPoolAdmission
 	enc.RollupHaltOnIncompatibleProtocolVersion = c.RollupHaltOnIncompatibleProtocolVersion
+	enc.RomeProxyURL = c.RomeProxyURL
 	return &enc, nil
 }
 
@@ -172,6 +174,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		RollupDisableTxPoolGossip               *bool
 		RollupDisableTxPoolAdmission            *bool
 		RollupHaltOnIncompatibleProtocolVersion *string
+		RomeProxyURL                            *string
 	}
 	var dec Config
 	if err := unmarshal(&dec); err != nil {
@@ -323,6 +326,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.RollupHaltOnIncompatibleProtocolVersion != nil {
 		c.RollupHaltOnIncompatibleProtocolVersion = *dec.RollupHaltOnIncompatibleProtocolVersion
+	}
+	if dec.RomeProxyURL != nil {
+		c.RomeProxyURL = *dec.RomeProxyURL
 	}
 	return nil
 }

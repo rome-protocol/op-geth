@@ -176,6 +176,8 @@ type Config struct {
 	RollupDisableTxPoolGossip               bool
 	RollupDisableTxPoolAdmission            bool
 	RollupHaltOnIncompatibleProtocolVersion string
+
+	RomeProxyURL string
 }
 
 // CreateConsensusEngine creates a consensus engine for the given chain config.
