@@ -380,7 +380,6 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			span.End()
 		}
 
-		// Convert per-transaction Solana slots and timestamps from payload attributes.
 		var solanaBlockNumbers []*uint64
 		for _, slot := range payloadAttributes.SolanaBlockNumbers {
 			slotCopy := slot
@@ -393,7 +392,12 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			solanaTimestamps = append(solanaTimestamps, &tsCopy)
 		}
 
-		blockTimestamp := uint64(time.Now().Unix())
+		var blockTimestamp uint64
+		for i, ts := range payloadAttributes.SolanaTimestamps {
+			if i == 0 || ts > int64(blockTimestamp) {
+				blockTimestamp = uint64(ts)
+			}
+		}
 
 		args := &miner.BuildPayloadArgs{
 			Parent:       update.HeadBlockHash,
