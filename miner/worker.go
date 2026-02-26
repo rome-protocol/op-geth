@@ -1033,7 +1033,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     new(big.Int).Add(parent.Number, common.Big1),
-		GasLimit:   core.EffectiveGasLimit(w.chainConfig, parent.GasLimit),
+		GasLimit:   txpool.EffectiveGasLimit(w.chainConfig, parent.GasLimit),
 		Time:       genParams.timestamp,
 		Coinbase:   genParams.coinbase,
 	}
@@ -1050,7 +1050,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 			header.GasLimit = core.CalcGasLimit(parentGasLimit, w.config.GasCeil)
 		}
 	}
-	header.GasLimit = core.EffectiveGasLimit(w.chainConfig, parent.GasLimit)
+	header.GasLimit = txpool.EffectiveGasLimit(w.chainConfig, parent.GasLimit)
 	// Apply EIP-4844, EIP-4788.
 	if w.chainConfig.IsCancun(header.Number, header.Time) {
 		var excessBlobGas uint64
