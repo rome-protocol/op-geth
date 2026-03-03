@@ -16,7 +16,7 @@ env:
 
 jobs:
   build-amd64:
-    runs-on: ubuntu-22.04-8core-32gb-300
+    runs-on: ubuntu-latest
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
