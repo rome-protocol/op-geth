@@ -59,6 +59,11 @@ The fork follows an architecture where changes are **minimal and isolated**. Key
 - `params/superchain.go` — Chain config loading for supported OP Stack chains
 - `params/config.go` — `OptimismConfig` struct, chain IDs (OP Mainnet: 10, OP Goerli: 420)
 
+### Rome Protocol Extensions
+- `core/footprint/` — Transaction state footprint tracking (API + Manager). Exposes RPC methods to query which storage slots/accounts a transaction touches. Used for parallelization analysis.
+- `internal/ethapi/api.go` — Emulate API for transaction simulation
+- Opcode-related modifications in `core/vm/` for Rome's execution model
+
 ### Upgrade Schedule
 Bedrock → Regolith → Canyon (Shanghai) → Ecotone (Cancun) — each upgrade has feature flags checked throughout the codebase via `params/config.go` methods.
 
