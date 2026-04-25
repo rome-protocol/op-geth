@@ -1,12 +1,22 @@
 name: Build docker image
 
+# `romeprotocol/rollup-op-geth:<branch>` is published by rome-protocol/rome-rollup-clients,
+# which is the authoritative builder for the op-geth + nginx runtime image (it owns the
+# nginx reverse proxy, run.sh genesis init, and Solana precompile interfaces baked into
+# the image). To avoid the previous race condition where both repos pushed to the same
+# Docker Hub tag (last-write-wins), this workflow now only:
+#   1. Dispatches the rome-rollup-clients build for the current op-geth ref.
+#   2. Waits for that build to finish.
+#   3. Triggers the downstream test suite.
+# See: https://github.com/rome-protocol/rome-ops/issues/45
+
 on:
   push:
   workflow_dispatch:
     inputs:
       rollup_client_ref_name:
         type: string
-        description: 'rollup_client branch name to use for building the image'
+        description: 'rome-rollup-clients branch name to use as the build context'
         required: false
         default: 'main'
 
@@ -15,132 +25,98 @@ env:
   OP_GETH_REF_NAME: ${{ github.ref_name }}
 
 jobs:
-  build-amd64:
-    runs-on: ubuntu-22.04-8core-32gb-300
-    outputs:
-      digest: ${{ steps.push.outputs.digest }}
-    steps:
-      - name: Create GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ vars.OP_GETH_CROSS_REPO_APP_ID }}
-          private-key: ${{ secrets.OP_GETH_CROSS_REPO_APP_PRIVATE_KEY }}
-          owner: rome-protocol
-
-      - name: Checkout rome-rollup-clients
-        uses: actions/checkout@v4
-        with:
-          repository: rome-protocol/rome-rollup-clients
-          path: rome-rollup-clients
-          ref: ${{ env.ROLLUP_CLIENT_REF_NAME }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - name: Checkout op-geth
-        uses: actions/checkout@v4
-        with:
-          repository: rome-protocol/op-geth
-          path: op-geth
-          ref: ${{ env.OP_GETH_REF_NAME }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
-      - name: Build and push amd64 image
-        id: push
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: rome-rollup-clients/op-geth/Dockerfile
-          platforms: linux/amd64
-          push: true
-          provenance: false
-          tags: romeprotocol/rollup-op-geth:${{ env.OP_GETH_REF_NAME }}
-
-  build-arm64:
-    runs-on: ubuntu-24.04-arm
-    outputs:
-      digest: ${{ steps.push.outputs.digest }}
-    steps:
-      - name: Create GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ vars.OP_GETH_CROSS_REPO_APP_ID }}
-          private-key: ${{ secrets.OP_GETH_CROSS_REPO_APP_PRIVATE_KEY }}
-          owner: rome-protocol
-
-      - name: Checkout rome-rollup-clients
-        uses: actions/checkout@v4
-        with:
-          repository: rome-protocol/rome-rollup-clients
-          path: rome-rollup-clients
-          ref: ${{ env.ROLLUP_CLIENT_REF_NAME }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - name: Checkout op-geth
-        uses: actions/checkout@v4
-        with:
-          repository: rome-protocol/op-geth
-          path: op-geth
-          ref: ${{ env.OP_GETH_REF_NAME }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
-      - name: Build and push arm64 image
-        id: push
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: rome-rollup-clients/op-geth/Dockerfile
-          platforms: linux/arm64
-          push: true
-          provenance: false
-          tags: romeprotocol/rollup-op-geth:${{ env.OP_GETH_REF_NAME }}
-
-  create-manifest:
+  build-image:
+    name: Dispatch rome-rollup-clients image build
     runs-on: ubuntu-latest
-    needs: [build-amd64, build-arm64]
     steps:
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
         with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          app-id: ${{ vars.OP_GETH_CROSS_REPO_APP_ID }}
+          private-key: ${{ secrets.OP_GETH_CROSS_REPO_APP_PRIVATE_KEY }}
+          owner: rome-protocol
 
-      - name: Create and push multi-arch manifest
-        run: |
-          docker manifest create romeprotocol/rollup-op-geth:${{ env.OP_GETH_REF_NAME }} \
-            --amend romeprotocol/rollup-op-geth@${{ needs.build-amd64.outputs.digest }} \
-            --amend romeprotocol/rollup-op-geth@${{ needs.build-arm64.outputs.digest }}
+      - name: Trigger rome-rollup-clients build and wait
+        uses: actions/github-script@v7
+        env:
+          ROLLUP_CLIENT_REF_NAME: ${{ env.ROLLUP_CLIENT_REF_NAME }}
+          OP_GETH_REF_NAME: ${{ env.OP_GETH_REF_NAME }}
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const sleep = ms => new Promise(res => setTimeout(res, ms));
+            const owner = 'rome-protocol';
+            const repo = 'rome-rollup-clients';
+            const workflow_id = 'build_and_test_wf.yml';
+            const ref = process.env.ROLLUP_CLIENT_REF_NAME;
+            const op_geth_ref_name = process.env.OP_GETH_REF_NAME;
+            // Pass op-geth's ref as image_tag so rome-rollup-clients publishes
+            // to romeprotocol/rollup-op-geth:<op-geth ref>, preserving the
+            // per-branch tag scheme that downstream consumers expect.
+            // Requires rome-protocol/rome-rollup-clients#53 (image_tag input).
+            const image_tag = op_geth_ref_name;
 
-          docker manifest push romeprotocol/rollup-op-geth:${{ env.OP_GETH_REF_NAME }}
+            // Snapshot existing run IDs BEFORE dispatching so we can identify
+            // the run we trigger. createWorkflowDispatch does not return a run
+            // ID; diffing against this snapshot uniquely IDs ours even if a
+            // prior op-geth push has its own rome-rollup-clients run still in
+            // flight. Same pattern used in the run-tests job below.
+            const snapshot = await github.rest.actions.listWorkflowRuns({
+              owner, repo, workflow_id, per_page: 100,
+            });
+            const existingIds = new Set(snapshot.data.workflow_runs.map(r => r.id));
 
-      - name: Tag and push :latest
-        if: ${{ env.OP_GETH_REF_NAME == 'main' && env.ROLLUP_CLIENT_REF_NAME == 'main' }}
-        run: |
-          docker manifest create romeprotocol/rollup-op-geth:latest \
-            --amend romeprotocol/rollup-op-geth@${{ needs.build-amd64.outputs.digest }} \
-            --amend romeprotocol/rollup-op-geth@${{ needs.build-arm64.outputs.digest }}
+            await github.rest.actions.createWorkflowDispatch({
+              owner, repo, workflow_id, ref,
+              inputs: { op_geth_ref_name, image_tag },
+            });
+            core.info(`Dispatched ${owner}/${repo} ${workflow_id} (ref=${ref}, op_geth_ref_name=${op_geth_ref_name}, image_tag=${image_tag})`);
 
-          docker manifest push romeprotocol/rollup-op-geth:latest
+            let runId = null;
+            let runUrl = null;
+            const discoveryAttempts = 20;
+            for (let i = 0; i < discoveryAttempts; i++) {
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner, repo, workflow_id, event: 'workflow_dispatch', per_page: 30,
+              });
+              const ours = runs.data.workflow_runs.find(r =>
+                r.head_branch === ref && !existingIds.has(r.id)
+              );
+              if (ours) {
+                runId = ours.id;
+                runUrl = ours.html_url;
+                core.info(`Discovered our run: ${runId} (${runUrl})`);
+                break;
+              }
+              core.info(`Waiting for our dispatch to register... (${i + 1}/${discoveryAttempts})`);
+              await sleep(15000);
+            }
+
+            if (!runId) {
+              core.setFailed('Could not locate the dispatched rome-rollup-clients run.');
+              return;
+            }
+
+            // Multi-arch build (amd64 + arm64) typically takes 5-10 min; allow ~30 min.
+            const pollAttempts = 60;
+            const delayMs = 30000;
+            for (let i = 0; i < pollAttempts; i++) {
+              const { data: run } = await github.rest.actions.getWorkflowRun({ owner, repo, run_id: runId });
+              core.info(`status=${run.status} conclusion=${run.conclusion}`);
+              if (run.status === 'completed') {
+                if (run.conclusion !== 'success') {
+                  core.setFailed(`rome-rollup-clients build did not succeed: ${run.conclusion} (${runUrl})`);
+                }
+                return;
+              }
+              await sleep(delayMs);
+            }
+            core.setFailed(`Timed out waiting for rome-rollup-clients build to complete (${runUrl}).`);
 
   run-tests:
     runs-on: ubuntu-latest
-    needs: [create-manifest]
+    needs: [build-image]
     steps:
       - name: Create GitHub App token
         id: app-token
