@@ -189,7 +189,8 @@ jobs:
             const workflow_id = 'reusable_wf_tests.yml';
 
             let runId = null;
-            const maxAttempts = 12;
+            // Budget covers the full integration suite (~25-30 min) plus headroom.
+            const maxAttempts = 30;
             const delayMs = 90000;
 
             for (let i = 0; i < maxAttempts; i++) {
