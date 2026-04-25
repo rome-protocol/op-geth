@@ -20,13 +20,21 @@ jobs:
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.OP_GETH_CROSS_REPO_APP_ID }}
+          private-key: ${{ secrets.OP_GETH_CROSS_REPO_APP_PRIVATE_KEY }}
+          owner: rome-protocol
+
       - name: Checkout rome-rollup-clients
         uses: actions/checkout@v4
         with:
           repository: rome-protocol/rome-rollup-clients
           path: rome-rollup-clients
           ref: ${{ env.ROLLUP_CLIENT_REF_NAME }}
-          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Checkout op-geth
         uses: actions/checkout@v4
@@ -34,7 +42,6 @@ jobs:
           repository: rome-protocol/op-geth
           path: op-geth
           ref: ${{ env.OP_GETH_REF_NAME }}
-          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -61,13 +68,21 @@ jobs:
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.OP_GETH_CROSS_REPO_APP_ID }}
+          private-key: ${{ secrets.OP_GETH_CROSS_REPO_APP_PRIVATE_KEY }}
+          owner: rome-protocol
+
       - name: Checkout rome-rollup-clients
         uses: actions/checkout@v4
         with:
           repository: rome-protocol/rome-rollup-clients
           path: rome-rollup-clients
           ref: ${{ env.ROLLUP_CLIENT_REF_NAME }}
-          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Checkout op-geth
         uses: actions/checkout@v4
@@ -75,7 +90,6 @@ jobs:
           repository: rome-protocol/op-geth
           path: op-geth
           ref: ${{ env.OP_GETH_REF_NAME }}
-          token: ${{ secrets.GIT_ROLLUP_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -128,10 +142,18 @@ jobs:
     runs-on: ubuntu-latest
     needs: [create-manifest]
     steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.OP_GETH_CROSS_REPO_APP_ID }}
+          private-key: ${{ secrets.OP_GETH_CROSS_REPO_APP_PRIVATE_KEY }}
+          owner: rome-protocol
+
       - name: Trigger tests
         uses: actions/github-script@v6
         with:
-          github-token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+          github-token: ${{ steps.app-token.outputs.token }}
           script: |
             await github.rest.actions.createWorkflowDispatch({
               owner: 'rome-protocol',
@@ -159,7 +181,7 @@ jobs:
       - name: Wait for tests to finish
         uses: actions/github-script@v6
         with:
-          github-token: ${{ secrets.GIT_ROLLUP_TOKEN }}
+          github-token: ${{ steps.app-token.outputs.token }}
           script: |
             const sleep = ms => new Promise(res => setTimeout(res, ms));
             const owner = 'rome-protocol';
