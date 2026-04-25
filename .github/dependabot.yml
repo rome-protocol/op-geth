@@ -1,0 +1,51 @@
+# Sourced from: rome-protocol/rome-ops/templates/dependabot/go.yml
+# Rome's OP Stack geth fork — Go modules + Docker + GitHub Actions
+
+version: 2
+
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: friday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - go
+    groups:
+      gomod-patch-and-minor:
+        update-types:
+          - patch
+          - minor
+    ignore:
+      # blst >= 0.3.12 breaks Go 1.22.0. rollup-op-geth builder is capped
+      # at Go 1.22.0 until upstream op-geth bumps blst.
+      - dependency-name: "github.com/supranational/blst"
+        versions: [">= 0.3.12"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: friday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
+    groups:
+      gh-actions:
+        update-types:
+          - patch
+          - minor
+          - major
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: friday
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - docker
