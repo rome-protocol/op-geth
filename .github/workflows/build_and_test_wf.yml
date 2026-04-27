@@ -25,7 +25,38 @@ env:
   OP_GETH_REF_NAME: ${{ github.ref_name }}
 
 jobs:
+  # Dependabot PRs run with a restricted secrets scope (only secrets.dependabot.*),
+  # so they cannot read OP_GETH_CROSS_REPO_APP_PRIVATE_KEY. Without that the
+  # cross-repo dispatch step below fails immediately, and the run-tests job
+  # gated on it skips — leaving every dependabot PR with red CI and zero
+  # actual verification of the bumped dependency.
+  #
+  # This job runs in-repo `go build` + `go vet` for dependabot PRs as a
+  # proof-of-life gate. It catches the cases dependabot bumps actually break:
+  # module resolution, API drift in std-lib bumps, and the blst-vs-Go-version
+  # incompat (blst >= 0.3.12 fails on Go >= 1.22.1) that hits whenever a
+  # transitive bump pulls a newer Go std lib. Image build + downstream
+  # integration tests still happen on every non-dependabot push via
+  # build-image / run-tests.
+  #
+  # github.actor is a GitHub-controlled identity string, not user input —
+  # safe to use directly in if: conditions.
+  dependabot-build:
+    if: github.actor == 'dependabot[bot]'
+    name: Dependabot build check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: go build
+        run: go build ./...
+      - name: go vet
+        run: go vet ./...
+
   build-image:
+    if: github.actor != 'dependabot[bot]'
     name: Dispatch rome-rollup-clients image build
     runs-on: ubuntu-latest
     steps:
