@@ -70,7 +70,8 @@ Bedrock → Regolith → Canyon (Shanghai) → Ecotone (Cancun) — each upgrade
 ## CI/CD
 
 - **CircleCI** (`.circleci/config.yml`): build, unit-test, lint, `go mod tidy` check, Docker release, daily upstream update check
-- **GitHub Actions** (`.github/workflows/`): Docker multi-arch build (amd64+arm64), pushes to `romeprotocol/rollup-op-geth`, triggers downstream tests in private `rome-protocol/tests` repo
+- **GitHub Actions** (`.github/workflows/`): dispatches Docker image build to `rome-protocol/rome-rollup-clients` (which owns the nginx + genesis runtime image published to `romeprotocol/rollup-op-geth`), then triggers downstream test suite in `rome-protocol/tests`
+- **Dependabot** (`.github/dependabot.yml`): weekly updates for Go modules, GitHub Actions, and Docker base images (Fridays). Note: `blst >= 0.3.12` is pinned/ignored until upstream op-geth bumps it (Go 1.22.0 compat)
 
 ## Linting
 
