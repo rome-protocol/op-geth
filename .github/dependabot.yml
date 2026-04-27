@@ -23,6 +23,16 @@ updates:
       # at Go 1.22.0 until upstream op-geth bumps blst.
       - dependency-name: "github.com/supranational/blst"
         versions: [">= 0.3.12"]
+      # The following deps' newer versions force go.mod's Go directive to
+      # >= 1.23 / 1.24 / 1.25, which can't compile against blst v0.3.11
+      # (Go 1.22.0 ceiling). Confirmed empirically against PRs #79, #80,
+      # #81, #82, #84 — each errored with `go: go.mod requires go >= X`.
+      # Re-evaluate when the blst pin above lifts.
+      - dependency-name: "google.golang.org/grpc"
+      - dependency-name: "github.com/consensys/gnark-crypto"
+      - dependency-name: "go.opentelemetry.io/otel/sdk"
+      - dependency-name: "golang.org/x/crypto"
+      - dependency-name: "golang.org/x/net"
 
   - package-ecosystem: github-actions
     directory: /
