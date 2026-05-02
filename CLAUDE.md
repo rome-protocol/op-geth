@@ -70,9 +70,26 @@ Bedrock → Regolith → Canyon (Shanghai) → Ecotone (Cancun) — each upgrade
 ## CI/CD
 
 - **CircleCI** (`.circleci/config.yml`): build, unit-test, lint, `go mod tidy` check, Docker release, daily upstream update check
-- **GitHub Actions** (`.github/workflows/`): dispatches Docker image build to `rome-protocol/rome-rollup-clients` (which owns the nginx + genesis runtime image published to `romeprotocol/rollup-op-geth`), then triggers downstream test suite in `rome-protocol/tests`
-- **Dependabot** (`.github/dependabot.yml`): weekly updates for Go modules, GitHub Actions, and Docker base images (Fridays). Note: `blst >= 0.3.12` is pinned/ignored until upstream op-geth bumps it (Go 1.22.0 compat)
+- **GitHub Actions** (`.github/workflows/build_and_test_wf.yml`):
+  - **build-image** (non-dependabot pushes): dispatches Docker image build to `rome-protocol/rome-rollup-clients` (which owns the nginx + genesis runtime image published to `romeprotocol/rollup-op-geth`), then triggers downstream test suite in `rome-protocol/tests`
+  - **dependabot-build** (dependabot pushes only): runs `go build ./...` pinned to Go 1.22.0 with `GOTOOLCHAIN=local`. Dependabot PRs cannot access the cross-repo App secret, so cross-repo dispatch is skipped; this in-repo build catches compile errors, module resolution conflicts, and the blst-vs-Go-version trap. Note: `go vet` is intentionally excluded due to a pre-existing `TransitionDb` signature mismatch in tracer tests (see Known Issues)
+  - **run-tests** (non-dependabot, after build-image): dispatches integration tests (`evm`, `state_comparison`, `state_comparison_2`, `uniswap_proxy`, `uniswap_op_geth`) to `rome-protocol/tests`
+  - Cross-repo auth uses a dedicated GitHub App (`rome-op-geth-cross-repo`) installed on op-geth, rome-rollup-clients, and tests. Credentials: `vars.OP_GETH_CROSS_REPO_APP_ID` / `secrets.OP_GETH_CROSS_REPO_APP_PRIVATE_KEY` (repo-level)
+- **Dependabot auto-merge** (`.github/workflows/dependabot-auto-merge.yml`): auto-approves and merges patch/minor dependabot PRs that pass CI
+- **Dependabot** (`.github/dependabot.yml`): weekly updates for Go modules, GitHub Actions, and Docker base images (Fridays). Ignored dependencies (all blocked by `blst v0.3.11` / Go 1.22.0 ceiling):
+  - `github.com/supranational/blst >= 0.3.12` — breaks Go 1.22.0 directly
+  - `google.golang.org/grpc` — requires Go >= 1.24
+  - `github.com/consensys/gnark-crypto` — requires Go >= 1.23
+  - `go.opentelemetry.io/otel/sdk` — requires Go >= 1.25
+  - `golang.org/x/crypto` — requires Go >= 1.24
+  - `golang.org/x/net` — requires Go >= 1.23
+
+  These ignores prevent dependabot from reopening doomed PRs every Friday. They will be re-evaluated when upstream op-geth bumps blst (lifting the Go 1.22.0 ceiling).
 
 ## Linting
 
 Config in `.golangci.yml`. Key enabled linters: goimports, gosimple, govet, ineffassign, misspell, unconvert, staticcheck, unused, bidichk.
+
+## Known Issues
+
+- **Tracer test `TransitionDb` mismatch**: `eth/tracers/internal/tracetest/calltrace_test.go` and `eth/tracers/tracers_test.go` call `st.TransitionDb` with a stale signature (not enough arguments). This pre-dates the fork's changes — it's a core refactor that never updated tracer test fixtures. `go vet ./...` catches it but `go build ./...` does not. CircleCI's golangci-lint covers vet/lint for real PRs; the dependabot-build job intentionally skips vet to avoid this false positive.
