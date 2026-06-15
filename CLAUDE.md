@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is **Rome Protocol's fork of op-geth** (Optimism's fork of go-ethereum). It serves as the Execution Layer in the OP Stack architecture, with minimal changes to maintain Ethereum equivalence. The Consensus Layer is handled by `op-node` (separate repo).
 
 - **Go module:** `github.com/ethereum/go-ethereum` (retains upstream module path)
-- **Go version:** 1.22+ (toolchain 1.23.1)
+- **Go version:** `go 1.22.0` / `toolchain go1.23.1` in `go.mod`. CI's `dependabot-build` job pins to Go 1.22.0 with `GOTOOLCHAIN=local` to honor the blst v0.3.11 ceiling — bumping `go.mod` past 1.22.0 in lockstep with a blst upgrade requires bumping `dependabot-build` too.
 - **Upstream geth:** v1.13.8 | **op-geth:** v0.1.0
 
 ## Build & Test Commands
