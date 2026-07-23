@@ -1,4 +1,4 @@
-> **Part of [Rome Protocol](https://github.com/rome-protocol)** — EVM chains that run natively inside the Solana runtime. This fork is . For building on Rome, start at the [Rome Protocol Documentation](https://docs.rome.builders).
+> **Part of [Rome Protocol](https://github.com/rome-protocol)** — EVM chains that run natively inside the Solana runtime. This fork is the op-geth client Rome uses for Ethereum RPC compatibility. For building on Rome, start at the [Rome Protocol Documentation](https://docs.rome.builders).
 
 ## Go Ethereum
 
