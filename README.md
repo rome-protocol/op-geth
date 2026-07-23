@@ -1,3 +1,5 @@
+> **Part of [Rome Protocol](https://github.com/rome-protocol)** — EVM chains that run natively inside the Solana runtime. This fork is . For building on Rome, start at the [Rome Protocol Documentation](https://docs.rome.builders).
+
 ## Go Ethereum
 
 Official Golang execution layer implementation of the Ethereum protocol.
